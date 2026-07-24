@@ -91,5 +91,13 @@ check "JSON body does not consume post-script" \
   $'POST /test\nContent-Type: application/json\n\n{\n  "key": "value"\n}\n\n> {% assert(status == 200) %}' \
   "post_script"
 
+check "run directive with ./path" \
+  "run ./helper_batch.http" \
+  "run_target_name"
+
+check "run directive with alias.name" \
+  "run #auth.LoginWithToken (@token=abc)" \
+  "run_target_prefix"
+
 echo "=== Results: $pass passed, $fail failed ==="
 exit $fail
