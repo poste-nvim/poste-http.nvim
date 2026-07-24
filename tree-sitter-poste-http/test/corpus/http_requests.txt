@@ -234,8 +234,9 @@ Run directive
 
 run #Login
 run #orders.ListOrders (@status=pending)
+run ./helper_batch.http
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 (document
   (run_directive
@@ -245,7 +246,10 @@ run #orders.ListOrders (@status=pending)
     (run_target
       (run_target_prefix)
       (run_target_name))
-    (run_vars_clause)))
+    (run_vars_clause))
+  (run_directive
+    (run_target
+      (run_target_name))))
 
 ================================================================================
 File upload

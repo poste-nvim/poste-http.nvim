@@ -263,9 +263,9 @@ module.exports = grammar({
       $.run_target_name,
     ),
 
-    run_target_prefix: $ => /[^\s.]+(?:\.[^\s.]+)*\./,
+    run_target_prefix: $ => token(prec(1, /[^ \t\n.]+\./)),
 
-    run_target_name: $ => /[^\s.]+/,
+    run_target_name: $ => token(/[^ \t\n]+/),
 
     run_vars_clause: $ => token(seq(
       /[ \t]*/,
