@@ -266,6 +266,68 @@ function M.show_var_value()
     { buffer = float_buf, noremap = true, silent = true })
 end
 
+local function find_var_def(buf, var_name, cursor_line)
+  local current_req = nil
+  local requests = request_vars.collect_requests(buf)
+  for _, req in ipairs(requests) do
+    if cursor_line >= req.start_line and cursor_line <= req.end_line then
+      current_req = req
+      break
+    end
+  end
+
+  local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
+  local block_match = nil
+  local file_match = nil
+
+  for _, def in ipairs(var_defs) do
+    local name_node = def:named_child(0)
+    if name_node and ts_query.node_text(name_node) == var_name then
+      local sr = def:start()
+      local def_line = sr + 1
+      if current_req and def_line >= current_req.start_line and def_line <= current_req.end_line then
+        block_match = name_node
+        break
+      elseif not file_match then
+        file_match = name_node
+      end
+    end
+  end
+
+  return block_match or file_match
+end
+
+local function find_var_in_pre_script(buf, var_name, cursor_line)
+  local requests = request_vars.collect_requests(buf)
+  local current_req = nil
+  for _, req in ipairs(requests) do
+    if cursor_line >= req.start_line and cursor_line <= req.end_line then
+      current_req = req
+      break
+    end
+  end
+  if not current_req then return nil end
+
+  local esc_name = vim.pesc(var_name)
+  local set_pattern = 'request%.variables%.set%("' .. esc_name .. '%"'
+  local set_pattern_single = "request%.variables%.set%('" .. esc_name .. "%'"
+
+  for i = current_req.start_line, current_req.end_line do
+    local t = cache.get_line_type(buf, i)
+    if t == "pre_script" then
+      local text = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1] or ""
+      if text:match(set_pattern) then
+        local q = text:find('"' .. esc_name .. '"', 1, true)
+        return i, (q and q - 1) or 0
+      elseif text:match(set_pattern_single) then
+        local q = text:find("'" .. esc_name .. "'", 1, true)
+        return i, (q and q - 1) or 0
+      end
+    end
+  end
+  return nil
+end
+
 local function ts_goto_definition()
   local buf = vim.api.nvim_get_current_buf()
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -285,15 +347,7 @@ local function ts_goto_definition()
     if variable then
       local var_name = ts_query.node_text(node)
 
-      local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
-      local def_node = nil
-      for _, def in ipairs(var_defs) do
-        local name_node = def:named_child(0)
-        if name_node and ts_query.node_text(name_node) == var_name then
-          def_node = name_node
-          break
-        end
-      end
+      local def_node = find_var_def(buf, var_name, cursor[1])
       if def_node then
         local sr, sc = def_node:start()
         vim.cmd("normal! m'")
@@ -339,6 +393,13 @@ local function ts_goto_definition()
         end
       end
 
+      local pre_line, pre_col = find_var_in_pre_script(buf, var_name, cursor[1])
+      if pre_line then
+        vim.cmd("normal! m'")
+        vim.api.nvim_win_set_cursor(0, { pre_line, pre_col })
+        return
+      end
+
       vim.notify("Definition not found: " .. var_name, vim.log.levels.WARN)
       return
     end
@@ -349,15 +410,7 @@ local function ts_goto_definition()
     if not identifier_node then return end
     local var_name = ts_query.node_text(identifier_node)
 
-    local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
-    local def_node = nil
-    for _, def in ipairs(var_defs) do
-      local name_node = def:named_child(0)
-      if name_node and ts_query.node_text(name_node) == var_name then
-        def_node = name_node
-        break
-      end
-    end
+    local def_node = find_var_def(buf, var_name, cursor[1])
     if def_node then
       local sr, sc = def_node:start()
       vim.cmd("normal! m'")
@@ -401,6 +454,13 @@ local function ts_goto_definition()
           if in_section and l:match("^%s*}") then break end
         end
       end
+    end
+
+    local pre_line, pre_col = find_var_in_pre_script(buf, var_name, cursor[1])
+    if pre_line then
+      vim.cmd("normal! m'")
+      vim.api.nvim_win_set_cursor(0, { pre_line, pre_col })
+      return
     end
 
     vim.notify("Definition not found: " .. var_name, vim.log.levels.WARN)
@@ -468,21 +528,21 @@ local function ts_goto_definition()
   while s do
     if col + 1 >= s and col + 1 <= e then
       local var_name = vim.trim(line_text:sub(s + 2, e - 2))
-      local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
-      local def_node = nil
-      for _, def in ipairs(var_defs) do
-        local name_node = ts_query.find_child_by_field(def, "name")
-        if name_node and ts_query.node_text(name_node) == var_name then
-          def_node = name_node
-          break
-        end
-      end
+      local def_node = find_var_def(buf, var_name, cursor[1])
       if def_node then
         local sr, sc = def_node:start()
         vim.cmd("normal! m'")
         vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
         return
       end
+
+      local pre_line, pre_col = find_var_in_pre_script(buf, var_name, cursor[1])
+      if pre_line then
+        vim.cmd("normal! m'")
+        vim.api.nvim_win_set_cursor(0, { pre_line, pre_col })
+        return
+      end
+
       break
     end
     s, e = line_text:find("{{(.-)}}", e + 1)
@@ -900,26 +960,11 @@ function M.goto_definition()
   end
 
   -- Search pre-script blocks for request.variables.set("var_name", ...)
-  if not found_line and current_req then
-    local esc_name = vim.pesc(req_name)
-    local set_pattern = 'request%.variables%.set%("' .. esc_name .. '%"'
-    local set_pattern_single = "request%.variables%.set%('" .. esc_name .. "%'"
-    for i = current_req.start_line, current_req.end_line do
-      local t = cache.get_line_type(buf, i)
-      if t == "pre_script" then
-        local text = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1] or ""
-        if text:match(set_pattern) then
-          found_line = i
-          local q = text:find('"' .. esc_name .. '"', 1, true)
-          found_col = q and q or 0
-          break
-        elseif text:match(set_pattern_single) then
-          found_line = i
-          local q = text:find("'" .. esc_name .. "'", 1, true)
-          found_col = q and q or 0
-          break
-        end
-      end
+  if not found_line then
+    local pre_line, pre_col = find_var_in_pre_script(buf, req_name, line_num)
+    if pre_line then
+      found_line = pre_line
+      found_col = pre_col
     end
   end
 
