@@ -3,11 +3,177 @@
 local M = {}
 local data = require("poste.http.data")
 local cache = require("poste.http.cache")
+local ts_query = require("poste.http.ts_query")
+local state = require("poste.state")
+
+local function use_ts()
+  return state.config.use_treesitter and state.config.use_treesitter.context_detector ~= false
+end
+
+local function ts_detect_script_context(buf, cursor_line, cursor_col)
+  local row = cursor_line - 1
+  local col = cursor_col - 1
+  local node = ts_query.node_at_point(buf, row, col)
+  if not node then return nil end
+
+  local parent = ts_query.parent_of_type(node, "pre_script", "post_script")
+  if parent then
+    if parent:type() == "pre_script" then return "pre_script" end
+    if parent:type() == "post_script" then return "post_script" end
+  end
+  return nil
+end
+
+local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_col)
+  if buf and cursor_line and cursor_col then
+    local script_ctx = ts_detect_script_context(buf, cursor_line, cursor_col)
+    if script_ctx then
+      if script_ctx == "post_script" then
+        local status_pat = "response%.status%s*[=!~<>]=?%s*"
+        if line_before_cursor:match(status_pat) then
+          return "status_code", line_before_cursor
+        end
+      end
+      return script_ctx, line_before_cursor
+    end
+  end
+
+  if not buf then return nil end
+  local row = cursor_line and (cursor_line - 1) or 0
+  local col = cursor_col or 0
+
+  local node = ts_query.node_at_point(buf, row, col)
+  if not node then
+    local trimmed = vim.trim(line_before_cursor)
+    if trimmed == "" then
+      return "method", nil
+    end
+    return nil
+  end
+
+  local node_type = node:type()
+  local parent = ts_query.parent_of_type(node,
+    "request_line", "header", "variable", "variable_definition",
+    "prompt_variable", "import_directive", "run_directive",
+    "json_body", "request_block", "multipart_boundary",
+    "multipart_form_data", "form_body", "file_upload", "file_ref"
+  )
+
+  local parent_type = parent and parent:type() or node_type
+
+  if parent_type == "request_line" then
+    if node_type == "url" or node_type == "url_path" or node_type == "query_string" then
+      return nil
+    end
+    if node_type == "method" or node_type == "method_get" or node_type == "method_post"
+      or node_type == "method_put" or node_type == "method_delete"
+      or node_type == "method_patch" or node_type == "method_head"
+      or node_type == "method_options" then
+      return nil
+    end
+    return "method", nil
+  end
+
+  if parent_type == "header" then
+    if node_type == "header_key" then
+      return "header_value", ts_query.node_text(node)
+    end
+    if node_type == "header_value" then
+      return "header_value", ts_query.node_text(node)
+    end
+    return "method_or_header", nil
+  end
+
+  if parent_type == "variable" then
+    local after
+    if node:type() == "identifier" then
+      after = ts_query.node_text(node)
+    else
+      local identifier_node = node:named_child(0)
+      after = identifier_node and ts_query.node_text(identifier_node) or ""
+    end
+    local dot_pos = after:find("%.")
+    if dot_pos then
+      local prefix = after:sub(1, dot_pos - 1)
+      local partial = after:sub(dot_pos + 1)
+      if prefix:match("^[%w_%.]+$") then
+        return "variable_namespace", { prefix = prefix, partial = partial or "" }
+      end
+    end
+    return "variable", after
+  end
+
+  if parent_type == "variable_definition" then
+    return nil
+  end
+
+  if parent_type == "prompt_variable" then
+    local trimmed = vim.trim(line_before_cursor)
+    local rev = line_before_cursor:reverse()
+    local last_open = rev:find("{{", 1, true)
+    local last_close = rev:find("}}", 1, true)
+    if last_open and (not last_close or last_close > last_open) then
+      local after_open = line_before_cursor:sub(#line_before_cursor - last_open + 2)
+      return "variable", after_open
+    end
+    return nil
+  end
+
+  if parent_type == "import_directive" then
+    if node_type == "import_path" then
+      return "import_path", nil
+    end
+    local node_text = ts_query.node_text(node)
+    if node_text == "as" or node_text:match("^as%s+") then
+      return "import_alias", nil
+    end
+    if node_text:match("^import") then
+      return "import_path", nil
+    end
+    return nil
+  end
+
+  if parent_type == "run_directive" then
+    local trimmed = vim.trim(line_before_cursor)
+    if trimmed:match("^run%s+#") then
+      local rest = trimmed:match("^run%s+#(.*)$")
+      if rest and rest:find("%.") then
+        local alias, partial = rest:match("^([^%.]+)%.(.*)$")
+        return "run_target_alias", { alias = alias, partial = partial or "" }
+      end
+      return "run_target_hash", rest or ""
+    end
+    if trimmed:match("^run%s+") then
+      local target = trimmed:match("^run%s+(.*)$")
+      return "run_target", target or ""
+    end
+    return "run_target", nil
+  end
+
+  if parent_type == "json_body" or parent_type == "multipart_boundary"
+    or parent_type == "multipart_form_data" or parent_type == "form_body" then
+    return nil
+  end
+
+  if parent_type == "file_upload" or parent_type == "file_ref" then
+    return nil
+  end
+
+  local trimmed = vim.trim(line_before_cursor)
+  if trimmed == "" then
+    return "method", nil
+  end
+
+  return nil
+end
 
 --- Detect if cursor is inside a pre-request or post-request script block.
 --- Uses cache.lua O(1) line_type lookup instead of buffer scanning.
 --- Returns: "pre_script", "post_script", or nil
 local function detect_script_context(buf, cursor_line, cursor_col)
+  if use_ts() then
+    return ts_detect_script_context(buf, cursor_line, cursor_col)
+  end
   local t = require("poste.http.cache").get_line_type(buf, cursor_line)
   if t == "pre_script" then
     return "pre_script"
@@ -36,6 +202,10 @@ end
 ---   "post_script"      - inside > {% ... %} block
 ---   nil                - no completion
 local function detect_context(line_before_cursor, buf, cursor_line, cursor_col)
+  if use_ts() then
+    return ts_detect_context(line_before_cursor, buf, cursor_line, cursor_col)
+  end
+
   -- Check if we're inside a script block (takes precedence over all other contexts)
   if buf and cursor_line and cursor_col then
     local script_ctx = detect_script_context(buf, cursor_line, cursor_col)

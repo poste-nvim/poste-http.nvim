@@ -1,5 +1,6 @@
 local M = {}
 local cache = require("poste.http.cache")
+local state = require("poste.state")
 
 local ns = vim.api.nvim_create_namespace("poste_http_var_refs")
 local mapping_ns = vim.api.nvim_create_namespace("poste_http_prompt_mapping")
@@ -105,6 +106,16 @@ function M.enable(bufnr)
       highlight_var_refs(bufnr)
     end,
   })
+
+  if state.config.use_treesitter and state.config.use_treesitter.folding then
+    vim.bo[bufnr].foldmethod = "expr"
+    vim.bo[bufnr].foldexpr = "v:lua.require('poste.http.folding').foldexpr()"
+  end
+
+  if state.config.use_treesitter and state.config.use_treesitter.diagnostics then
+    local diagnostics = require("poste.http.diagnostics")
+    diagnostics.enable(bufnr)
+  end
 end
 
 function M.disable(bufnr)
@@ -112,6 +123,11 @@ function M.disable(bufnr)
   pcall(vim.treesitter.stop, bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   vim.api.nvim_buf_clear_namespace(bufnr, mapping_ns, 0, -1)
+
+  if state.config.use_treesitter and state.config.use_treesitter.diagnostics then
+    local diagnostics = require("poste.http.diagnostics")
+    diagnostics.disable(bufnr)
+  end
 end
 
 --- Inspect the treesitter parse tree for the current buffer.

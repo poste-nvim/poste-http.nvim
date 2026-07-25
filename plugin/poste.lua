@@ -148,3 +148,24 @@ vim.api.nvim_create_user_command("PosteInfo", function()
 
   vim.notify(table.concat(parts, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Poste environment info" })
+
+vim.api.nvim_create_user_command("PosteTSStatus", function()
+  local state = require("poste.state")
+  local ts = state.config.use_treesitter or {}
+  local buf = vim.api.nvim_get_current_buf()
+  local parser_ok = pcall(vim.treesitter.get_parser, buf, "poste_http")
+  local ft = vim.bo[buf].filetype
+
+  local lines = {
+    "─ tree-sitter status ─",
+    string.format("filetype:      %s", ft),
+    string.format("parser active: %s", parser_ok and "yes" or "no"),
+    string.format("nav:           %s", ts.nav and "tree-sitter" or "regex"),
+    string.format("context_det:   %s", ts.context_detector and "tree-sitter" or "regex"),
+    string.format("outline:       %s", ts.outline and "tree-sitter" or "regex"),
+    string.format("folding:       %s", ts.folding and "tree-sitter" or "regex"),
+    string.format("diagnostics:   %s", ts.diagnostics and "tree-sitter" or "regex"),
+    "─",
+  }
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+end, { desc = "Show tree-sitter feature status" })

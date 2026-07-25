@@ -1,0 +1,58 @@
+@base_url = http://localhost:8888
+@api_key = sk-dev-abc123
+
+### Health Check
+GET {{base_url}}/health
+Authorization: Bearer {{api_key}}
+Accept: application/json
+
+### Get Users
+< {%
+  local page = request.variables.get("page") or 1
+  request.variables.set("page", tostring(page))
+%}
+GET {{base_url}}/api/users?page={{page}}&limit=20
+Authorization: Bearer {{api_key}}
+Content-Type: application/json
+
+### Create User (with duplicate var)
+@base_url = http://other.com
+POST {{base_url}}/api/users
+Authorization: Bearer {{api_key}}
+Content-Type: application/json
+
+{
+  "name": "John",
+  "email": "john@example.com",
+  "role": "admin"
+}
+
+> {%
+  client.test("status is 201", function()
+    client.assert(response.status == 201, "Expected 201 Created")
+  end)
+  client.test("has id", function()
+    client.assert(response.body.id ~= nil, "Response should have an id")
+  end)
+%}
+
+### Update User (with empty header)
+PUT {{base_url}}/api/users/1
+Authorization: Bearer {{api_key}}
+X-Empty-Header:
+Content-Type: application/json
+
+{
+  "name": "John Updated"
+}
+
+### Delete User
+DELETE {{base_url}}/api/users/1
+
+### Run via alias
+import ./fixtures/http-completion.http as fixtures
+
+run #fixtures.GetUser
+
+### Magic vars
+GET {{base_url}}/logs?ts={{$timestamp}}&uuid={{$uuid}}

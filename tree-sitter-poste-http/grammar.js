@@ -131,7 +131,10 @@ module.exports = grammar({
 
     header_key: $ => /[A-Za-z][A-Za-z0-9-]*/,
 
-    header_value: $ => /[^\n]*/,
+    header_value: $ => repeat1(choice(
+      /[^\n{}]+/,
+      $.variable,
+    )),
 
     // ─── Variable Definition ────────────────────────
     variable_definition: $ => seq(

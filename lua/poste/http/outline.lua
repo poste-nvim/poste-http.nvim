@@ -1,7 +1,13 @@
 local _ = require("poste.state")
 local request_vars = require("poste.http.request_vars")
+local ts_query = require("poste.http.ts_query")
+local state = require("poste.state")
 
 local M = {}
+
+local function use_ts()
+  return state.config.use_treesitter and state.config.use_treesitter.outline ~= false
+end
 
 local active = nil
 local hl_ns = vim.api.nvim_create_namespace("poste_outline")
@@ -76,7 +82,124 @@ local function collect_file_scope_vars(buf)
   return items
 end
 
+local function ts_collect_file_scope_vars(buf)
+  local seps = ts_query.query_nodes(buf, [[
+    (separator) @sep
+  ]])
+  local first_sep_line = nil
+  if #seps > 0 then
+    for _, cap in ipairs(seps[1].captures) do
+      if cap.name == "sep" then
+        first_sep_line = cap.node:start()
+      end
+    end
+  end
+
+  local results = ts_query.query_nodes(buf, [[
+    (variable_definition
+      (var_name) @name
+      (var_value) @val)
+  ]])
+  local items = {}
+
+  for _, match in ipairs(results) do
+    local name_node, val_node = nil, nil
+    local name, val = "", ""
+    for _, cap in ipairs(match.captures) do
+      if cap.name == "name" then name_node = cap.node; name = ts_query.node_text(cap.node) end
+      if cap.name == "val" then val_node = cap.node; val = ts_query.node_text(cap.node) end
+    end
+    if name_node then
+      local sr = name_node:start()
+      if first_sep_line and sr >= first_sep_line then break end
+      table.insert(items, {
+        name = "@" .. name,
+        line = sr + 1,
+        method = "@",
+        url_path = vim.trim(val),
+      })
+    end
+  end
+
+  return items
+end
+
+local function ts_collect_items(buf)
+  local items = ts_collect_file_scope_vars(buf)
+
+  local results = ts_query.query_nodes(buf, [[
+    (request_block
+      (separator)
+      (request_name) @name)
+  ]])
+
+  for _, match in ipairs(results) do
+    local name_node = nil
+    for _, cap in ipairs(match.captures) do
+      if cap.name == "name" then name_node = cap.node end
+    end
+    if name_node then
+      local sr = name_node:start()
+      local name = vim.trim(ts_query.node_text(name_node))
+
+      local method = "--"
+      local url_path = nil
+
+      local block_node = ts_query.parent_of_type(name_node, "request_block")
+      if block_node then
+        local br, _, _, _ = block_node:range()
+        local line_nodes = ts_query.query_nodes_in_range(buf, [[
+          (request_line) @line
+        ]], br, br + 20)
+
+        for _, ln in ipairs(line_nodes) do
+          local line_node = ln.captures[1].node
+          local method_node = line_node:named_child(0)
+          if method_node then
+            method = ts_query.node_text(method_node):upper()
+            local url_node = line_node:named_child(1)
+            if url_node then
+              local url = ts_query.node_text(url_node)
+              url_path = url:match("://[^/]*(.*)")
+                or url:match("}}(.*)")
+                or url:match("^(/.*)")
+                or nil
+              if url_path then url_path = url_path:gsub("%?.*", "") end
+            end
+          end
+          break
+        end
+
+        if method == "--" then
+          local run_nodes = ts_query.query_nodes_in_range(buf, [[
+            (run_directive) @run
+          ]], br, br + 3)
+          if #run_nodes > 0 then
+            local run_node = run_nodes[1].captures[1].node
+            local target_child = run_node:child_by_field_name("target")
+            local target = target_child and ts_query.node_text(target_child) or ""
+            method = "run"
+            url_path = target
+          end
+        end
+      end
+
+      table.insert(items, {
+        name = name,
+        line = sr + 1,
+        method = method,
+        url_path = url_path,
+      })
+    end
+  end
+
+  return items
+end
+
 local function collect_items(buf)
+  if use_ts() then
+    return ts_collect_items(buf)
+  end
   local items = collect_file_scope_vars(buf)
   local requests = request_vars.collect_requests(buf)
   local total = vim.api.nvim_buf_line_count(buf)

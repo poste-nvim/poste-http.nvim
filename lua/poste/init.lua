@@ -31,6 +31,14 @@ function M.setup(opts)
   opts = opts or {}
   state.config = vim.tbl_deep_extend("force", state.config, opts)
 
+  state.config.use_treesitter = vim.tbl_deep_extend("force", {
+    nav = false,
+    context_detector = false,
+    outline = false,
+    folding = false,
+    diagnostics = false,
+  }, state.config.use_treesitter or {})
+
   if vim.g.poste_setup_done then
     return
   end
@@ -166,6 +174,10 @@ function M.setup(opts)
     local cleaned = format.clean_response_cache()
     vim.notify(string.format("[Poste] Cleared %d old response file(s)", cleaned), vim.log.levels.INFO)
   end, { desc = "Remove old cached response files from stdpath(cache)/poste_res/" })
+
+  vim.api.nvim_create_user_command("PosteTSInspect", function()
+    require("poste.http.treesitter").inspect()
+  end, { desc = "Inspect tree-sitter parse tree for current buffer" })
 
   _G.poste_status = function()
     return string.format("[env: %s]", state.current_env)

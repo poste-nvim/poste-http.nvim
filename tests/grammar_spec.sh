@@ -68,7 +68,7 @@ check "{{var}} in URL" \
   "url"
 
 check "multiple headers" \
-  "GET /test\nContent-Type: app/json\nAccept: */*" \
+  $'GET /test\nContent-Type: app/json\nAccept: */*' \
   "header"
 
 check "pre_script inline" \
