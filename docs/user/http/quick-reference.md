@@ -68,18 +68,14 @@ Header-Key: Header-Value                   ← Headers (multiple allowed)
 ## File Include / Upload
 
 ```
-# JSON embedding (when Content-Type contains json)
-POST /api/data
-Content-Type: application/json
-
-< /path/to/payload.json
-
 # File upload (multipart/form-data)
 POST /api/upload
 Content-Type: multipart/form-data
 
 < /path/to/file.txt
 ```
+
+> **Note**: `< path` for JSON body embedding has been removed. Use Lua import: `import ./vars.lua as m` then `{{m.key}}`.
 
 ---
 

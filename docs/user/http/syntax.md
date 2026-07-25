@@ -156,7 +156,7 @@ Content-Type: application/json
 - URL-encoded form data (`key=value&key2=value2`)
 - `multipart/form-data` (via `request_vars.lua`)
 
-**File include/upload syntax** (unified `< path` format):
+**File upload in multipart form data** (`< path`):
 
 ```
 POST /api/upload
@@ -165,20 +165,13 @@ Content-Type: multipart/form-data; boundary=----boundary
 < /path/to/file.txt
 ```
 
-```
-POST /api/data
-Content-Type: application/json
-
-< /path/to/payload.json
-```
-
 **Rules**:
 - `<` followed by a space, then the file path
 - Path supports absolute paths, `./` relative paths, `~/` home directory
-- **Content-Type contains `json`**: file content is embedded directly into the body
-- **Content-Type contains `multipart/form-data`**: treated as file upload
+- **Only valid inside `multipart/form-data`** bodies (file upload parts)
 - If file is not found, the original line is preserved with a warning
-- This syntax is NOT `</path>` — that's the old deprecated design
+
+> **Removed**: `< path` for JSON body embedding (e.g., `< /path/to/payload.json` with `Content-Type: application/json`) has been removed. Use Lua import instead: `import ./vars.lua as m` then `{{m.key}}` or `@var = m.key`.
 
 ### 2.8 Variable References
 

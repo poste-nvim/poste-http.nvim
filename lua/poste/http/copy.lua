@@ -112,7 +112,6 @@ end
 --- Resolve variables in request block content:
 --- 1. Replace magic vars ({{$timestamp}}, {{$uuid}}, {{$date}}, {{$randomInt}})
 --- 2. Resolve {{var}} iteratively
---- 3. Handle file inclusion lines (< /path/to/file)
 local function resolve_request_content(buf, raw_lines, block_start_line)
   local vars = collect_vars(buf, block_start_line)
   local content = table.concat(raw_lines, "\n")
@@ -133,33 +132,6 @@ local function resolve_request_content(buf, raw_lines, block_start_line)
   -- {{var}} substitution
   content = substitute_vars(content, vars)
 
-  -- File inclusion lines: < /path/to/file
-  local inc_lines = vim.split(content, "\n", { plain = true })
-  local buf_name = vim.api.nvim_buf_get_name(buf)
-  local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-  local out_lines = {}
-  for _, line in ipairs(inc_lines) do
-    local file_path_inc = line:match("^%s*<%s+(.+)$")
-    if file_path_inc then
-      file_path_inc = vim.trim(file_path_inc)
-      if file_path_inc:sub(1, 1) == "~" then
-        file_path_inc = vim.fn.expand("~") .. file_path_inc:sub(2)
-      elseif file_path_inc:sub(1, 1) ~= "/" then
-        file_path_inc = vim.fn.simplify(buf_dir .. "/" .. file_path_inc)
-      end
-      local f = io.open(file_path_inc, "rb")
-      if f then
-        table.insert(out_lines, f:read("*a"))
-        f:close()
-      else
-        table.insert(out_lines, line)
-      end
-    else
-      table.insert(out_lines, line)
-    end
-  end
-  content = table.concat(out_lines, "\n")
-
   return vim.split(content, "\n", { plain = true })
 end
 
@@ -176,7 +148,7 @@ local function resolve_file_path(path, buf_dir)
 end
 
 --- Build -F flags from multipart/form-data body lines (before resolution).
---- raw_lines: body lines from the .http file (unresolved, may contain < file refs)
+--- raw_lines: body lines from the .http file (unresolved)
 local function build_multipart_flags(raw_lines, boundary, buf_dir, vars)
   local flags = {}
   local boundary_delim = "--" .. boundary

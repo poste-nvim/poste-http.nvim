@@ -178,6 +178,31 @@ function M.build_import_index(imports, buf_dir)
     local content, err = read_file(file_path)
     if not content then
       table.insert(index.errors, string.format("Cannot read import '%s': %s", imp.path, err or "unknown error"))
+    elseif file_path:match("%.lua$") then
+      -- Lua module import: load and execute the file to get exports
+      local fn, load_err = load(content, "@" .. file_path)
+      if not fn then
+        table.insert(index.errors, string.format("Cannot load Lua import '%s': %s", imp.path, load_err))
+      else
+        local ok, exports = pcall(fn)
+        if not ok then
+          table.insert(index.errors, string.format("Cannot execute Lua import '%s': %s", imp.path, exports))
+        else
+          exports = exports or {}
+          local entry = { path = file_path, exports = exports, is_lua = true }
+          if imp.type == "aliased" then
+            if seen_aliases[imp.alias] then
+              table.insert(index.errors, string.format("Duplicate alias '%s': %s and %s",
+                imp.alias, seen_aliases[imp.alias], imp.path))
+            else
+              seen_aliases[imp.alias] = imp.path
+              index.aliased[imp.alias] = entry
+            end
+          else
+            table.insert(index.bare, entry)
+          end
+        end
+      end
     else
       local requests = extract_request_names(content)
       if imp.type == "aliased" then
@@ -810,13 +835,195 @@ function M.status()
   table.insert(out, string.format("Aliased imports (%d):", #alias_keys))
   for _, alias in ipairs(alias_keys) do
     local entry = index.aliased[alias]
-    table.insert(out, string.format("  %s → %s (%d requests)", alias, entry.path, #entry.requests))
-    for _, req in ipairs(entry.requests) do
-      table.insert(out, string.format("    #%s.%s  (line %d)", alias, req.name, req.line))
+    if entry.is_lua then
+      table.insert(out, string.format("  %s → %s (Lua module)", alias, entry.path))
+      for k, _ in pairs(entry.exports) do
+        table.insert(out, string.format("    %s.%s", alias, k))
+      end
+    else
+      table.insert(out, string.format("  %s → %s (%d requests)", alias, entry.path, #entry.requests))
+      for _, req in ipairs(entry.requests) do
+        table.insert(out, string.format("    #%s.%s  (line %d)", alias, req.name, req.line))
+      end
     end
   end
 
   return out
+end
+
+--- Resolve a dot-separated keypath against an exports table.
+--- Supports: "key", "key.subkey", "key[1]", "key[1].subkey"
+--- @param exports table  Lua module exports table
+--- @param keypath string  Dot-separated path, e.g. "person.name" or "tags[1]"
+--- @return any|nil  Resolved value, or nil if not found
+local function resolve_path_for_export(exports, keypath)
+  if not exports or not keypath then return nil end
+
+  local segments = {}
+  local i = 1
+  while i <= #keypath do
+    if keypath:sub(i, i) == "." then
+      i = i + 1
+    else
+      local start = i
+      while i <= #keypath do
+        local c = keypath:sub(i, i)
+        if c == "." then
+          break
+        end
+        i = i + 1
+      end
+      table.insert(segments, keypath:sub(start, i - 1))
+    end
+  end
+
+  local current = exports
+  for _, seg in ipairs(segments) do
+    if type(current) ~= "table" then return nil end
+    -- Handle array index: "key[1]" or "key[2]"
+    local name, idx = seg:match("^(%w+)%[(%d+)%]$")
+    if name then
+      current = current[name]
+      if type(current) == "table" then
+        current = current[tonumber(idx)]
+      else
+        return nil
+      end
+    else
+      current = current[seg]
+    end
+    if current == nil then return nil end
+  end
+
+  return current
+end
+
+--- Convert a Lua value to an HTTP string representation.
+--- Numbers → tostring, strings → as-is, tables → JSON, booleans → tostring, nil → ""
+--- @param val any
+--- @return string
+local function value_to_http_string(val)
+  local t = type(val)
+  if t == "string" then
+    return val
+  elseif t == "number" or t == "boolean" then
+    return tostring(val)
+  elseif t == "table" then
+    local ok, encoded = pcall(vim.json.encode, val)
+    if ok then return encoded end
+    return ""
+  else
+    return ""
+  end
+end
+
+-- Cache for loaded Lua modules: resolved_path → exports table
+local lua_module_cache = {}
+
+--- Resolve Lua import references in content.
+--- Finds `import ./path.lua as alias` lines, loads the Lua files,
+--- and replaces:
+---   - {{alias.keypath}}  → resolved value
+---   - @var = alias.keypath → @var = <json_value>
+--- Also strips import lines for .lua files from the content.
+--- @param content string  Full buffer content
+--- @param buf_dir string  Directory of the current buffer (for resolving relative paths)
+--- @return string  Modified content with Lua imports resolved
+function M.resolve_lua_imports(content, buf_dir)
+  if not content or not buf_dir then return content end
+
+  -- Collect Lua import directives and build result lines (import lines → blank)
+  local lua_imports = {}
+  local lines = vim.split(content, "\n", { plain = true })
+  local result_lines = {}
+  for _, line in ipairs(lines) do
+    local imp = parse_import_line(line)
+    if imp and imp.path:match("%.lua$") then
+      table.insert(lua_imports, imp)
+      table.insert(result_lines, "")
+    else
+      table.insert(result_lines, line)
+    end
+  end
+
+  if #lua_imports == 0 then return content end
+
+  -- Load Lua modules
+  local alias_exports = {}
+  for _, imp in ipairs(lua_imports) do
+    local file_path = resolve_path(imp.path, buf_dir)
+    local cached = lua_module_cache[file_path]
+    if not cached then
+      local f, err = io.open(file_path, "r")
+      if not f then
+        state.log("WARN", string.format("Cannot read Lua import '%s': %s", imp.path, err or "unknown"))
+        cached = {}
+      else
+        local src = f:read("*a")
+        f:close()
+        local fn, load_err = load(src, "@" .. file_path)
+        if not fn then
+          state.log("WARN", string.format("Cannot load Lua import '%s': %s", imp.path, load_err))
+          cached = {}
+        else
+          local ok, exports = pcall(fn)
+          if not ok then
+            state.log("WARN", string.format("Cannot execute Lua import '%s': %s", imp.path, exports))
+            cached = {}
+          else
+            cached = exports or {}
+          end
+        end
+      end
+      lua_module_cache[file_path] = cached
+    end
+    if imp.type == "aliased" and imp.alias then
+      alias_exports[imp.alias] = cached
+    end
+  end
+
+  if not next(alias_exports) then
+    return table.concat(result_lines, "\n")
+  end
+
+  for i, line in ipairs(result_lines) do
+    local processed = line
+
+    -- Replace @var = alias.keypath (iterate aliases since Lua patterns lack alternation)
+    for alias, exports in pairs(alias_exports) do
+      local prefix = alias .. "."
+      local var_name, suffix = processed:match("^%s*@(%w[%w_]*)%s*=%s*(.+)%s*$")
+      if var_name and suffix and suffix:sub(1, #prefix) == prefix then
+        local keypath = suffix:sub(#prefix + 1)
+        local resolved = resolve_path_for_export(exports, keypath)
+        if resolved ~= nil then
+          local line_start = processed:match("^(%s*)")
+          processed = (line_start or "") .. "@" .. var_name .. " = " .. value_to_http_string(resolved)
+        end
+        break
+      end
+    end
+
+    -- Replace {{alias.keypath}} references
+    processed = processed:gsub("{{([^}]+)}}", function(match)
+      for alias, exports in pairs(alias_exports) do
+        local prefix = alias .. "."
+        if match:sub(1, #prefix) == prefix then
+          local keypath = match:sub(#prefix + 1)
+          local resolved = resolve_path_for_export(exports, keypath)
+          if resolved ~= nil then
+            return value_to_http_string(resolved)
+          end
+          break
+        end
+      end
+      return "{{" .. match .. "}}"
+    end)
+
+    result_lines[i] = processed
+  end
+
+  return table.concat(result_lines, "\n")
 end
 
 -- Test interface
@@ -826,6 +1033,8 @@ M._test = {
   resolve_path = resolve_path,
   extract_request_names = extract_request_names,
   resolve_reference = resolve_reference,
+  resolve_path_for_export = resolve_path_for_export,
+  value_to_http_string = value_to_http_string,
 }
 
 return M

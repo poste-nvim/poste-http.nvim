@@ -478,6 +478,11 @@ local function execute_request(src_buf, line, binary, file, modified_content, re
   end
   local req_text = req_block.request_line
 
+  -- Resolve Lua import references (@var = m.key, {{m.key}})
+  local import_mod = require("poste.http.import")
+  local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
+  buf_content = import_mod.resolve_lua_imports(buf_content, buf_dir)
+
   callback(buf_content, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
 end
 

@@ -145,3 +145,230 @@ describe("resolve_reference", function()
     assert.is_nil(_test.resolve_reference("bad.Name", index))
   end)
 end)
+
+describe("Lua import support", function()
+  describe("parse_import_line with .lua", function()
+    it("parses import ./variables.lua as m", function()
+      local r = _test.parse_import_line("import ./variables.lua as m")
+      assert.are_equal("aliased", r.type)
+      assert.are_equal("./variables.lua", r.path)
+      assert.are_equal("m", r.alias)
+    end)
+
+    it("parses import ./vars.lua (bare)", function()
+      local r = _test.parse_import_line("import ./vars.lua")
+      assert.are_equal("bare", r.type)
+      assert.are_equal("./vars.lua", r.path)
+    end)
+  end)
+
+  describe("build_import_index with .lua", function()
+    it("loads Lua module exports", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { an_int_value = 100, name = 'lex', tags = { 'rust', 'lua' } }")
+      f:close()
+
+      local imports = {
+        { type = "aliased", path = tmpfile, alias = "m" },
+      }
+      local index = import_mod.build_import_index(imports, "/tmp")
+
+      assert.are_equal(0, #index.errors)
+      assert.is_not_nil(index.aliased.m)
+      assert.is_true(index.aliased.m.is_lua)
+      assert.are_equal(100, index.aliased.m.exports.an_int_value)
+      assert.are_equal("lex", index.aliased.m.exports.name)
+      assert.are_equal("rust", index.aliased.m.exports.tags[1])
+
+      os.remove(tmpfile)
+    end)
+
+    it("reports Lua load errors", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("this is not valid lua {{{")
+      f:close()
+
+      local imports = {
+        { type = "aliased", path = tmpfile, alias = "bad" },
+      }
+      local index = import_mod.build_import_index(imports, "/tmp")
+
+      assert.are_equal(1, #index.errors)
+      assert.matches("Cannot load Lua import", index.errors[1])
+
+      os.remove(tmpfile)
+    end)
+
+    it("reports Lua runtime errors", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("error('boom')")
+      f:close()
+
+      local imports = {
+        { type = "aliased", path = tmpfile, alias = "bad" },
+      }
+      local index = import_mod.build_import_index(imports, "/tmp")
+
+      assert.are_equal(1, #index.errors)
+      assert.matches("Cannot execute Lua import", index.errors[1])
+
+      os.remove(tmpfile)
+    end)
+
+    it("loads bare Lua import", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { key = 'value' }")
+      f:close()
+
+      local imports = {
+        { type = "bare", path = tmpfile },
+      }
+      local index = import_mod.build_import_index(imports, "/tmp")
+
+      assert.are_equal(0, #index.errors)
+      assert.are_equal(1, #index.bare)
+      assert.is_true(index.bare[1].is_lua)
+      assert.are_equal("value", index.bare[1].exports.key)
+
+      os.remove(tmpfile)
+    end)
+  end)
+
+  describe("resolve_path_for_export", function()
+    it("resolves top-level key", function()
+      local exports = { name = "lex", age = 23 }
+      assert.are_equal("lex", _test.resolve_path_for_export(exports, "name"))
+      assert.are_equal(23, _test.resolve_path_for_export(exports, "age"))
+    end)
+
+    it("resolves nested key", function()
+      local exports = { person = { name = "lex", age = 23 } }
+      assert.are_equal("lex", _test.resolve_path_for_export(exports, "person.name"))
+      assert.are_equal(23, _test.resolve_path_for_export(exports, "person.age"))
+    end)
+
+    it("resolves array index", function()
+      local exports = { tags = { "rust", "lua", "neovim" } }
+      assert.are_equal("rust", _test.resolve_path_for_export(exports, "tags[1]"))
+      assert.are_equal("lua", _test.resolve_path_for_export(exports, "tags[2]"))
+      assert.are_equal("neovim", _test.resolve_path_for_export(exports, "tags[3]"))
+    end)
+
+    it("resolves deeply nested path", function()
+      local exports = { data = { items = { { id = 1, name = "alice" } } } }
+      assert.are_equal(1, _test.resolve_path_for_export(exports, "data.items[1].id"))
+      assert.are_equal("alice", _test.resolve_path_for_export(exports, "data.items[1].name"))
+    end)
+
+    it("returns nil for unknown key", function()
+      local exports = { name = "lex" }
+      assert.is_nil(_test.resolve_path_for_export(exports, "unknown"))
+      assert.is_nil(_test.resolve_path_for_export(exports, "name.unknown"))
+    end)
+  end)
+
+  describe("value_to_http_string", function()
+    it("converts number to string", function()
+      assert.are_equal("100", _test.value_to_http_string(100))
+    end)
+
+    it("keeps string as-is", function()
+      assert.are_equal("hello", _test.value_to_http_string("hello"))
+    end)
+
+    it("encodes table as JSON", function()
+      local result = _test.value_to_http_string({ name = "lex", age = 23 })
+      -- vim.json.encode may order keys differently; check structure
+      local ok, decoded = pcall(vim.json.decode, result)
+      assert.is_true(ok)
+      assert.are_equal("lex", decoded.name)
+      assert.are_equal(23, decoded.age)
+    end)
+
+    it("converts boolean to string", function()
+      assert.are_equal("true", _test.value_to_http_string(true))
+    end)
+
+    it("returns empty for nil", function()
+      assert.are_equal("", _test.value_to_http_string(nil))
+    end)
+  end)
+
+  describe("resolve_lua_imports", function()
+    it("replaces {{alias.key}} in content", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { an_int_value = 100, name = 'lex' }")
+      f:close()
+
+      local content = ("import %s as m\n\n### Test\nPOST /post/{{m.an_int_value}}\nContent-Type: application/json\n\n{\"name\": \"{{m.name}}\"}"):format(tmpfile)
+      local result = import_mod.resolve_lua_imports(content, "/tmp")
+      assert.matches("POST /post/100", result)
+      assert.matches('"name": "lex"', result)
+
+      os.remove(tmpfile)
+    end)
+
+    it("replaces @var = alias.key lines", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { person = { name = 'lex', age = 23 } }")
+      f:close()
+
+      local content = ("import %s as m\n\n@my_person = m.person\n\n### Test\nPOST /test\n\n{{my_person}}"):format(tmpfile)
+      local result = import_mod.resolve_lua_imports(content, "/tmp")
+      assert.matches('@my_person = ', result)
+      assert.matches('"name":"lex"', result)
+      assert.matches('"age":23', result)
+
+      os.remove(tmpfile)
+    end)
+
+    it("{{tmp_var}} in body expands via @var = alias.key", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { person = { name = 'lex', age = 23 } }")
+      f:close()
+
+      local content = ("import %s as m\n@my_data = m.person\n\n### Test\nPOST /test\n\n{{my_data}}"):format(tmpfile)
+      local result = import_mod.resolve_lua_imports(content, "/tmp")
+      -- @my_data should be resolved to JSON value
+      assert.matches('@my_data = ', result)
+      -- {{my_data}} stays as-is (Rust parser handles substitution)
+      assert.matches('{{my_data}}', result)
+
+      os.remove(tmpfile)
+    end)
+
+    it("preserves content when no Lua imports", function()
+      local content = [[
+### Test
+POST /test
+
+{"key": "value"}
+]]
+      local result = import_mod.resolve_lua_imports(content, "/tmp")
+      assert.are_equal(content, result)
+    end)
+
+    it("strips import lines from content", function()
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { val = 42 }")
+      f:close()
+
+      local content = ("import %s as m\n\n### Test\nPOST /test\n"):format(tmpfile)
+      local result = import_mod.resolve_lua_imports(content, "/tmp")
+      -- Import line becomes blank line (preserves line count)
+      local lines = vim.split(result, "\n", { plain = true })
+      assert.are_equal("", vim.trim(lines[1]))
+      assert.are_equal("### Test", lines[3])
+
+      os.remove(tmpfile)
+    end)
+  end)
+end)

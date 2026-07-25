@@ -1,0 +1,121 @@
+# =============================================================================
+# Lua Import Demo
+# =============================================================================
+#
+# Demonstrates importing Lua variables into .http files.
+#
+# Syntax:
+#   import ./path/to/vars.lua as <alias>
+#
+# Then use:
+#   {{<alias>.<key>}}          — inline substitution
+#   @<var> = <alias>.<key>     — assign to @var (supports {{}} later)
+#   @<var> = <alias>.<keypath> — nested path: person.name, tags[1]
+#
+# Lua file: data/lua_vars.lua
+# =============================================================================
+
+import ../data/lua_vars.lua as m
+
+# ── Assign Lua values to @var for reuse ──────────────────────────────────────
+@my_name = m.a_string
+@my_number = m.an_int
+@my_pi = m.a_float
+@my_person = m.person
+@person_name = m.person.name
+@first_tag = m.tags[1]
+@config_endpoint = m.config.endpoint
+@first_user_name = m.users[1].name
+@base_url = {{api_base}}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Demo 1: Simple values in URL, headers, and body
+# ══════════════════════════════════════════════════════════════════════════════
+
+### 01 — Simple values via @var
+# {{my_number}} → 100 (from m.an_int)
+# {{my_name}} → "hello from lua" (from m.a_string)
+GET {{base_url}}/anything/{{my_number}}
+X-Name: {{my_name}}
+X-Pi: {{my_pi}}
+
+### 02 — Direct alias reference (no @var needed)
+# {{m.an_int}} → 100 (resolved directly in Lua layer)
+GET {{base_url}}/anything/{{m.an_int}}
+X-Direct: {{m.a_string}}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Demo 2: Nested path access
+# ══════════════════════════════════════════════════════════════════════════════
+
+### 03 — Nested object field
+# {{person_name}} → "Lex" (from m.person.name)
+GET {{base_url}}/anything/user/{{person_name}}
+X-Person: {{person_name}}
+X-Age: {{m.person.age}}
+
+### 04 — Array index access
+# {{first_tag}} → "rust" (from m.tags[1])
+GET {{base_url}}/anything/tag/{{first_tag}}
+X-Tags: {{m.tags[1]}}, {{m.tags[2]}}, {{m.tags[3]}}
+
+### 05 — Deeply nested
+# {{config_endpoint}} → "https://api.example.com" (from m.config.endpoint)
+GET {{config_endpoint}}/status
+X-Timeout: {{m.config.timeout}}
+
+### 06 — Array of objects
+# {{first_user_name}} → "alice" (from m.users[1].name)
+GET {{base_url}}/anything/user/{{m.users[1].id}}
+X-User-Name: {{first_user_name}}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Demo 3: JSON body with Lua values
+# ══════════════════════════════════════════════════════════════════════════════
+
+### 07 — JSON body using @var aliases
+# @my_person = m.person is resolved to JSON in Lua layer,
+# then {{my_person}} expands to {"name":"Lex","age":23,"role":"admin"}
+POST {{base_url}}/anything/create-user
+Content-Type: application/json
+
+{
+  "id": {{my_number}},
+  "info": {{my_person}},
+  "tags": ["{{m.tags[1]}}", "{{m.tags[2]}}"],
+  "config": {{m.config}},
+  "pi": {{m.a_float}}
+}
+
+### 08 — Inline {{m.*}} directly in JSON body
+POST {{base_url}}/anything/create-user
+Content-Type: application/json
+
+{
+  "name": "{{m.person.name}}",
+  "age": {{m.person.age}},
+  "role": "{{m.person.role}}",
+  "first_tag": "{{m.tags[1]}}",
+  "timeout_ms": {{m.config.timeout}}
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Demo 4: Mixed with other variable types
+# ══════════════════════════════════════════════════════════════════════════════
+
+### 09 — Lua vars + magic vars + env vars
+POST {{base_url}}/anything/mixed
+Content-Type: application/json
+
+{
+  "user": "{{m.person.name}}",
+  "uuid": "{{$uuid}}",
+  "timestamp": {{$timestamp}},
+  "tag": "{{m.tags[1]}}",
+  "host": "{{base_url}}"
+}
+
+### 10 — Lua vars in request name
+### Tag: {{m.tags[1]}} | User: {{m.person.name}}
+GET {{base_url}}/anything/final
+X-Summary: int={{m.an_int}}, float={{m.a_float}}, name={{m.person.name}}

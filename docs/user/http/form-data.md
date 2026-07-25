@@ -48,9 +48,9 @@ admin@example.com
 ------MyBoundary{{$timestamp}}--
 ```
 
-### File Upload with `< path`
+### File Upload with `< path` (Multipart Only)
 
-Use the `< path` syntax to include file contents in the request body:
+Use the `< path` syntax to include file contents in multipart form data parts:
 
 ```http
 ### Upload Avatar
@@ -102,9 +102,11 @@ value
 ------WebKitFormBoundary1704067200123456--
 ```
 
-## File Inclusion with `< path`
+## File Inclusion with `< path` (Multipart Only)
 
-The `< path` syntax reads a file and inserts its contents into the request body. This is primarily used for file uploads in multipart form data.
+The `< path` syntax reads a file and inserts its contents into a multipart form data part. This is used for file uploads in `multipart/form-data` requests only.
+
+> **Note**: `< path` for JSON body embedding (e.g., `< /path/to/payload.json` with `Content-Type: application/json`) has been removed. Use Lua import instead: `import ./vars.lua as m` then `{{m.key}}` or `@var = m.key`.
 
 ### Syntax
 
@@ -198,11 +200,13 @@ Software developer from New York
 
 1. **Magic Variable Processing**: Before sending the request, Poste scans the request body and replaces all `{{$timestamp}}` occurrences with a unique timestamp value.
 
-2. **File Inclusion**: When Poste encounters a line starting with `<` followed by a file path, it:
+2. **File Inclusion (Multipart Only)**: When Poste encounters a line starting with `<` followed by a file path inside a multipart boundary, it:
    - Expands `~` to the home directory
    - Resolves relative paths relative to the buffer's directory
    - Reads the file contents
    - Replaces the `< path` line with the actual file contents
+
+   > **Removed**: `< path` for non-multipart bodies (e.g., JSON body embedding) is no longer supported. Use Lua import instead.
 
 3. **Binary Data Preservation**: The Rust executor uses `curl --data-binary` instead of `curl -d` to ensure binary data (like images) is transmitted correctly without modification.
 
@@ -242,7 +246,8 @@ Common MIME types:
 |---------|-------|-------------|----------------------|
 | URL-encoded forms | ✅ | ✅ | ✅ |
 | Multipart forms | ✅ | ✅ | ✅ |
-| File uploads (`< path`) | ✅ | ✅ | ✅ |
+| File uploads (`< path` in multipart) | ✅ | ✅ | ✅ |
+| JSON body file include (`< path`) | ❌ (use Lua import) | ✅ | ✅ |
 | Magic variables | ✅ (`{{$timestamp}}`) | ✅ (`{{$timestamp}}`, `{{$guid}}`) | ❌ |
 | Tilde expansion | ✅ | ✅ | ❌ |
 | Binary data | ✅ (`--data-binary`) | ✅ | ✅ |

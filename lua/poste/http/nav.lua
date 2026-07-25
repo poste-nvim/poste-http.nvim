@@ -371,7 +371,7 @@ function M.goto_definition()
       end
     end
   elseif trimmed:match("^<%s+") then
-    -- < ./path — open file include / file upload target
+    -- < ./path — open external script / upload target
     local path = trimmed:match("^<%s+(%S+)")
     if path then
       local path_pos = line_text:find(vim.pesc(path))
