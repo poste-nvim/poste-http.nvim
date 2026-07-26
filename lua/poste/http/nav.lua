@@ -582,10 +582,10 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
             def_text = l:match("^%s*" .. vim.pesc(var_name) .. "%s*=")
           end
           if def_text then
-            local eq_pos = l:find("=", 1, true)
-            if eq_pos then
+            local name_pos = l:find(vim.pesc(var_name), 1, true)
+            if name_pos then
               vim.cmd("normal! m'")
-              vim.api.nvim_win_set_cursor(0, { i, eq_pos - 1 })
+              vim.api.nvim_win_set_cursor(0, { i, name_pos - 1 })
               return
             end
           end
