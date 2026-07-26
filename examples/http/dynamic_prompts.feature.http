@@ -10,7 +10,7 @@ GET {{base_url}}/get?method={{method}}
 
 ### test_dependency
 @m = {{prompt_enhance.response.body.url}}
-GET {{base_url}}/get?method={{m}}
+GET http://localhost:8888/anything?m={{m}}
 
 ### Select items
 @key = fruit

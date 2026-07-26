@@ -358,12 +358,14 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
     return
   end
 
-  -- Resolve variables using the var resolver
+  -- Resolve variables using the var resolver (use dep_block_text lines,
+  -- not buffer, so prompt-injected @method = value lines are visible)
+  local dep_lines = vim.split(dep_block_text, "\n", { plain = true })
   local resolver = vars.build_resolver_from_state({
-    buf = buf,
+    lines = dep_lines,
     file_path = file,
-    block_start = dep_req.start_line,
-    block_end = dep_req.end_line,
+    block_start = 1,
+    block_end = #dep_lines,
     env_name = env_name,
   })
 
