@@ -162,7 +162,7 @@ function M.collect_parameters(openapi_params, path_params, spec)
         table.insert(prompts, { name = name, options = options_str })
         -- Use {{varname}} in the URL instead of the hardcoded value
         if in_location == "query" then
-          table.insert(query_parts, name .. "={{ " .. name .. " }}")
+          table.insert(query_parts, name .. "={{" .. name .. "}}")
         end
       else
         if in_location == "header" then
