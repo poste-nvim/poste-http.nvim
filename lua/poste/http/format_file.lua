@@ -159,6 +159,10 @@ function M.format(content)
       table.insert(result, line)
       i = i + 1
     elseif trimmed:match("^[<>]%s+{%%") then
+      -- Ensure blank line before script block
+      if #result > 0 and result[#result] ~= "" then
+        table.insert(result, "")
+      end
       -- Collect entire pre/post script block
       local script_lines = { line }
       i = i + 1
