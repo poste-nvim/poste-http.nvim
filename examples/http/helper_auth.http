@@ -8,8 +8,10 @@
 POST {{base_url}}/post
 Content-Type: application/json
 
-{"username": 
-"admin", "password": "secret123"}
+{
+  "password": "secret123",
+  "username": "admin"
+}
 
 > {%
   client.log('username:' .. response.body.data.username)

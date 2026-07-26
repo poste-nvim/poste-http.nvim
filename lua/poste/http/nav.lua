@@ -540,9 +540,9 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     return
   end
 
-  if node_type == "file_upload" or node_type == "file_upload_token" then
+  if node_type == "file_upload" or node_type == "file_upload_token" or node_type == "external_script" or node_type == "external_assertion" then
     local text = ts_query.node_text(node, buf)
-    local path = text:match("^<[ \t]+(.+)$")
+    local path = text:match("^[<>][ \t]+(.+)$")
     if path then
       path = vim.trim(path)
       local buf_path = vim.api.nvim_buf_get_name(buf)

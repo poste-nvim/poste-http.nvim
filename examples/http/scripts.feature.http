@@ -1,4 +1,4 @@
-@host = https://httpbin.org
+@host = http://postman-echo.com
 
 ### Pre-script: dynamic variable generation
 < {%
