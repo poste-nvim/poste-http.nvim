@@ -1,0 +1,8 @@
+### Create User
+POST http://example.com/api/users
+Content-Type: application/json
+
+{
+  "name": "Ada",
+  "email": "ada@test.com"
+}

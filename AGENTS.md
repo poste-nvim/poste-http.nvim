@@ -1,6 +1,6 @@
 # Poste HTTP
 
-File-driven HTTP request executor (Rust CLI + Neovim). `.http` → execute → results in editable buffer.
+File-driven HTTP request executor (Lua + curl). `.http` → execute → results in editable buffer.
 
 ## Protocol Scope
 
@@ -9,7 +9,7 @@ File-driven HTTP request executor (Rust CLI + Neovim). `.http` → execute → r
 | Task mentions | Load |
 |---------------|------|
 | `.http`, `curl`, `jq`, pre-script, assertion, `{{var}}`, import, env vars, completion, history | HTTP skill `.opencode/skills/http/SKILL.md` |
-| Rust CLI (`poste run/conn/introspect/fmt/context`) | `main.rs` in poste.nvim |
+| Rust CLI (poste.nvim shared infra — `poste conn/introspect/context`) | `main.rs` in poste.nvim |
 
 ## Design Principles
 
@@ -30,12 +30,17 @@ File-driven HTTP request executor (Rust CLI + Neovim). `.http` → execute → r
   must be mirrored in the tree-sitter grammar (`tree-sitter-http/grammar.js`) and
   its query files (`highlights.scm`, `injections.scm`, `locals.scm`).
 
+## Lua Patterns ≠ Regex
+
+**Never import regex habits.** Lua patterns are a different, simpler language.
+Check [Lua 5.1 Patterns](https://www.lua.org/manual/5.1/manual.html#5.4.1) or
+load the `lua-patterns` skill before writing any `string.match`/`gmatch`/`gsub`.
+
 ## References
 
 | Want | Go to |
 |------|-------|
 | **Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)** | `../poste.nvim/lua/poste/` — edit there |
-| **Rust CLI (crates, build system)** | `../poste.nvim/crates/` — edit there |
 | File index | `docs/dev/file-index.md` |
 | Architecture | `docs/dev/architecture-overview.md` |
 | Build & test | `docs/dev/testing.md` |

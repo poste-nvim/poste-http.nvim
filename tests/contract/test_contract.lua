@@ -4,7 +4,8 @@
 --- matches the expected field structure. If a Rust-side struct adds,
 --- removes, or renames a field, the corresponding fixture must be updated.
 ---
---- See docs/dev/refactoring-plan.md (Phase 0: F4) for context.
+--- Phase 0 of the Rust Retirement Plan (docs/dev/rust-retirement-plan.md).
+--- Every Rust subcommand that HTTP uses has a Lua-testable golden fixture.
 local path_sep = package.config:sub(1, 1)
 local fixture_dir = vim.fn.fnamemodify("tests/contract/fixtures", ":p")
 
@@ -18,9 +19,20 @@ local function load_fixture(name)
   fd:close()
   local ok, data = pcall(vim.json.decode, content)
   if not ok then
-    error("Failed to decode fixture " .. name .. ": " .. tostring(data))
+    return content, nil
   end
-  return data
+  return data, nil
+end
+
+local function load_text_fixture(name)
+  local path = fixture_dir .. name
+  local fd = io.open(path, "r")
+  if not fd then
+    error("Fixture not found: " .. path)
+  end
+  local content = fd:read("*a")
+  fd:close()
+  return content
 end
 
 describe("contract: http-run-response", function()
@@ -211,8 +223,8 @@ describe("contract: http-describe-blocks", function()
     local b = blocks[1]
     assert.equal("Get Users", b.name)
     assert.equal("GET", b.method)
-    assert.equal("http://example.com/api/users", b.path)
-    assert.equal(3, b.line)
+    assert.equal("http://example.com:8080/api/users", b.path)
+    assert.equal(5, b.line)
     assert.is_true(#b.headers >= 1)
     assert.equal("Accept", b.headers[1][1])
     assert.equal("application/json", b.headers[1][2])
@@ -234,5 +246,208 @@ describe("contract: http-describe-blocks", function()
         assert.is_true(type(h[2]) == "string")
       end
     end
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 0: poste resolve --format content (block 1)
+---------------------------------------------------------------------------
+
+describe("contract: resolve-content-block1", function()
+  local fixture = load_text_fixture("resolve-content-block1.txt")
+
+  it("contains the first block with resolved variables", function()
+    assert.is_true(fixture:find("Get Users", 1, true) ~= nil)
+    assert.is_true(fixture:find("http://example.com:8080/api/users", 1, true) ~= nil)
+    assert.is_true(fixture:find("Accept: application/json", 1, true) ~= nil)
+  end)
+
+  it("has host and port vars resolved", function()
+    assert.is_true(fixture:find("{{host}}", 1, true) == nil, "{{host}} should be resolved")
+    assert.is_true(fixture:find("{{port}}", 1, true) == nil, "{{port}} should be resolved")
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 0: poste resolve --format content (block 2)
+---------------------------------------------------------------------------
+
+describe("contract: resolve-content-block2", function()
+  local fixture = load_text_fixture("resolve-content-block2.txt")
+
+  it("contains the second block with resolved variables", function()
+    assert.is_true(fixture:find("Create User", 1, true) ~= nil)
+    assert.is_true(fixture:find("http://example.com/api/users", 1, true) ~= nil)
+    assert.is_true(fixture:find("Content-Type: application/json", 1, true) ~= nil)
+  end)
+
+  it("has base_url var resolved", function()
+    assert.is_true(fixture:find("{{base_url}}", 1, true) == nil, "{{base_url}} should be resolved")
+  end)
+
+  it("preserves JSON body", function()
+    assert.is_true(fixture:find("Ada", 1, true) ~= nil)
+    assert.is_true(fixture:find("ada@test.com", 1, true) ~= nil)
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 0: poste resolve --format curl (block 1)
+---------------------------------------------------------------------------
+
+describe("contract: resolve-curl-block1", function()
+  local fixture = load_text_fixture("resolve-curl-block1.txt")
+
+  it("starts with curl", function()
+    assert.is_true(fixture:match("^curl") ~= nil)
+  end)
+
+  it("has GET method and URL", function()
+    assert.is_true(fixture:find("-X GET", 1, true) ~= nil)
+    assert.is_true(fixture:find("http://example.com:8080/api/users", 1, true) ~= nil)
+  end)
+
+  it("has Accept header", function()
+    assert.is_true(fixture:find("Accept: application/json", 1, true) ~= nil)
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 0: poste resolve --format curl (block 2)
+---------------------------------------------------------------------------
+
+describe("contract: resolve-curl-block2", function()
+  local fixture = load_text_fixture("resolve-curl-block2.txt")
+
+  it("starts with curl", function()
+    assert.is_true(fixture:match("^curl") ~= nil)
+  end)
+
+  it("has POST method and URL", function()
+    assert.is_true(fixture:find("-X POST", 1, true) ~= nil)
+    assert.is_true(fixture:find("http://example.com/api/users", 1, true) ~= nil)
+  end)
+
+  it("has Content-Type header", function()
+    assert.is_true(fixture:find("Content-Type: application/json", 1, true) ~= nil)
+  end)
+
+  it("has data flag with body", function()
+    assert.is_true(fixture:find("-d", 1, true) ~= nil, "should have -d flag")
+    assert.is_true(fixture:find("Ada", 1, true) ~= nil)
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 0: CLI integration test — runs poste binary, compares output
+---------------------------------------------------------------------------
+
+describe("contract: cli-integration", function()
+  it("poste run --describe matches fixture", function()
+    local binary = io.popen("which poste 2>/dev/null"):read("*l")
+    if not binary then
+      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
+    end
+    if not binary or binary == "" then
+      pending("poste binary not found, skipping integration test")
+      return
+    end
+
+    local fixture_path = fixture_dir .. "test_contract.http"
+    local handle = io.popen(binary .. " run " .. fixture_path .. " --describe 2>/dev/null", "r")
+    local output = handle:read("*a")
+    handle:close()
+
+    local ok, actual = pcall(vim.json.decode, output)
+    assert.is_true(ok, "CLI output must be valid JSON: " .. tostring(actual))
+
+    local expected = load_fixture("http-describe-blocks.json")
+    assert.are.same(expected, actual)
+  end)
+
+  it("poste resolve --format content block 1 matches fixture", function()
+    local binary = io.popen("which poste 2>/dev/null"):read("*l")
+    if not binary then
+      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
+    end
+    if not binary or binary == "" then
+      pending("poste binary not found, skipping integration test")
+      return
+    end
+
+    local fixture_path = fixture_dir .. "test_contract.http"
+    local handle = io.popen(binary .. " resolve --file " .. fixture_path .. " --block 5 --format content 2>/dev/null", "r")
+    local output = handle:read("*a")
+    handle:close()
+
+    local expected = load_text_fixture("resolve-content-block1.txt")
+    assert.are.same(expected, output)
+  end)
+
+  it("poste resolve --format curl block 1 matches fixture", function()
+    local binary = io.popen("which poste 2>/dev/null"):read("*l")
+    if not binary then
+      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
+    end
+    if not binary or binary == "" then
+      pending("poste binary not found, skipping integration test")
+      return
+    end
+
+    local fixture_path = fixture_dir .. "test_contract.http"
+    local handle = io.popen(binary .. " resolve --file " .. fixture_path .. " --block 5 --format curl 2>/dev/null", "r")
+    local output = handle:read("*a")
+    handle:close()
+
+    local expected = load_text_fixture("resolve-curl-block1.txt")
+    assert.are.same(expected, output)
+  end)
+end)
+
+---------------------------------------------------------------------------
+-- Phase 1: Tree-sitter describe output validation
+---------------------------------------------------------------------------
+
+describe("contract: tree-sitter-describe", function()
+  it("produces BlockMeta[] matching fixture shape", function()
+    local describe = require("poste.http.describe")
+    local fixture_path = fixture_dir .. "test_contract.http"
+    local f = io.open(fixture_path, "r")
+    if not f then
+      pending("test_contract.http fixture not found")
+      return
+    end
+    local content = f:read("*a")
+    f:close()
+
+    local blocks = describe.describe_content(content, "test_contract.http")
+    assert.is_true(type(blocks) == "table", "describe must return a table")
+    assert.is_true(#blocks >= 1, "must have at least one block")
+
+    for _, b in ipairs(blocks) do
+      assert.is_true(type(b.name) == "string", "name must be string")
+      assert.is_true(type(b.line) == "number", "line must be number")
+      assert.is_true(type(b.end_line) == "number", "end_line must be number")
+      assert.is_true(type(b.method) == "string", "method must be string")
+      assert.is_true(type(b.path) == "string", "path must be string")
+      assert.is_true(type(b.headers) == "table", "headers must be table")
+      assert.is_true(type(b.body) == "string", "body must be string")
+      assert.is_true(type(b.request_line) == "string", "request_line must be string")
+      assert.is_true(b.line <= b.end_line, "line <= end_line")
+    end
+
+    assert.equal("Get Users", blocks[1].name)
+    assert.equal("GET", blocks[1].method)
+    assert.equal(5, blocks[1].line)
+    assert.equal(8, blocks[1].end_line)
+    assert.equal("Accept", blocks[1].headers[1][1])
+    assert.equal("application/json", blocks[1].headers[1][2])
+
+    assert.equal("Create User", blocks[2].name)
+    assert.equal("POST", blocks[2].method)
+    assert.equal(9, blocks[2].line)
+    assert.equal(16, blocks[2].end_line)
+    assert.is_true(#blocks[2].body > 0, "second block must have body")
+    assert.is_true(blocks[2].body:find("Ada", 1, true) ~= nil)
   end)
 end)

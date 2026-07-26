@@ -1,4 +1,3 @@
-local cli = require("poste.cli")
 local state = require("poste.state")
 local util = require("poste.util")
 local indicators = require("poste.indicators")
@@ -14,6 +13,8 @@ local history = require("poste.http.history")
 local event = require("poste.state.event")
 local session = require("poste.http.session")
 local describe = require("poste.http.describe")
+local curl_exec = require("poste.http.curl_exec")
+local vars = require("poste.http.vars")
 
 local uv = vim.uv or vim.loop
 
@@ -122,87 +123,81 @@ local function add_to_history(name, response_data, file_path)
   history.add_entry(name, response_data, state.last_assertion_results, state.last_script_logs, file_path)
 end
 
---- Parse JSON response from stdout and dispatch to appropriate handler.
-local function handle_job_stdout(data, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file)
-  data = util.ensure_job_data(data)
-  if #data == 0 then return end
-
-  local output = table.concat(data, "\n")
-  state.log("INFO", "stdout: " .. output:sub(1, 200))
-
+--- Handle the parsed response from curl_exec.
+local function handle_curl_response(response, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file, start_hires)
   vim.schedule(function()
-    state.pending_request = nil
-    local ok, parsed = pcall(vim.json.decode, output)
-    if ok and parsed and type(parsed) == "table" then
-      -- Successful parse
-      state._json.query = nil
-      state._json.original_lines = nil
-      state._json.is_filtered = false
-      state.last_response = parsed
-      parsed.request_name = current_req_name
-      request_vars.cache_response(current_req_name, parsed)
-      -- Build multi-response view if deps were auto-executed
-      if request_vars._dep_chain and #request_vars._dep_chain > 0 then
-        local chain = {}
-        for _, item in ipairs(request_vars._dep_chain) do
-          table.insert(chain, {name = item.name, response = item.response})
-          history.add_entry(item.name, item.response, nil, nil, file)
-        end
-        table.insert(chain, {name = current_req_name or "Request", response = parsed})
-        response_buf.reset_multi_response()
-        state.last_responses = chain
-        state.response_index = #chain
-        request_vars._dep_chain = nil
-        pcall(response_buf.prepare_multi_responses, chain)
-      else
-        state.last_responses = nil
-        state.response_index = nil
-        response_buf.reset_multi_response()
-      end
-      emit_response(parsed, current_req_name, file, nil, nil)
+    state._json.query = nil
+    state._json.original_lines = nil
+    state._json.is_filtered = false
 
-      local assertion_results = run_and_store_assertions(parsed, assertion_code, script_vars)
-      local view_name = choose_view_tab(parsed, assertion_results)
-      view.show_view(view_name)
-      set_result_indicator(src_buf, req_line, parsed, assertion_results)
-      local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-      add_to_history(hist_name, state.last_response, file)
-    else
-      -- JSON parse failed
-      state.log("WARN", "JSON parse failed, showing raw output")
+    -- Update pending_request with actual response data (keep URL/headers/body)
+    if state.pending_request then
+      state.pending_request = vim.tbl_extend("keep", {
+        method = (response.metadata and response.metadata.method) or "",
+        url = response.url or "",
+        timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+      }, state.pending_request)
+    end
+
+    if response.error then
       indicators.set_indicator(src_buf, req_line, "error")
+      local error_response = {
+        protocol = "error", status = 0, status_text = response.error,
+        latency_ms = 0, url = "", content_type = "text/plain",
+        headers = {}, body = response.error, cookies = {},
+        metadata = { method = "", error = response.error, exit_code = "1" },
+      }
+      state.last_response = error_response
       state.last_responses = nil
       state.response_index = nil
       response_buf.reset_multi_response()
-      local error_response = make_error_response(req_text, req_block, output, "JSON parse failed", "?")
-      state.last_response = error_response
       emit_response(error_response, current_req_name, file, nil, nil)
       view.show_view("verbose")
       local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
       add_to_history(err_name, state.last_response, file)
+      return
     end
-  end)
-end
 
---- Handle job exit with non-zero code.
-local function handle_job_exit(code, stderr_buf, src_buf, req_line, req_block, req_text, current_req_name, file)
-  if code == 0 then return end
+    if response.status == 0 and response.protocol == "error" then
+      indicators.set_indicator(src_buf, req_line, "error")
+      state.last_responses = nil
+      state.response_index = nil
+      response_buf.reset_multi_response()
+      state.last_response = response
+      emit_response(response, current_req_name, file, nil, nil)
+      view.show_view("verbose")
+      local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+      add_to_history(err_name, state.last_response, file)
+      return
+    end
 
-  state.log("ERROR", string.format("exit code %d", code))
-  vim.schedule(function()
-    state.pending_request = nil
-    indicators.set_indicator(src_buf, req_line, "error")
-    local stderr_text = table.concat(stderr_buf, "\n")
-    local body = stderr_text ~= "" and stderr_text or "Request failed with exit code " .. code
-    local error_response = make_error_response(req_text, req_block, body, "Failed (exit " .. code .. ")", code)
-    state.last_response = error_response
+    state.last_response = response
+    -- Carry request data into response metadata so Request/Verbose tabs can display it
+    if state.pending_request then
+      response.metadata = response.metadata or {}
+      if not response.metadata.request_headers then
+        response.metadata.request_headers = state.pending_request.headers_str or ""
+      end
+      if not response.metadata.request_body then
+        response.metadata.request_body = state.pending_request.body or ""
+      end
+      if not response.metadata.timestamp then
+        response.metadata.timestamp = state.pending_request.timestamp or ""
+      end
+      if not response.metadata.env then
+        response.metadata.env = state.pending_request.env or ""
+      end
+    end
+    response.request_name = current_req_name
+    request_vars.cache_response(current_req_name, response)
+
     if request_vars._dep_chain and #request_vars._dep_chain > 0 then
       local chain = {}
       for _, item in ipairs(request_vars._dep_chain) do
         table.insert(chain, {name = item.name, response = item.response})
         history.add_entry(item.name, item.response, nil, nil, file)
       end
-      table.insert(chain, {name = current_req_name or "Request", response = error_response})
+      table.insert(chain, {name = current_req_name or "Request", response = response})
       response_buf.reset_multi_response()
       state.last_responses = chain
       state.response_index = #chain
@@ -213,10 +208,15 @@ local function handle_job_exit(code, stderr_buf, src_buf, req_line, req_block, r
       state.response_index = nil
       response_buf.reset_multi_response()
     end
-    emit_response(error_response, current_req_name, file, nil, nil)
-    view.show_view("verbose")
-    local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-    add_to_history(err_name, state.last_response, file)
+
+    emit_response(response, current_req_name, file, nil, nil)
+
+    local assertion_results = run_and_store_assertions(response, assertion_code, script_vars)
+    local view_name = choose_view_tab(response, assertion_results)
+    view.show_view(view_name)
+    set_result_indicator(src_buf, req_line, response, assertion_results)
+    local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+    add_to_history(hist_name, state.last_response, file)
   end)
 end
 
@@ -234,31 +234,18 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     fallback_headers_str = table.concat(parts, "\n")
   end
 
-  -- 1. Resolve variables via poste resolve CLI
+  -- 1. Resolve variables via Lua VarResolver
   local resolved_content = nil
   if file and file ~= "" then
-    local args = {
-      "resolve",
-      "--stdin",
-      "--file", file,
-      "--block", tostring(block_start or 1),
-      "--format", "content",
-    }
-    if state.global_vars and next(state.global_vars) then
-      table.insert(args, "--session-vars")
-      table.insert(args, vim.json.encode(state.global_vars))
-    end
-    if state.script_variables and next(state.script_variables) then
-      table.insert(args, "--script-vars")
-      table.insert(args, vim.json.encode(state.script_variables))
-    end
-    table.insert(args, "--env")
-    table.insert(args, state.current_env)
-
-    local output, _err = cli.run(args, { stdin = buf_content })
-    if output and output ~= "" then
-      resolved_content = output
-    end
+    local vars = require("poste.http.vars")
+    local resolver = vars.build_resolver_from_state({
+      buf = src_buf,
+      file_path = file,
+      block_start = block_start,
+      block_end = block_end,
+      env_name = state.current_env,
+    })
+    resolved_content = resolver:substitute(buf_content)
   end
 
   -- 2. Describe resolved (or raw) content via CLI — single parse authority
@@ -291,11 +278,43 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     end
   elseif desc_err then
     state.log("WARN", "describe for pending request failed: " .. tostring(desc_err))
-    -- Last-resort fallbacks from req_block only (no buffer re-parse)
-    if req_block and req_block.request_line then
-      req_method, req_url = req_block.request_line:match("^(%S+)%s+(.+)$")
-      req_method = req_method or ""
-      req_url = req_url or ""
+    if req_block then
+      req_method = req_block.method or ""
+      req_url = req_block.path or ""
+      if req_block.request_line and (req_method == "" or req_url == "") then
+        req_method, req_url = req_block.request_line:match("^(%S+)%s+(.+)$")
+        req_method = req_method or ""
+        req_url = req_url or ""
+      end
+      body = req_block.body or ""
+      name = (req_block.name ~= "" and req_block.name) or name
+      local h_parts = {}
+      for _, h in ipairs(req_block.headers or {}) do
+        table.insert(h_parts, h[1] .. ": " .. h[2])
+      end
+      if #h_parts > 0 then
+        headers_str = table.concat(h_parts, "\n")
+      end
+    end
+  else
+    state.log("WARN", "describe returned no blocks, falling back to req_block")
+    if req_block then
+      req_method = req_block.method or ""
+      req_url = req_block.path or ""
+      if req_block.request_line and (req_method == "" or req_url == "") then
+        req_method, req_url = req_block.request_line:match("^(%S+)%s+(.+)$")
+        req_method = req_method or ""
+        req_url = req_url or ""
+      end
+      body = req_block.body or ""
+      name = (req_block.name ~= "" and req_block.name) or name
+      local h_parts = {}
+      for _, h in ipairs(req_block.headers or {}) do
+        table.insert(h_parts, h[1] .. ": " .. h[2])
+      end
+      if #h_parts > 0 then
+        headers_str = table.concat(h_parts, "\n")
+      end
     end
   end
 
@@ -387,7 +406,7 @@ end
 
 --- Prepare request: resolve prompt variables and request deps → modified content.
 --- Returns (modified_content, req_line, block_start, block_end) via callback.
-local function prepare_request(src_buf, line, buf_content, binary, file, callback)
+local function prepare_request(src_buf, line, buf_content, file, callback)
   local req_line = cache.find_request_line(src_buf, line)
   if not req_line then
     indicators.clear_all(src_buf)
@@ -402,7 +421,6 @@ local function prepare_request(src_buf, line, buf_content, binary, file, callbac
     buf = src_buf,
     cursor_line = line,
     block_line = block_start,
-    binary = binary,
     file = file,
     env_name = state.current_env,
   }, function(modified_content)
@@ -416,7 +434,7 @@ local function prepare_request(src_buf, line, buf_content, binary, file, callbac
 end
 
 --- Execute request: run scripts, inject vars, build curl cmd, start job.
-local function execute_request(src_buf, line, binary, file, modified_content, req_line, block_start, block_end, callback)
+local function execute_request(src_buf, line, file, modified_content, req_line, block_start, block_end, callback)
   local buf_content = modified_content
   local pre_script_code
   local script_vars = nil
@@ -486,48 +504,84 @@ local function execute_request(src_buf, line, binary, file, modified_content, re
   callback(buf_content, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
 end
 
---- Start curl job via vim.fn.jobstart with stdin piped.
-local function start_curl_job(binary, file, line, buf_content, req_line, src_buf, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
-  local cmd = string.format("%s run %s --line %d --env %s --json --stdin",
-    vim.fn.shellescape(binary),
-    vim.fn.shellescape(file),
-    line,
-    vim.fn.shellescape(state.current_env)
-  )
-  state.log("INFO", string.format("cmd: %s", cmd))
+--- Start curl execution via curl_exec, passing parsed request details.
+local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
+  local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
 
-  local stderr_buf = {}
-  local env = { POSTE_CACHE_DIR = state.config.response_cache_dir }
-
-  local job_id = vim.fn.jobstart(cmd, {
-    env = env,
-    stdin = "pipe",
-    stdout_buffered = true,
-    stderr_buffered = true,
-    on_stdout = function(_, data)
-      handle_job_stdout(data, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file)
-    end,
-    on_stderr = function(_, data)
-      data = util.ensure_job_data(data)
-      if #data == 0 then return end
-      for _, l in ipairs(data) do
-        table.insert(stderr_buf, l)
-      end
-    end,
-    on_exit = function(_, code)
-      handle_job_exit(code, stderr_buf, src_buf, req_line, req_block, req_text, current_req_name, file)
-    end,
+  -- Resolve variables in the content
+  local resolver = vars.build_resolver_from_state({
+    buf = src_buf,
+    file_path = file,
+    block_start = block_start,
+    block_end = block_end,
+    env_name = state.current_env,
   })
+  local resolved_content = resolver:substitute(buf_content)
 
-  if job_id > 0 then
-    vim.fn.chansend(job_id, buf_content)
-    vim.fn.chanclose(job_id, "stdin")
-    build_pending_request(src_buf, buf_content, req_block, block_start, block_end, file)
-    view.show_view("verbose")
-  else
-    indicators.set_indicator(src_buf, req_line, "error")
-    vim.notify("Failed to start poste job", vim.log.levels.ERROR, { title = "Poste" })
+  -- Describe the resolved content to extract method, url, headers, body
+  local blocks = describe.describe_content(resolved_content, file)
+  local meta = blocks and describe.block_at_line(blocks, block_start or 1)
+  local method = "GET"
+  local url = ""
+  local headers = {}
+  local body = ""
+
+  if meta then
+    method = meta.method or "GET"
+    url = meta.path or ""
+    headers = meta.headers or {}
+    body = meta.body or ""
+  elseif req_block then
+    local rl = req_block.request_line or ""
+    method = vim.trim(rl:match("^(%S+)") or "GET")
+    url = vim.trim(rl:match("^%S+%s+(%S+)") or "")
+    headers = req_block.headers or {}
+    body = req_block.body or ""
   end
+
+  -- Resolve any remaining {{var}} in the URL
+  url = resolver:substitute(url)
+
+  if not url or url == "" then
+    indicators.set_indicator(src_buf, req_line, "error")
+    vim.notify("Could not determine request URL", vim.log.levels.ERROR, { title = "Poste" })
+    return
+  end
+
+  if url:find("{{") then
+    state.log("WARN", "URL has unresolved variables: " .. url)
+  end
+
+  state.log("INFO", string.format("curl: %s %s (%d headers)", method, url, #headers))
+
+  local start_hires = (vim.uv or vim.loop).hrtime()
+
+  curl_exec.execute({
+    method = method,
+    url = url,
+    headers = headers,
+    body = body,
+    buf_dir = buf_dir,
+  }, function(response)
+    handle_curl_response(response, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file, start_hires)
+  end)
+
+  -- Set pending request from values we already have (no re-parse)
+  local h_parts = {}
+  for _, h in ipairs(headers) do
+    table.insert(h_parts, h[1] .. ": " .. h[2])
+  end
+  state.pending_request = {
+    method = method,
+    url = url,
+    headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or "",
+    body = body,
+    name = (meta and meta.name) or (req_block and req_block.name) or "",
+    env = state.current_env,
+    timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+    start_hires = start_hires,
+  }
+  view.show_view("verbose")
 end
 
 ---------------------------------------------------------------------------
@@ -536,12 +590,6 @@ end
 
 --- Run the HTTP request at the current cursor position.
 function M.run_request()
-  local binary = state.find_poste_binary()
-  if not binary then
-    vim.notify("Poste binary not found. Make sure it's in PATH or built locally.", vim.log.levels.ERROR)
-    return
-  end
-
   local src_buf = vim.api.nvim_get_current_buf()
   local line = vim.fn.line(".")
   local file = vim.api.nvim_buf_get_name(src_buf)
@@ -594,8 +642,8 @@ function M.run_request()
   end
 
   -- Standard request pipeline
-  prepare_request(src_buf, line, buf_content, binary, file, function(modified_content, req_line, block_start, block_end)
-    execute_request(src_buf, line, binary, file, modified_content, req_line, block_start, block_end,
+  prepare_request(src_buf, line, buf_content, file, function(modified_content, req_line, block_start, block_end)
+    execute_request(src_buf, line, file, modified_content, req_line, block_start, block_end,
       function(inner_content, req_block, req_text, assertion_code, script_vars, current_req_name, blk_start, blk_end)
         if req_text and vim.trim(req_text):upper() == "SCRIPT" then
           local script_response = make_script_response(req_text, req_block)
@@ -621,7 +669,7 @@ function M.run_request()
           return
         end
 
-        start_curl_job(binary, file, line, inner_content, req_line, src_buf, req_block, req_text,
+        start_curl_exec(file, inner_content, req_line, src_buf, req_block, req_text,
           assertion_code, script_vars, current_req_name, blk_start, blk_end)
       end)
   end)

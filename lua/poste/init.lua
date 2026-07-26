@@ -141,20 +141,14 @@ function M.setup(opts)
   end, { desc = "Show symbol picker (all HTTP requests)" })
 
   vim.api.nvim_create_user_command("PosteFormatHttp", function()
-    local binary = state.find_poste_binary()
-    if not binary then
-      vim.notify("poste binary not found. Run :PosteUpdate or set vim.g.poste_binary", vim.log.levels.ERROR)
-      return
-    end
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    local result = vim.fn.systemlist({ binary, "fmt", "--stdin" }, lines)
-    if vim.v.shell_error == 0 then
-      vim.api.nvim_buf_set_lines(0, 0, -1, false, result)
-      vim.notify("poste fmt: formatted", vim.log.levels.INFO)
+    local format_file = require("poste.http.format_file")
+    local changed = format_file.format_buffer()
+    if changed then
+      vim.notify("poste: formatted", vim.log.levels.INFO)
     else
-      vim.notify("poste fmt failed: " .. table.concat(result, " "), vim.log.levels.ERROR)
+      vim.notify("poste: already formatted", vim.log.levels.INFO)
     end
-  end, { desc = "Format .http buffer using poste fmt" })
+  end, { desc = "Format .http buffer" })
 
   vim.api.nvim_create_user_command("PosteHttpHistory", function()
     require("poste.http.history").show()

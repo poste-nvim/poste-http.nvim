@@ -1,0 +1,16 @@
+@host = example.com
+@port = 8080
+@base_url = http://example.com
+
+### Get Users
+GET http://{{host}}:{{port}}/api/users
+Accept: application/json
+
+### Create User
+POST {{base_url}}/api/users
+Content-Type: application/json
+
+{
+  "name": "Ada",
+  "email": "ada@test.com"
+}

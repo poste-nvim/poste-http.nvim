@@ -88,6 +88,7 @@ function M.show_view(view)
   local opts = {
     assertion_results = state.last_assertion_results,
     script_logs = state.last_script_logs,
+    pending_request = state.pending_request,
   }
   local lines, filetype = format.format_view(view, state.last_response, opts)
 
