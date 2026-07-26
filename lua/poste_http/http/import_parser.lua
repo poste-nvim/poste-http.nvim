@@ -1,8 +1,11 @@
 local M = {}
 
-function M.generate_http_block(name, method, url, headers, body)
+function M.generate_http_block(name, method, url, headers, body, prompts)
   local lines = {}
   table.insert(lines, "### " .. name)
+  for _, p in ipairs(prompts or {}) do
+    table.insert(lines, "<<" .. p.name .. " [{{" .. p.options_var .. "}}]")
+  end
   table.insert(lines, method .. " " .. url)
   local has_content_type
   for _, h in ipairs(headers or {}) do
@@ -132,6 +135,7 @@ function M.collect_parameters(openapi_params, path_params, spec)
   local headers = {}
   local query_parts = {}
   local url_vars = {}
+  local prompts = {}
   local has_body = false
 
   for _, param in ipairs(openapi_params or {}) do
@@ -139,21 +143,45 @@ function M.collect_parameters(openapi_params, path_params, spec)
     if resolved then
       local name = resolved.name or ""
       local in_location = resolved["in"] or ""
-      local example = M.schema_to_example(resolved.schema or resolved, spec)
+      local schema = resolved.schema or resolved
+      local resolved_schema = M.resolve_schema(schema, spec)
+      local example = M.schema_to_example(resolved_schema or schema, spec)
       local str_example = example_to_string(example)
-      if in_location == "header" then
-        table.insert(headers, { key = name, value = "{{" .. name .. "}}" })
-        table.insert(url_vars, { name = name, value = str_example })
-      elseif in_location == "query" then
-        table.insert(query_parts, name .. "=" .. str_example)
-        table.insert(url_vars, { name = name, value = str_example })
-      elseif in_location == "path" then
-        table.insert(url_vars, { name = name, value = str_example })
+
+      -- Check if parameter has enum values
+      local enum_values = nil
+      if resolved_schema and resolved_schema.items and resolved_schema.items.enum then
+        enum_values = resolved_schema.items.enum
+      elseif resolved_schema and resolved_schema.enum then
+        enum_values = resolved_schema.enum
+      end
+
+      if enum_values and #enum_values > 0 then
+        -- Create a base variable with enum options
+        local base_var_name = "base_" .. name
+        local enum_json = '["' .. table.concat(enum_values, '","') .. '"]'
+        table.insert(url_vars, { name = base_var_name, value = enum_json })
+        -- Add a prompt for this parameter
+        table.insert(prompts, { name = name, options_var = base_var_name })
+        -- Use {{varname}} in the URL instead of the hardcoded value
+        if in_location == "query" then
+          table.insert(query_parts, name .. "={{ " .. name .. " }}")
+        end
+      else
+        if in_location == "header" then
+          table.insert(headers, { key = name, value = "{{" .. name .. "}}" })
+          table.insert(url_vars, { name = name, value = str_example })
+        elseif in_location == "query" then
+          table.insert(query_parts, name .. "=" .. str_example)
+          table.insert(url_vars, { name = name, value = str_example })
+        elseif in_location == "path" then
+          table.insert(url_vars, { name = name, value = str_example })
+        end
       end
     end
   end
 
-  return headers, query_parts, url_vars, has_body
+  return headers, query_parts, url_vars, has_body, prompts
 end
 
 function M.parameters_to_url_vars(params)

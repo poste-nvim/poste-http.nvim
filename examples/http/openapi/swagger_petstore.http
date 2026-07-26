@@ -1,61 +1,13 @@
 @base_url = http://petstore.swagger.io/v2
-### Get user by user name
-GET {{base_url}}/user/{username}
-
-### Updated user
-PUT {{base_url}}/user/{username}
-Content-Type: application/json
-
-{"firstName":"\"string\"","lastName":"\"string\"","phone":"\"string\"","password":"\"string\"","id":"0","username":"\"string\"","email":"\"string\"","userStatus":"0"}
-
-### Delete user
-DELETE {{base_url}}/user/{username}
-
-### Create user
-POST {{base_url}}/user
-Content-Type: application/json
-
-{"firstName":"\"string\"","lastName":"\"string\"","phone":"\"string\"","password":"\"string\"","id":"0","username":"\"string\"","email":"\"string\"","userStatus":"0"}
-
-### Returns pet inventories by status
-GET {{base_url}}/store/inventory
-
+@api_key = string
+@orderId = 0
+@password = string
+@username = string
+@petId = 0
+@status = ["available"]
+@tags = ["string"]
 ### Finds Pets by tags
 GET {{base_url}}/pet/findByTags?tags=["string"]
-
-### Find purchase order by ID
-GET {{base_url}}/store/order/{orderId}
-
-### Delete purchase order by ID
-DELETE {{base_url}}/store/order/{orderId}
-
-### Logs out current logged in user session
-GET {{base_url}}/user/logout
-
-### Finds Pets by status
-GET {{base_url}}/pet/findByStatus?status=["available"]
-
-### Creates list of users with given input array
-POST {{base_url}}/user/createWithArray
-
-### Place an order for a pet
-POST {{base_url}}/store/order
-Content-Type: application/json
-
-{"quantity":"0","shipDate":"\"2024-01-01T00:00:00Z\"","petId":"0","status":"\"placed\"","id":"0","complete":"true"}
-
-### Find pet by ID
-GET {{base_url}}/pet/{petId}
-
-### Updates a pet in the store with form data
-POST {{base_url}}/pet/{petId}
-
-### Deletes a pet
-DELETE {{base_url}}/pet/{petId}
-api_key: {{api_key}}
-
-### Uploads an image
-POST {{base_url}}/pet/{petId}/uploadImage
 
 ### Add a new pet to the store
 POST {{base_url}}/pet
@@ -63,8 +15,63 @@ POST {{base_url}}/pet
 ### Update an existing pet
 PUT {{base_url}}/pet
 
+### Get user by user name
+GET {{base_url}}/user/{{username}}
+
+### Updated user
+PUT {{base_url}}/user/{{username}}
+Content-Type: application/json
+
+{"email":"string","userStatus":0,"id":0,"username":"string","phone":"string","password":"string","firstName":"string","lastName":"string"}
+
+### Delete user
+DELETE {{base_url}}/user/{{username}}
+
+### Find purchase order by ID
+GET {{base_url}}/store/order/{{orderId}}
+
+### Delete purchase order by ID
+DELETE {{base_url}}/store/order/{{orderId}}
+
+### Logs out current logged in user session
+GET {{base_url}}/user/logout
+
+### Finds Pets by status
+GET {{base_url}}/pet/findByStatus?status=["available"]
+
+### Find pet by ID
+GET {{base_url}}/pet/{{petId}}
+
+### Updates a pet in the store with form data
+POST {{base_url}}/pet/{{petId}}
+
+### Deletes a pet
+DELETE {{base_url}}/pet/{{petId}}
+api_key: {{api_key}}
+
+### Returns pet inventories by status
+GET {{base_url}}/store/inventory
+
+### Uploads an image
+POST {{base_url}}/pet/{{petId}}/uploadImage
+
+### Creates list of users with given input array
+POST {{base_url}}/user/createWithArray
+
 ### Creates list of users with given input array
 POST {{base_url}}/user/createWithList
 
+### Create user
+POST {{base_url}}/user
+Content-Type: application/json
+
+{"email":"string","userStatus":0,"id":0,"username":"string","phone":"string","password":"string","firstName":"string","lastName":"string"}
+
 ### Logs user into the system
 GET {{base_url}}/user/login?username=string&password=string
+
+### Place an order for a pet
+POST {{base_url}}/store/order
+Content-Type: application/json
+
+{"shipDate":"2024-01-01T00:00:00Z","id":0,"complete":false,"petId":0,"status":"placed","quantity":0}

@@ -67,7 +67,7 @@ local function parse_operation(path, method, operation, spec, server_url)
     if not found then table.insert(all_params, p) end
   end
 
-  local hdrs, qs, vars = import_parser.collect_parameters(all_params, {}, spec)
+  local hdrs, qs, vars, _, prompts = import_parser.collect_parameters(all_params, {}, spec)
   for _, h in ipairs(hdrs) do table.insert(headers, h) end
   for _, v in ipairs(vars) do
     if not op_vars[v.name] then
@@ -82,7 +82,7 @@ local function parse_operation(path, method, operation, spec, server_url)
     body = parse_request_body(operation, spec)
   end
 
-  return import_parser.generate_http_block(name, method:upper(), url, headers, body), op_vars
+  return import_parser.generate_http_block(name, method:upper(), url, headers, body, prompts), op_vars
 end
 
 function M.import_spec(spec_path, out_dir)
