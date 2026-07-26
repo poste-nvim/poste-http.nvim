@@ -15,6 +15,9 @@
 local state = require("poste.state")
 local request_vars = require("poste.http.request_vars")
 local resolve = require("poste.http.resolve")
+local curl_exec = require("poste.http.curl_exec")
+local describe = require("poste.http.describe")
+local vars = require("poste.http.vars")
 
 local M = {}
 
@@ -368,7 +371,7 @@ end
 
 --- Resolve imported content through the shared async pipeline.
 --- Creates a scratch buffer so prompt handling has a stable buffer context.
-local function resolve_import_content(content, block_start, binary, file_path, env_name, mode, on_complete)
+local function resolve_import_content(content, block_start, file_path, env_name, mode, on_complete)
   local buf = vim.api.nvim_create_buf(false, true)
   pcall(vim.api.nvim_buf_set_option, buf, "buftype", "nofile")
   local lines = vim.split(content, "\n", { plain = true })
@@ -379,7 +382,6 @@ local function resolve_import_content(content, block_start, binary, file_path, e
     buf = buf,
     cursor_line = block_start,
     block_line = block_start,
-    binary = binary,
     file = file_path,
     env_name = env_name,
   }, function(resolved_content)
@@ -390,6 +392,68 @@ local function resolve_import_content(content, block_start, binary, file_path, e
       state.log("WARN", "Import target prompt cancelled by user")
       on_complete(nil)
     end
+  end)
+end
+
+--- Execute an import request block via curl (replaces poste CLI binary).
+local function execute_import_via_curl(resolved_content, file_path, block_line, env_name, callback)
+  local blocks = describe.describe_content(resolved_content, file_path)
+  local meta = blocks and describe.block_at_line(blocks, block_line)
+  if not meta then
+    vim.schedule(function()
+      vim.notify("Could not parse request block", vim.log.levels.ERROR, { title = "Poste" })
+      if callback then callback(nil) end
+    end)
+    return
+  end
+
+  local method = meta.method or "GET"
+  local url = meta.path or ""
+  local headers = meta.headers or {}
+  local body = meta.body or ""
+
+  if not url or url == "" then
+    vim.schedule(function()
+      vim.notify("Import request has no URL", vim.log.levels.ERROR, { title = "Poste" })
+      if callback then callback(nil) end
+    end)
+    return
+  end
+
+  local resolver = vars.build_resolver_from_state({
+    lines = vim.split(resolved_content, "\n", { plain = true }),
+    file_path = file_path,
+    block_start = block_line,
+    block_end = block_line,
+    env_name = env_name,
+  })
+
+  url = resolver:substitute(url)
+  local resolved_headers = {}
+  for _, h in ipairs(headers) do
+    table.insert(resolved_headers, { h[1], resolver:substitute(h[2]) })
+  end
+  if body ~= "" then
+    body = resolver:substitute(body)
+  end
+
+  local buf_dir = file_path ~= "" and vim.fn.fnamemodify(file_path, ":h") or vim.fn.getcwd()
+
+  curl_exec.execute({
+    method = method,
+    url = url,
+    headers = resolved_headers,
+    body = body,
+    buf_dir = buf_dir,
+  }, function(response)
+    if response.error then
+      vim.schedule(function()
+        vim.notify("Import request failed: " .. response.error, vim.log.levels.ERROR, { title = "Poste" })
+        if callback then callback(nil) end
+      end)
+      return
+    end
+    if callback then callback(response) end
   end)
 end
 
@@ -507,13 +571,6 @@ function M.execute_run_directive(opts, callback)
     return
   end
 
-  local binary = state.find_poste_binary()
-  if not binary then
-    vim.notify("Poste binary not found", vim.log.levels.ERROR)
-    if callback then callback(false, nil) end
-    return
-  end
-
   if opts.action == "execute" then
     -- Read target file content first for pre/post-script processing
     local f = io.open(opts.path, "r")
@@ -529,7 +586,7 @@ function M.execute_run_directive(opts, callback)
     local block_end = find_block_end(content, opts.line)
     local orig_block_end = block_end  -- original bounds for post-script on original content
 
-    resolve_import_content(content, opts.line, binary, opts.path, state.current_env, "import", function(prompt_resolved)
+    resolve_import_content(content, opts.line, opts.path, state.current_env, "import", function(prompt_resolved)
       if not prompt_resolved then
         state.log("WARN", string.format("Import prompt cancelled for '%s', aborting", opts.request_name))
         if callback then callback(false, nil) end
@@ -546,73 +603,17 @@ function M.execute_run_directive(opts, callback)
         modified_content = M.apply_variable_overrides(modified_content, opts.line, opts.vars)
       end
 
-      local cmd = string.format("%s run %s --line %d --env %s --json --stdin",
-        vim.fn.shellescape(binary),
-        vim.fn.shellescape(opts.path),
-        opts.line,
-        vim.fn.shellescape(state.current_env)
-      )
-
-      state.log("INFO", string.format("import run: %s", cmd))
-
-      local stdout_buf = {}
-      local stderr_buf = {}
-
-      local job_id = vim.fn.jobstart(cmd, {
-        stdin = "pipe",
-        stdout_buffered = true,
-        stderr_buffered = true,
-        on_stdout = function(_, data)
-          if not data then return end
-          for _, line in ipairs(data) do
-            if line ~= "" then table.insert(stdout_buf, line) end
-          end
-        end,
-        on_stderr = function(_, data)
-          if not data then return end
-          for _, line in ipairs(data) do
-            if line ~= "" then table.insert(stderr_buf, line) end
-          end
-        end,
-        on_exit = function(_, code)
-          if code ~= 0 then
-            vim.schedule(function()
-              vim.notify(string.format("run directive failed (exit %d): %s", code,
-                table.concat(stderr_buf, "\n")), vim.log.levels.ERROR, { title = "Poste" })
-              if callback then callback(false, {
-                status = 0,
-                status_text = "Failed (exit " .. code .. ")",
-                body = table.concat(stderr_buf, "\n"),
-              }) end
-            end)
-            return
-          end
-
-          local stdout_text = table.concat(stdout_buf, "\n")
-          local ok, parsed = pcall(vim.json.decode, stdout_text)
-          if ok and type(parsed) == "table" then
-            -- Run target block's post-script (so client.global.set() persists)
-            process_target_post_script(parsed, content, opts.line, orig_block_end)
-            -- Cache the response for cross-request variable resolution
-            request_vars.cache_response(opts.request_name, parsed)
-            if callback then callback(true, parsed) end
-          else
-            if callback then callback(false, {
-              status = 0,
-              status_text = "JSON parse failed",
-              body = stdout_text,
-            }) end
-          end
-        end,
-      })
-
-      if job_id > 0 then
-        vim.fn.chansend(job_id, modified_content)
-        vim.fn.chanclose(job_id, "stdin")
-      else
-        vim.notify("Failed to start poste job for run directive", vim.log.levels.ERROR, { title = "Poste" })
-        if callback then callback(false, nil) end
-      end
+      execute_import_via_curl(modified_content, opts.path, opts.line, state.current_env, function(response)
+        if not response then
+          if callback then callback(false, nil) end
+          return
+        end
+        -- Run target block's post-script (so client.global.set() persists)
+        process_target_post_script(response, content, opts.line, orig_block_end)
+        -- Cache the response for cross-request variable resolution
+        request_vars.cache_response(opts.request_name, response)
+        if callback then callback(true, response) end
+      end)
     end)
 
   elseif opts.action == "execute_all" then
@@ -634,13 +635,6 @@ function M.execute_all_requests(file_path, content, vars, callback)
     return
   end
 
-  local binary = state.find_poste_binary()
-  if not binary then
-    vim.notify("Poste binary not found", vim.log.levels.ERROR)
-    if callback then callback(false, nil) end
-    return
-  end
-
   local results = {}
   local idx = 1
 
@@ -653,8 +647,7 @@ function M.execute_all_requests(file_path, content, vars, callback)
     local req = requests[idx]
     idx = idx + 1
 
-    resolve_import_content(content, req.line, binary, file_path, state.current_env, "import", function(dep_resolved_content)
-      -- Find block bounds and process pre-script from target block (on dependency-resolved content)
+    resolve_import_content(content, req.line, file_path, state.current_env, "import", function(dep_resolved_content)
       local block_end = find_block_end(dep_resolved_content, req.line)
       local modified_content, _ = process_target_pre_script(dep_resolved_content, req.line, block_end)
 
@@ -662,67 +655,23 @@ function M.execute_all_requests(file_path, content, vars, callback)
         modified_content = M.apply_variable_overrides(modified_content, req.line, vars)
       end
 
-      local cmd = string.format("%s run %s --line %d --env %s --json --stdin",
-        vim.fn.shellescape(binary),
-        vim.fn.shellescape(file_path),
-        req.line,
-        vim.fn.shellescape(state.current_env)
-      )
-
-      local stdout_buf = {}
-      local stderr_buf = {}
-
-      local job_id = vim.fn.jobstart(cmd, {
-        stdin = "pipe",
-        stdout_buffered = true,
-        stderr_buffered = true,
-        on_stdout = function(_, data)
-          if not data then return end
-          for _, line in ipairs(data) do
-            if line ~= "" then table.insert(stdout_buf, line) end
-          end
-        end,
-        on_stderr = function(_, data)
-          if not data then return end
-          for _, line in ipairs(data) do
-            if line ~= "" then table.insert(stderr_buf, line) end
-          end
-        end,
-        on_exit = function(_, code)
-          local stdout_text = table.concat(stdout_buf, "\n")
-          local ok, parsed = pcall(vim.json.decode, stdout_text)
-          if ok and type(parsed) == "table" then
-            -- Run target block's post-script so client.global.set() persists
-            process_target_post_script(parsed, content, req.line, block_end)
-            -- Cache the response for cross-request variable resolution
-            request_vars.cache_response(req.name, parsed)
-            table.insert(results, { name = req.name, response = parsed })
-          else
-            table.insert(results, { name = req.name, response = {
-              status = code,
-              status_text = "Failed",
-              body = stdout_text,
-              stderr = table.concat(stderr_buf, "\n"),
-            }})
-          end
-          vim.schedule(function()
-            vim.notify(string.format("[%d/%d] %s — %s", idx - 1, #requests, req.name,
-              parsed and (parsed.status .. " " .. (parsed.status_text or "")) or "failed"),
-              vim.log.levels.INFO, { title = "Poste" })
-          end)
-          execute_next()
-        end,
-      })
-
-      if job_id > 0 then
-        vim.fn.chansend(job_id, modified_content)
-        vim.fn.chanclose(job_id, "stdin")
-      else
-        table.insert(results, { name = req.name, response = {
-          status = 0, status_text = "Job start failed", body = "",
-        }})
+      execute_import_via_curl(modified_content, file_path, req.line, state.current_env, function(response)
+        if response then
+          process_target_post_script(response, content, req.line, block_end)
+          request_vars.cache_response(req.name, response)
+          table.insert(results, { name = req.name, response = response })
+        else
+          table.insert(results, { name = req.name, response = {
+            status = 0, status_text = "Failed", body = "",
+          }})
+        end
+        vim.schedule(function()
+          vim.notify(string.format("[%d/%d] %s — %s", idx - 1, #requests, req.name,
+            response and (response.status .. " " .. (response.status_text or "")) or "failed"),
+            vim.log.levels.INFO, { title = "Poste" })
+        end)
         execute_next()
-      end
+      end)
     end)
   end
 
