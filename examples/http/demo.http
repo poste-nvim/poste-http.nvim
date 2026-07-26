@@ -8,11 +8,6 @@ Accept: application/json
 
 ### Get Users
 < {%
-
-
-
-
-
   local page = request.variables.get("page") or 1
   request.variables.set("page", tostring(page))
 %}

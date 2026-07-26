@@ -41,11 +41,17 @@ local function apply_range(buf, start, stop)
   _prev_buf = buf
 end
 
---- Find the request block for a given cursor position.
---- Delegates to cache.lua block index for O(1) lookup.
+--- Find the request block for a given cursor position using tree-sitter.
+--- Falls back to cache.lua block index if tree-sitter is unavailable.
 local function find_block(buf, cursor)
   local cache = require("poste.http.cache")
-  local block = cache.get_block_at_line(buf, cursor)
+  -- Try tree-sitter based semantic blocks first
+  local block = cache.get_semantic_block_at_line(buf, cursor)
+  if block and block.line and block.end_line then
+    return block.line, block.end_line
+  end
+  -- Fallback to heuristic block index
+  block = cache.get_block_at_line(buf, cursor)
   if not block then return nil, nil end
   local stop_line = block.last_content_line or block.end_line
   return block.start_line, stop_line
