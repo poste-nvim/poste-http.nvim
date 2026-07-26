@@ -272,20 +272,21 @@ local function find_var_def(buf, var_name, cursor_line)
     end
   end
 
-  -- Also search for prompt variable definitions (<<varname)
-  if not block_match and not file_match then
-    local prompt_defs = ts_query.find_nodes_of_type(buf, "prompt_variable")
-    for _, def in ipairs(prompt_defs) do
-      local name_node = def:named_child(0)
-      if name_node and ts_query.node_text(name_node) == var_name then
-        local sr = def:start()
-        local def_line = sr + 1
-        if current_req and def_line >= current_req.start_line and def_line <= current_req.end_line then
-          block_match = name_node
-          break
-        elseif not file_match then
-          file_match = name_node
-        end
+  -- Also search for prompt variable definitions (<<varname).
+  -- Run unconditionally so same-block <<method takes priority over
+  -- other-block @method (the guard if not block_match and not file_match
+  -- would skip this when @method was found first as file_match).
+  local prompt_defs = ts_query.find_nodes_of_type(buf, "prompt_variable")
+  for _, def in ipairs(prompt_defs) do
+    local name_node = def:named_child(0)
+    if name_node and ts_query.node_text(name_node) == var_name then
+      local sr = def:start()
+      local def_line = sr + 1
+      if current_req and def_line >= current_req.start_line and def_line <= current_req.end_line then
+        block_match = name_node
+        break
+      elseif not file_match then
+        file_match = name_node
       end
     end
   end
