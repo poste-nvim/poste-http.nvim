@@ -25,6 +25,8 @@ local function build_url(server_url, path)
   if clean_path:sub(1, 1) ~= "/" then
     clean_path = "/" .. clean_path
   end
+  -- Replace OpenAPI path params {param} with HTTP variable syntax {{param}}
+  clean_path = clean_path:gsub("{([^}]+)}", "{{%1}}")
   return "{{base_url}}" .. clean_path
 end
 
@@ -34,8 +36,8 @@ local function parse_request_body(operation, spec)
   local json_content = content["application/json"]
   if json_content and json_content.schema then
     local example = import_parser.schema_to_example(json_content.schema, spec)
-    if example and example ~= "{}" then
-      return example
+    if example and next(example) then
+      return vim.json.encode(example)
     end
   end
   return ""
@@ -46,6 +48,7 @@ local function parse_operation(path, method, operation, spec, server_url)
   local url = build_url(server_url, path)
   local headers = {}
   local body = ""
+  local op_vars = {}
 
   local auth = import_parser.extract_auth_header(spec)
   if auth then
@@ -66,6 +69,11 @@ local function parse_operation(path, method, operation, spec, server_url)
 
   local hdrs, qs, vars = import_parser.collect_parameters(all_params, {}, spec)
   for _, h in ipairs(hdrs) do table.insert(headers, h) end
+  for _, v in ipairs(vars) do
+    if not op_vars[v.name] then
+      op_vars[v.name] = v.value
+    end
+  end
   if #qs > 0 then
     url = url .. "?" .. table.concat(qs, "&")
   end
@@ -74,7 +82,7 @@ local function parse_operation(path, method, operation, spec, server_url)
     body = parse_request_body(operation, spec)
   end
 
-  return import_parser.generate_http_block(name, method:upper(), url, headers, body)
+  return import_parser.generate_http_block(name, method:upper(), url, headers, body), op_vars
 end
 
 function M.import_spec(spec_path, out_dir)
@@ -100,18 +108,27 @@ function M.import_spec(spec_path, out_dir)
   end
 
   local blocks = {}
+  local all_op_vars = {}
   local paths = spec.paths or {}
   for path, path_item in pairs(paths) do
     local methods = { "get", "post", "put", "patch", "delete", "options", "head", "trace" }
     for _, method in ipairs(methods) do
       local operation = path_item[method]
       if operation then
-        local block = parse_operation(path, method, operation, spec, server_url)
+        local block, op_vars = parse_operation(path, method, operation, spec, server_url)
         if block then
           table.insert(blocks, block)
+          for k, v in pairs(op_vars) do
+            all_op_vars[k] = v
+          end
         end
       end
     end
+  end
+
+  -- Add operation-level variables as file-level @var definitions
+  for name, value in pairs(all_op_vars) do
+    table.insert(file_vars, { name = name, value = value })
   end
 
   local file_vars_str = import_parser.generate_file_vars(file_vars)

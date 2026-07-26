@@ -62,17 +62,14 @@ end
 
 function M.schema_to_example(schema, spec, depth)
   depth = depth or 0
-  if depth > 5 then return "{}" end
-  if not schema then return "{}" end
+  if depth > 5 then return {} end
+  if not schema then return {} end
 
   local resolved = M.resolve_schema(schema, spec)
-  if not resolved then return "{}" end
+  if not resolved then return {} end
 
   if resolved.example ~= nil then
-    if type(resolved.example) == "table" then
-      return vim.json.encode(resolved.example)
-    end
-    return tostring(resolved.example)
+    return resolved.example
   end
 
   if resolved.type == "object" or resolved.properties then
@@ -82,33 +79,53 @@ function M.schema_to_example(schema, spec, depth)
         obj[k] = M.schema_to_example(v, spec, depth + 1)
       end
     end
-    return vim.json.encode(obj)
+    return obj
   end
 
   if resolved.type == "array" then
-    local item = M.schema_to_example(resolved.items, spec, depth + 1)
-    return "[" .. item .. "]"
+    return { M.schema_to_example(resolved.items, spec, depth + 1) }
   end
 
   if resolved.type == "string" then
     if resolved.enum and #resolved.enum > 0 then
-      return '"' .. resolved.enum[1] .. '"'
+      return resolved.enum[1]
     end
-    if resolved.format == "date" then return '"2024-01-01"'
-    elseif resolved.format == "date-time" then return '"2024-01-01T00:00:00Z"'
-    elseif resolved.format == "email" then return '"user@example.com"'
-    elseif resolved.format == "uri" then return '"https://example.com"'
-    elseif resolved.format == "uuid" then return '"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"'
+    if resolved.default ~= nil then return resolved.default end
+    if resolved.format == "date" then return "2024-01-01"
+    elseif resolved.format == "date-time" then return "2024-01-01T00:00:00Z"
+    elseif resolved.format == "email" then return "user@example.com"
+    elseif resolved.format == "uri" then return "https://example.com"
+    elseif resolved.format == "uuid" then return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
     end
-    return '"string"'
+    return "string"
   end
 
-  if resolved.type == "integer" then return "0"
-  elseif resolved.type == "number" then return "0.0"
-  elseif resolved.type == "boolean" then return "true"
+  if resolved.type == "integer" then
+    if resolved.default ~= nil then return resolved.default end
+    return 0
+  elseif resolved.type == "number" then
+    if resolved.default ~= nil then return resolved.default end
+    return 0.0
+  elseif resolved.type == "boolean" then
+    if resolved.default ~= nil then return resolved.default end
+    return true
   end
 
-  return "{}"
+  return {}
+end
+
+local function example_to_string(value)
+  if type(value) == "table" then
+    local parts = {}
+    for _, v in ipairs(value) do
+      table.insert(parts, example_to_string(v))
+    end
+    if #parts > 0 then
+      return '["' .. table.concat(parts, '","') .. '"]'
+    end
+    return "[]"
+  end
+  return tostring(value)
 end
 
 function M.collect_parameters(openapi_params, path_params, spec)
@@ -122,18 +139,16 @@ function M.collect_parameters(openapi_params, path_params, spec)
     if resolved then
       local name = resolved.name or ""
       local in_location = resolved["in"] or ""
+      local example = M.schema_to_example(resolved.schema or resolved, spec)
+      local str_example = example_to_string(example)
       if in_location == "header" then
         table.insert(headers, { key = name, value = "{{" .. name .. "}}" })
-        table.insert(url_vars, { name = name, value = resolved.schema and M.schema_to_example(resolved.schema, spec) or M.schema_to_example(resolved, spec) })
+        table.insert(url_vars, { name = name, value = str_example })
       elseif in_location == "query" then
-        local example = resolved.schema and M.schema_to_example(resolved.schema, spec) or M.schema_to_example(resolved, spec)
-        if example:match("^\"") then
-          example = example:gsub('^"', ""):gsub('"$', "")
-        end
-        table.insert(query_parts, name .. "=" .. example)
-        table.insert(url_vars, { name = name, value = example })
+        table.insert(query_parts, name .. "=" .. str_example)
+        table.insert(url_vars, { name = name, value = str_example })
       elseif in_location == "path" then
-        table.insert(url_vars, { name = name, value = resolved.schema and M.schema_to_example(resolved.schema, spec) or M.schema_to_example(resolved, spec) })
+        table.insert(url_vars, { name = name, value = str_example })
       end
     end
   end
