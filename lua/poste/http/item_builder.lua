@@ -304,9 +304,9 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
 
     -- Namespace-aware completion: if the typed text contains a dot, show only
     -- the immediate children of the namespace (one level at a time).
-    local dot_pos = line:match("^()(%w+%.+%w*)$")
-    if dot_pos then
-      local prefix = line:match("^([%w.]+)%.%w*$")
+    local has_dot = line:match("%.%w*$")
+    if has_dot then
+      local prefix = line:match("^(.+)%.[^.]*$")
       local partial = line:match("%.(%w*)$")
       if prefix then
         prefix = prefix .. "."
@@ -338,13 +338,8 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
         end
         -- If no namespace matches, fall through to flat keyword list
         if #items > 0 then
-          -- Add Lua keywords and functions
-          local lua_items = M.build_items(data.lua_keywords, KIND_KEYWORD)
-          for _, item in ipairs(lua_items) do table.insert(items, item) end
-          local func_items = M.build_keyword_items(data.lua_sandbox_functions, KIND_FUNCTION)
-          for _, item in ipairs(func_items) do table.insert(items, item) end
-          local module_items = M.build_keyword_items(data.lua_sandbox_modules, KIND_PROPERTY)
-          for _, item in ipairs(module_items) do table.insert(items, item) end
+          -- In namespace-aware mode, only add script variables (not Lua keywords
+          -- or sandbox items, which would pollute the namespace completion)
           local var_items = M.build_script_variable_items(extra or "", buf, cursor_line)
           for _, item in ipairs(var_items) do table.insert(items, item) end
           return items
