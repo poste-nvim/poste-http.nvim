@@ -1230,14 +1230,41 @@ local function resolve_content_dependencies_impl(buf, file_path, env_name, conte
       end
       local dep_block_text = table.concat(dep_lines, "\n")
 
-      execute_dependent_request_async(buf, file_path, env_name, dep_req, dep_block_text, function(response)
-        if response then
-          state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
-        else
-          state.log("WARN", string.format("Dependency '%s' failed to execute", dep_req.name))
-        end
-        execute_next_dep()
-      end)
+      -- Check if dep has prompt directives (<<variable)
+      local has_prompts = dep_block_text:match("<<[%a_][%w_]")
+
+      if has_prompts then
+        handle_prompt_variables_impl(buf, dep_req.start_line, resolved_content, file_path, env_name, function(prompt_resolved)
+          if not prompt_resolved then
+            state.log("WARN", string.format("Dependency '%s' prompt cancelled, skipping", dep_req.name))
+            execute_next_dep()
+            return
+          end
+          local prompt_lines = vim.split(prompt_resolved, "\n", { plain = true })
+          local dep_lines2 = {}
+          for i = dep_req.start_line, dep_req.end_line do
+            table.insert(dep_lines2, prompt_lines[i] or "")
+          end
+          local dep_block_text2 = table.concat(dep_lines2, "\n")
+          execute_dependent_request_async(buf, file_path, env_name, dep_req, dep_block_text2, function(response)
+            if response then
+              state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
+            else
+              state.log("WARN", string.format("Dependency '%s' failed to execute", dep_req.name))
+            end
+            execute_next_dep()
+          end)
+        end)
+      else
+        execute_dependent_request_async(buf, file_path, env_name, dep_req, dep_block_text, function(response)
+          if response then
+            state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
+          else
+            state.log("WARN", string.format("Dependency '%s' failed to execute", dep_req.name))
+          end
+          execute_next_dep()
+        end)
+      end
     end
 
     resolve_content_dependencies_impl(buf, file_path, env_name, content, dep_req.start_line, do_execute, _depth + 1)
