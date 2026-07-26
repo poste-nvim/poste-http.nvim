@@ -353,13 +353,12 @@ local function ts_goto_definition()
     return
   end
 
-  local node_type = node:type()
+local node_type = node:type()
 
   if node_type == "identifier" then
     local variable = ts_query.parent_of_type(node, "variable")
     if variable then
       local var_name = ts_query.node_text(node)
-      -- Extract first component of dotted path (e.g. "jq" from "jq.response.body")
       local req_name = var_name:match("^([^%.]+)")
       if not req_name then req_name = var_name end
 
@@ -374,7 +373,7 @@ local function ts_goto_definition()
       local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
       local req_node = nil
       for _, block in ipairs(req_blocks) do
-        local name_node = block:named_child(0)
+        local name_node = block:named_child(1)
         if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
           req_node = name_node
           break
@@ -436,21 +435,21 @@ local function ts_goto_definition()
       return
     end
 
-    local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
-    local req_node = nil
-    for _, block in ipairs(req_blocks) do
-      local name_node = block:named_child(0)
-      if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
-        req_node = name_node
-        break
+local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
+      local req_node = nil
+      for _, block in ipairs(req_blocks) do
+        local name_node = block:named_child(1)
+        if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
+          req_node = name_node
+          break
+        end
       end
-    end
-    if req_node then
-      local sr, sc = req_node:start()
-      vim.cmd("normal! m'")
-      vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
-      return
-    end
+      if req_node then
+        local sr, sc = req_node:start()
+        vim.cmd("normal! m'")
+        vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
+        return
+      end
 
     local buf_path = vim.api.nvim_buf_get_name(buf)
     if buf_path ~= "" then
@@ -581,7 +580,9 @@ local function ts_goto_references()
     return
   end
 
-  local node_type = node:type()
+local node_type = node:type()
+
+  state.log("DEBUG", string.format("gd node_type=%s", node_type))
   local symbol_name = nil
   local is_request = false
 
