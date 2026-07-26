@@ -543,7 +543,21 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
   -- Handle script blocks: find Lua local variable definitions
   if node_type == "post_script" or node_type == "pre_script" or node_type == "script_block" then
     local line_text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
-    local var_name = line_text:match("([%a_][%w_]*)")
+    -- Extract the word at the cursor position using column
+    local col = cursor[2]  -- 0-indexed
+    local word_start = col
+    while word_start > 0 and line_text:sub(word_start, word_start):match("[%w_]") do
+      word_start = word_start - 1
+    end
+    if word_start < col then word_start = word_start + 1 end
+    local word_end = col + 1
+    while word_end <= #line_text and line_text:sub(word_end, word_end):match("[%w_]") do
+      word_end = word_end + 1
+    end
+    local var_name = line_text:sub(word_start, word_end - 1)
+    if var_name == "" then
+      var_name = line_text:match("([%a_][%w_]*)")
+    end
     if var_name then
       -- Search for 'local var_name =' or 'var_name =' in the current script block
       local ok_r, sr, sc, er, ec = pcall(node.range, node)
