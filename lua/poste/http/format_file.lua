@@ -1,29 +1,28 @@
 local M = {}
 
-local function get_node_text(node, lines)
-  if not node then return "" end
-  local ok, sr, sc, er, ec = pcall(node.range, node)
-  if not ok then return "" end
-  if sr == er then
-    return lines[sr + 1]:sub(sc + 1, ec)
-  end
-  local parts = { lines[sr + 1]:sub(sc + 1) }
-  for i = sr + 2, er + 1 do
-    table.insert(parts, lines[i])
-  end
-  parts[#parts] = parts[#parts]:sub(1, ec)
-  return table.concat(parts, "\n")
-end
-
 local function format_json_body(body)
   if not body or body == "" then return body end
   local trimmed = vim.trim(body)
   if trimmed:sub(1, 1) ~= "{" and trimmed:sub(1, 1) ~= "[" then return body end
-  local ok, decoded = pcall(vim.json.decode, body)
+
+  -- Replace {{var}} references with placeholders to avoid JSON decode errors
+  local placeholders = {}
+  local stripped, n = body:gsub("{{.-}}", function(m)
+    table.insert(placeholders, m)
+    return '"__POSTE_VAR_' .. #placeholders .. '__"'
+  end)
+
+  local ok, decoded = pcall(vim.json.decode, stripped)
   if not ok then return body end
   local ok2, encoded = pcall(vim.json.encode, decoded, { indent = 2 })
   if not ok2 then return body end
-  return encoded
+
+  -- Restore {{var}} references
+  local result = encoded
+  for i, ph in ipairs(placeholders) do
+    result = result:gsub('"__POSTE_VAR_' .. i .. '__"', ph, 1)
+  end
+  return result
 end
 
 function M.format(content)
