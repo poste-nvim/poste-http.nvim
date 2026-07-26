@@ -523,7 +523,7 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
   if parent and parent:type() == "run_directive" then
     local import_mod = require("poste.http.import")
     local resolved = import_mod.resolve_run_at_cursor(buf, cursor[1])
-    if resolved.action == "execute" and resolved.path then
+    if (resolved.action == "execute" or resolved.action == "execute_all") and resolved.path then
       vim.cmd("normal! m'")
       vim.cmd("edit " .. vim.fn.fnameescape(resolved.path))
       if resolved.line then
