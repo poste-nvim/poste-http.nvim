@@ -1,5 +1,52 @@
 local M = {}
 
+local function json_pretty(value, indent)
+  indent = indent or 0
+  local indent_str = string.rep("  ", indent)
+  local indent_str_inner = string.rep("  ", indent + 1)
+  if type(value) == "table" then
+    local is_array = true
+    local max_idx = 0
+    for k in pairs(value) do
+      if type(k) ~= "number" or k ~= math.floor(k) or k < 1 then
+        is_array = false
+        break
+      end
+      max_idx = math.max(max_idx, k)
+    end
+    is_array = is_array and max_idx == #value
+    if is_array then
+      if #value == 0 then return "[]" end
+      local items = {}
+      for _, v in ipairs(value) do
+        table.insert(items, indent_str_inner .. json_pretty(v, indent + 1))
+      end
+      return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "]"
+    else
+      local keys = {}
+      for k in pairs(value) do table.insert(keys, k) end
+      table.sort(keys)
+      if #keys == 0 then return "{}" end
+      local items = {}
+      for _, k in ipairs(keys) do
+        local v = value[k]
+        table.insert(items, indent_str_inner .. '"' .. k .. '": ' .. json_pretty(v, indent + 1))
+      end
+      return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "}"
+    end
+  elseif type(value) == "string" then
+    return '"' .. value:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t') .. '"'
+  elseif type(value) == "number" then
+    return tostring(value)
+  elseif type(value) == "boolean" then
+    return value and "true" or "false"
+  elseif value == nil or value == vim.NIL then
+    return "null"
+  else
+    return tostring(value)
+  end
+end
+
 local function format_json_body(body)
   if not body or body == "" then return body end
   local trimmed = vim.trim(body)
@@ -14,15 +61,13 @@ local function format_json_body(body)
 
   local ok, decoded = pcall(vim.json.decode, stripped)
   if not ok then return body end
-  local ok2, encoded = pcall(vim.json.encode, decoded, { indent = 2 })
-  if not ok2 then return body end
+  local formatted = json_pretty(decoded)
 
   -- Restore {{var}} references
-  local result = encoded
   for i, ph in ipairs(placeholders) do
-    result = result:gsub('"__POSTE_VAR_' .. i .. '__"', ph, 1)
+    formatted = formatted:gsub('"__POSTE_VAR_' .. i .. '__"', ph, 1)
   end
-  return result
+  return formatted
 end
 
 function M.format(content)
