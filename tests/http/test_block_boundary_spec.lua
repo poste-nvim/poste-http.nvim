@@ -1,7 +1,7 @@
 --- Tests for block boundary delegation (Phase 3 of block-index proposal)
 --- Regression tests ensuring delegated functions match original behavior exactly.
 
-local cache = require("poste.http.cache")
+local cache = require("poste_http.http.cache")
 
 --- Create a scratch buffer with the given lines, return its number.
 local function create_buf(lines)
@@ -221,7 +221,7 @@ describe("block boundary delegation", function()
         "### GetProfile",
         "GET /profile",
       })
-      local request_vars = require("poste.http.request_vars")
+      local request_vars = require("poste_http.http.request_vars")
       local requests = request_vars.collect_requests(buf)
       assert.equals(2, #requests)
       assert.equals("Login", requests[1].name)
@@ -237,7 +237,7 @@ describe("block boundary delegation", function()
         "@base = http://example.com",
         "import ./auth.http",
       })
-      local request_vars = require("poste.http.request_vars")
+      local request_vars = require("poste_http.http.request_vars")
       local requests = request_vars.collect_requests(buf)
       assert.equals(0, #requests)
     end)
@@ -247,7 +247,7 @@ describe("block boundary delegation", function()
         "###",
         "GET /api",
       })
-      local request_vars = require("poste.http.request_vars")
+      local request_vars = require("poste_http.http.request_vars")
       local requests = request_vars.collect_requests(buf)
       assert.equals(1, #requests)
       assert.equals("", requests[1].name)

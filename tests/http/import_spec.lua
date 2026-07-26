@@ -1,5 +1,5 @@
 --- Tests for the import/run cross-file reference resolution module.
-local import_mod = require("poste.http.import")
+local import_mod = require("poste_http.http.import")
 local _test = import_mod._test
 
 describe("parse_import_line", function()

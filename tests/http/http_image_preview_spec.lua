@@ -25,8 +25,8 @@ describe("http image preview", function()
     state.current_view = "body"
     package.loaded["poste.http.format"] = nil
     package.loaded["poste.http.view"] = nil
-    format = require("poste.http.format")
-    view = require("poste.http.view")
+    format = require("poste_http.http.format")
+    view = require("poste_http.http.view")
   end)
 
   after_each(function()
@@ -240,7 +240,7 @@ describe("http image preview", function()
       }
     end
     package.loaded["snacks"] = nil
-    format = require("poste.http.format")
+    format = require("poste_http.http.format")
 
     assert.is_true(format.has_snacks_image())
   end)
@@ -267,7 +267,7 @@ describe("http image preview", function()
       }
     end
     package.loaded["snacks"] = nil
-    format = require("poste.http.format")
+    format = require("poste_http.http.format")
 
     local tmp = vim.fn.tempname()
     local f = assert(io.open(tmp, "wb"))

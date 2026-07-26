@@ -44,27 +44,27 @@ function M.setup_buffer_keymaps(buf)
   k = km("http_source", "paste_curl", "<leader>rp")
   if k then
     vim.keymap.set("n", k, function()
-      require("poste.http.curl").paste_curl("+")
+      require("poste_http.http.curl").paste_curl("+")
     end, keymap_opts)
   end
   k = km("http_source", "copy_as_curl", "<leader>rc")
   if k then
     vim.keymap.set("n", k, function()
-      require("poste.http.copy").copy_to_clipboard("+")
+      require("poste_http.http.copy").copy_to_clipboard("+")
     end, keymap_opts)
   end
   k = km("http_source", "toggle_outline", "gs")
   if k then
     vim.keymap.set("n", k, function()
-      require("poste.http.symbols").show_symbols()
+      require("poste_http.http.symbols").show_symbols()
     end, keymap_opts)
   end
   k = km("http_source", "pick_env", "<leader>vv")
-  if k then vim.keymap.set("n", k, require("poste.http.env").pick_env, keymap_opts) end
+  if k then vim.keymap.set("n", k, require("poste_http.http.env").pick_env, keymap_opts) end
   k = km("http_source", "show_history", "<leader>l")
   if k then
     vim.keymap.set("n", k, function()
-      require("poste.http.history").show()
+      require("poste_http.http.history").show()
     end, keymap_opts)
   end
   k = km("http_source", "help", "g?")

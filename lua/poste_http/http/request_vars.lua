@@ -1,0 +1,1279 @@
+--- Prompt variables, form data processing, and cross-request variable resolution.
+local state = require("poste_http.state")
+local poste_select = require("poste_http.select")
+local assertions = require("poste_http.http.assertions")
+local curl_exec = require("poste_http.http.curl_exec")
+local describe = require("poste_http.http.describe")
+local vars = require("poste_http.http.vars")
+
+local M = {}
+
+-- Cache for executed request responses: { [request_name] = response_table }
+local request_response_cache = {}
+
+-- Track auto-executed dependency chain for multi-response display
+local _chain_dep_set = {}
+local _chain_dep_order = {}
+
+---------------------------------------------------------------------------
+-- Form data (multipart/form-data, url-encoded, file uploads, magic vars)
+---------------------------------------------------------------------------
+
+--- Generate a UUID v4 (random). Safe for LuaJIT (math.random max 2^31-1).
+local function generate_uuid()
+  -- 32 hex digits in 8-4-4-4-12 groups, with version=4 and variant=10xx
+  local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+  return template:gsub("[xy]", function(c)
+    local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
+    return string.format("%x", v)
+  end)
+end
+
+--- Magic variables: {{name}} → generated value
+local magic_vars = {
+  timestamp = function() return tostring(os.time()) .. math.random(100000, 999999) end,
+  uuid      = function() return generate_uuid() end,
+  date      = function() return os.date("%Y-%m-%d") end,
+  randomInt = function() return tostring(math.random(0, 9999999)) end,
+}
+
+--- Process form data magic variables in the request body.
+--- - Replaces {{$timestamp}}, {{$uuid}}, {{$date}}, {{$randomInt}}
+--- Does NOT expand `< file` directives — that happens in the Rust executor
+--- after block parsing (to avoid ### in file content corrupting block boundaries).
+--- Operates on the current request block only.
+function M.process_form_data(src_buf, cursor_line, content)
+  local start_line, end_line = require("poste_http.http.cache").find_request_block_bounds(src_buf, cursor_line)
+  if not start_line then return content end
+
+  -- Generate magic variable values once per request
+  local generated = {}
+  for name, gen in pairs(magic_vars) do
+    generated[name] = gen()
+  end
+
+  local lines = vim.split(content, "\n", { plain = true })
+  local result = {}
+
+  for i, line in ipairs(lines) do
+    if i >= start_line and i <= end_line then
+      -- Replace all magic variables
+      local processed = line
+      for name, value in pairs(generated) do
+        processed = processed:gsub("{{%$" .. name .. "}}", value)
+      end
+      table.insert(result, processed)
+    else
+      table.insert(result, line)
+    end
+  end
+
+  return table.concat(result, "\n")
+end
+
+---------------------------------------------------------------------------
+-- Request variable helpers
+---------------------------------------------------------------------------
+
+--- Remove resolved prompt directive lines from content (keep @var = value lines)
+local function strip_prompt_lines(content)
+  local result = {}
+  for _, l in ipairs(vim.split(content, "\n", { plain = true })) do
+    if not l:match("^%s*<<[%a_][%w_]*") then
+      table.insert(result, l)
+    end
+  end
+  return table.concat(result, "\n")
+end
+
+--- Collect all ### request blocks with their names and line ranges.
+--- Delegates to cache.lua block index.
+--- Returns list of { name = "Request Name", start_line = 1, end_line = 5 }
+--- All line numbers are 1-indexed.
+function M.collect_requests(buf)
+  local cache = require("poste_http.http.cache")
+  local bc = cache.get_buffer_cache(buf)
+  local requests = {}
+  for _, block in ipairs(bc.blocks or {}) do
+    table.insert(requests, {
+      name = block.name or "",
+      start_line = block.start_line,
+      end_line = block.end_line,
+    })
+  end
+  return requests
+end
+
+---------------------------------------------------------------------------
+-- Nested value access
+---------------------------------------------------------------------------
+
+--- Navigate a nested table using a dot-separated path.
+--- Supports: "data.user.name" → data.user.name
+---           "items[0].id"    → items[0].id (array indexing)
+--- Parse a dot-separated path into segments, treating brackets as grouped
+--- delimiters so that "items[].id" becomes {"items[]", "id"}.
+local function parse_path_segments(path)
+  local segments = {}
+  local i = 1
+  while i <= #path do
+    if path:sub(i, i) == "." then
+      i = i + 1
+    else
+      local start = i
+      local depth = 0
+      while i <= #path do
+        local c = path:sub(i, i)
+        if c == "[" then
+          depth = depth + 1
+        elseif c == "]" then
+          depth = depth - 1
+        elseif c == "." and depth == 0 then
+          break
+        end
+        i = i + 1
+      end
+      table.insert(segments, path:sub(start, i - 1))
+    end
+  end
+  return segments
+end
+
+--- Resolve path segments recursively, supporting array wildcards.
+--- Must be defined before get_nested_value (used recursively).
+local function resolve_segments(current, segments, idx)
+  if idx > #segments then return current end
+  if type(current) == "string" then
+    local ok, parsed = pcall(vim.json.decode, current)
+    if ok and type(parsed) == "table" then
+      current = parsed
+    else
+      return nil
+    end
+  end
+  if type(current) ~= "table" then return nil end
+  local part = segments[idx]
+  local array_field = part:match("^(.*)%[%]$")
+  if array_field then
+    local arr
+    if array_field == "" then
+      arr = current
+    else
+      arr = current[array_field]
+      if arr == nil then arr = current[array_field .. "[]"] end
+    end
+    if type(arr) ~= "table" or not vim.tbl_islist(arr) then return nil end
+    local results = {}
+    for _, elem in ipairs(arr) do
+      local r = resolve_segments(elem, segments, idx + 1)
+      if r ~= nil then
+        table.insert(results, r)
+      end
+    end
+    return results
+  end
+  local field, idx_str = part:match("^(.*)%[(%d+)%]$")
+  if field and idx_str then
+    local arr
+    if field == "" then
+      arr = current
+    else
+      arr = current[field]
+      if arr == nil then arr = current[field .. "[]"] end
+    end
+    if type(arr) ~= "table" then return nil end
+    return resolve_segments(arr[tonumber(idx_str) + 1], segments, idx + 1)
+  end
+  local value = current[part]
+  if value == nil then value = current[part .. "[]"] end
+  return resolve_segments(value, segments, idx + 1)
+end
+
+--- Walk a dot-separated path into a nested table/JSON structure.
+local function get_nested_value(obj, path)
+  if not obj or path == "" then return nil end
+  local segments = parse_path_segments(path)
+  return resolve_segments(obj, segments, 1)
+end
+
+---------------------------------------------------------------------------
+-- Request variable resolution
+---------------------------------------------------------------------------
+
+--- Extract a value from a cached request response.
+--- pattern format: "RequestName.response.body.field.subfield"
+---                 "RequestName.response.headers.Content-Type"
+---                 "RequestName.request.headers.Authorization"
+local function resolve_request_variable(pattern, cached_responses)
+  -- Parse: RequestName.(response|request).(body|headers)[.path]
+  local req_name, source, target = pattern:match("^([^%.]+)%.([^%.]+)%.([^%.]+)")
+  if not req_name or not source or not target then
+    return nil
+  end
+
+  -- Extract optional path after target (e.g., "body.user.name" → path = "user.name")
+  local full_match = req_name .. "." .. source .. "." .. target
+  local path = pattern:sub(#full_match + 2)  -- +2 for the dot separator
+
+  local response = cached_responses[req_name]
+  if not response then
+    state.log("WARN", string.format("Request variable: '%s' not found in cache", req_name))
+    return nil
+  end
+
+  if source == "response" then
+    if target == "body" then
+      local body = response.body
+      if not body or body == "" then return nil end
+
+      -- If no path, return the whole body
+      if path == "" then return body end
+
+      -- Try to parse as JSON and navigate
+      local ok, parsed = pcall(vim.json.decode, body)
+      if not ok then
+        state.log("WARN", string.format("Cannot parse response body as JSON for '%s'", req_name))
+        return nil
+      end
+      return get_nested_value(parsed, path)
+
+    elseif target == "headers" then
+      if not response.headers then return nil end
+      for _, h in ipairs(response.headers) do
+        if h[1]:lower() == path:lower() then
+          return h[2]
+        end
+      end
+    end
+
+  elseif source == "request" then
+    if target == "body" then
+      local body = response.metadata and response.metadata.request_body
+      if not body or body == "" or path == "" then return body end
+      local ok, parsed = pcall(vim.json.decode, body)
+      if ok then return get_nested_value(parsed, path) end
+
+    elseif target == "headers" then
+      local headers_str = response.metadata and response.metadata.request_headers
+      if not headers_str then return nil end
+      for line in headers_str:gmatch("[^\r\n]+") do
+        local key, value = line:match("^([^:]+):%s*(.+)$")
+        if key and value and vim.trim(key):lower() == path:lower() then
+          return vim.trim(value)
+        end
+      end
+    end
+  end
+
+  return nil
+end
+
+--- Scan block text for request variable references: {{RequestName.response.body.field}}
+--- Returns list of { full = "{{...}}", request_name = "RequestName" }
+local function find_request_variable_refs(block_text)
+  local refs = {}
+  for full_ref in block_text:gmatch("{{(.-)}}") do
+    -- Request variables contain .response. or .request.
+    if full_ref:match("%.response%.") or full_ref:match("%.request%.") then
+      local req_name = full_ref:match("^([^%.]+)%.")
+      if req_name then
+        table.insert(refs, { full = "{{" .. full_ref .. "}}", request_name = req_name })
+      end
+    end
+  end
+  return refs
+end
+
+--- Find request variable references inside <<name [{{dyn_expr}}] prompt directives.
+--- Uses greedy pattern to handle nested {} inside jq filter expressions.
+local function find_dynamic_prompt_refs(block_text)
+  local refs = {}
+  for line in block_text:gmatch("[^\n]+") do
+    local options_str = line:match("^%s*<<[%a_][%w_]*%s*%[(.+)%]")
+    if options_str then
+      local full_ref = options_str:match("{{(.+%.response%..+)}}")
+      if full_ref then
+        local req_name = full_ref:match("^([^%.]+)%.")
+        if req_name then
+          table.insert(refs, { full = "{{" .. full_ref .. "}}", request_name = req_name })
+        end
+      end
+    end
+  end
+  return refs
+end
+
+--- Public alias for cross-file dependency resolution.
+M.find_request_variable_refs = find_request_variable_refs
+
+---------------------------------------------------------------------------
+-- Dependent request execution (fully async via callback chain)
+---------------------------------------------------------------------------
+
+--- Execute a single dependent request asynchronously.
+--- Uses cache if available. Calls on_complete(response_or_nil).
+--- Non-blocking: uses jobstart on_exit callback chain.
+--- Read file-level @var lines from the source file (before first ###).
+local function read_file_vars_from_path(file_path)
+  local ok, content = pcall(vim.fn.readfile, file_path)
+  if not ok or type(content) ~= "table" then return "", 0 end
+  local lines = {}
+  for _, line in ipairs(content) do
+    local trimmed = vim.trim(line)
+    if trimmed:match("^@") then
+      table.insert(lines, trimmed)
+    elseif trimmed:match("^###") then
+      break
+    end
+  end
+  return table.concat(lines, "\n"), #lines
+end
+
+local function execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text, on_complete)
+  -- Check cache first
+  if request_response_cache[dep_req.name] then
+    state.log("INFO", string.format("Using cached response for '%s'", dep_req.name))
+    vim.schedule(function() on_complete(request_response_cache[dep_req.name]) end)
+    return
+  end
+
+  state.log("INFO", string.format("Executing dependency '%s' via curl", dep_req.name))
+
+  -- Parse the block to get method, url, headers, body
+  local blocks = describe.describe_content(dep_block_text, file)
+  if not blocks or #blocks == 0 then
+    state.log("WARN", string.format("Failed to parse dependency '%s' block", dep_req.name))
+    vim.schedule(function() on_complete(nil) end)
+    return
+  end
+  local meta = blocks[1]
+  local method = meta.method or "GET"
+  local url = meta.path or ""
+  local headers = meta.headers or {}
+  local body = meta.body or ""
+
+  if not url or url == "" then
+    state.log("WARN", string.format("Dependency '%s' has no URL", dep_req.name))
+    vim.schedule(function() on_complete(nil) end)
+    return
+  end
+
+  -- Resolve variables using the var resolver
+  local resolver = vars.build_resolver_from_state({
+    buf = buf,
+    file_path = file,
+    block_start = dep_req.start_line,
+    block_end = dep_req.end_line,
+    env_name = env_name,
+  })
+
+  url = resolver:substitute(url)
+  local resolved_headers = {}
+  for _, h in ipairs(headers) do
+    table.insert(resolved_headers, { h[1], resolver:substitute(h[2]) })
+  end
+  if body ~= "" then
+    body = resolver:substitute(body)
+  end
+
+  local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
+
+  curl_exec.execute({
+    method = method,
+    url = url,
+    headers = resolved_headers,
+    body = body,
+    buf_dir = buf_dir,
+  }, function(response)
+    if response.error then
+      state.log("WARN", string.format("Dependency '%s' failed: %s", dep_req.name, response.error))
+      on_complete(nil)
+      return
+    end
+    request_response_cache[dep_req.name] = response
+    response.request_name = dep_req.name
+    state.log("INFO", string.format("Cached response for '%s'", dep_req.name))
+    on_complete(response)
+  end)
+end
+
+--- Build a flat execution order for all dependencies (topological via DFS).
+--- Dependencies already cached are skipped.
+local function build_dep_order(refs, requests, content)
+  local order = {}
+  local seen = {}
+
+  local function collect(dep_req)
+    if seen[dep_req.name] or request_response_cache[dep_req.name] then
+      return
+    end
+    seen[dep_req.name] = true
+
+    -- Extract dep's block text and find its own cross-request refs
+    local all_lines = vim.split(content, "\n", { plain = true })
+    local dep_lines = {}
+    for i = dep_req.start_line, dep_req.end_line do
+      table.insert(dep_lines, all_lines[i] or "")
+    end
+    local dep_block_text = table.concat(dep_lines, "\n")
+    local dep_refs = find_request_variable_refs(dep_block_text)
+
+    -- Recursively collect sub-dependencies first (they must execute before us)
+    for _, ref in ipairs(dep_refs) do
+      if not seen[ref.request_name] and not request_response_cache[ref.request_name] then
+        for _, req in ipairs(requests) do
+          if req.name == ref.request_name then
+            collect(req)
+            break
+          end
+        end
+      end
+    end
+
+    table.insert(order, dep_req)
+  end
+
+  for _, ref in ipairs(refs) do
+    if not request_response_cache[ref.request_name] then
+      for _, req in ipairs(requests) do
+        if req.name == ref.request_name then
+          collect(req)
+          break
+        end
+      end
+    end
+  end
+
+  return order
+end
+
+--- Execute all dependencies in order via callback chain.
+--- Each dep's on_exit triggers the next dep's execution.
+local function execute_deps_sequential(buf, file, env_name, dep_order, content, requests, idx, on_complete)
+  idx = idx or 1
+  if idx > #dep_order then
+    on_complete()
+    return
+  end
+
+  local dep_req = dep_order[idx]
+
+  -- Resolve this dep's own variable refs using already-cached responses
+  local all_lines = vim.split(content, "\n", { plain = true })
+  local dep_lines = {}
+  for i = dep_req.start_line, dep_req.end_line do
+    table.insert(dep_lines, all_lines[i] or "")
+  end
+  local dep_block_text = table.concat(dep_lines, "\n")
+  local dep_refs = find_request_variable_refs(dep_block_text)
+
+  local resolved_dep_block = dep_block_text
+  for _, ref in ipairs(dep_refs) do
+    local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
+    if value then
+      resolved_dep_block = resolved_dep_block:gsub(vim.pesc(ref.full), tostring(value))
+    end
+  end
+
+  -- Rebuild content with resolved dep block
+  local resolved_lines = vim.split(resolved_dep_block, "\n", { plain = true })
+  for i, line in ipairs(resolved_lines) do
+    all_lines[dep_req.start_line + i - 1] = line
+  end
+  local resolved_content = table.concat(all_lines, "\n")
+
+  execute_dependent_request_async(buf, file, env_name, dep_req, resolved_dep_block, function(_response)
+    -- Move to next dep regardless of success/failure
+    execute_deps_sequential(buf, file, env_name, dep_order, content, requests, idx + 1, on_complete)
+  end)
+end
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+-- Structured options parsing (name|key|description tuples)
+---------------------------------------------------------------------------
+
+--- Parse options string into {name, key, description}[].
+--- Supports:
+---   "opt"              → {name="opt", key="opt", description=""}
+---   "name|key"         → {name="name", key="key", description=""}
+---   "name|key|desc"    → {name="name", key="key", description="desc"}
+--- @param options_str string  Content inside [...] (comma-separated)
+--- @return table  Array of {name, key, description}
+local function parse_structured_options(options_str)
+  local result = {}
+  for opt in options_str:gmatch("[^,]+") do
+    local trimmed = vim.trim(opt)
+    if trimmed ~= "" then
+      local parts = vim.split(trimmed, "|", { plain = true })
+      if #parts == 1 then
+        -- Simple string (backward compatible)
+        local name = vim.trim(parts[1])
+        table.insert(result, { name = name, key = name, description = "" })
+      else
+        -- Structured: name|key[|description...]
+        local name = vim.trim(parts[1])
+        local key = vim.trim(parts[2])
+        -- Rest is description (rejoin with | to preserve | in desc)
+        local desc_parts = {}
+        for i = 3, #parts do
+          table.insert(desc_parts, parts[i])
+        end
+        local description = vim.trim(table.concat(desc_parts, "|"))
+        table.insert(result, { name = name, key = key, description = description })
+      end
+    end
+  end
+  return result
+end
+
+--- Parse dynamic mapping expression from options string.
+--- Looks for pattern: "{{<ref> | {name: path, key: path, desc: path} }}"
+--- @param options_str string  e.g. "{{Req.body | {name: .x, key: .y} }}"
+--- @return string|nil ref, table|nil mapping
+local function parse_dynamic_mapping(options_str)
+  -- Extract {{...}} ref from options string (greedy to handle nested {})
+  local ref = options_str:match("{{(.+)}}")
+  if not ref then return nil, nil end
+  -- Trim trailing whitespace/braces from the captured inner content
+  ref = vim.trim(ref)
+  -- Check for pipe + mapping expression
+  local response_ref, mapping_expr = ref:match("^(.-)%s*|%s*{(.-)}$")
+  if not response_ref then
+    return ref, nil
+  end
+  -- Parse mapping fields from "{name: path, key: path, desc: path}"
+  local mapping = {}
+  for field_expr in mapping_expr:gmatch("[^,]+") do
+    local field, path = field_expr:match("^%s*(%w+)%s*:%s*(.+)$")
+    if field and path then
+      -- Normalize field name: desc -> description
+      field = field == "desc" and "description" or field
+      mapping[field] = vim.trim(path)
+    end
+  end
+  return response_ref, mapping
+end
+
+--- Apply jq-style path mapping to resolved response data.
+--- Paths use ".[]" to indicate array iteration (jq-compatible).
+--- Without ".[]", treats value as single object.
+--- @param value table  Response data (array or single object)
+--- @param mapping table  {name="path", key="path", description="path"}
+--- @return table  Array of {name, key, description}
+local function apply_jq_mapping(value, mapping)
+  if type(value) ~= "table" then return {} end
+
+  -- Check if mapping paths use .[] (array iteration) or direct paths
+  local uses_array_iteration = false
+  for _, path in pairs(mapping) do
+    if type(path) == "string" and path:find("[]", 1, true) then
+      uses_array_iteration = true
+      break
+    end
+  end
+
+  local items
+  if uses_array_iteration then
+    -- Paths contain .[] → extract the root array from value
+    -- Strip leading .[] prefix from paths and use value as the array
+    -- We assume value is already the array to iterate over
+    if vim.tbl_islist(value) then
+      items = value
+    else
+      items = { value }
+    end
+    -- Strip .[] prefix from mapping paths so paths are relative to each item
+    local clean = {}
+    for field, path in pairs(mapping) do
+      -- Remove leading ".[]" (with optional trailing "."), e.g. ".[].login" → "login"
+      local cleaned = path:gsub("^%.[%[%]][%[%]](%.?)", "")
+      cleaned = cleaned:gsub("^%.", "")
+      clean[field] = cleaned
+    end
+    mapping = clean
+  else
+    -- No array iteration: treat value as array, or wrap single object
+    if vim.tbl_islist(value) then
+      items = value
+    else
+      items = { value }
+    end
+    -- Strip leading "." from paths
+    local clean = {}
+    for field, path in pairs(mapping) do
+      clean[field] = path:match("^%.(.+)") or path
+    end
+    mapping = clean
+  end
+
+  local result = {}
+  for _, item in ipairs(items) do
+    if type(item) == "table" then
+      local entry = {}
+      local has_field = false
+      for _, field in ipairs({ "name", "key", "description" }) do
+        if mapping[field] then
+          local resolved = get_nested_value(item, mapping[field])
+          if resolved ~= nil then
+            entry[field] = tostring(resolved)
+            has_field = true
+          else
+            entry[field] = ""
+          end
+        end
+      end
+      if has_field then
+        table.insert(result, entry)
+      end
+    end
+  end
+  return result
+end
+
+-- Prompt variables (<<name directives)
+---------------------------------------------------------------------------
+
+--- Handle prompt directives in the current request block only.
+--- Syntax:
+---   <<variable_name                   → text input
+---   <<variable_name [opt1, opt2, ...] → selection from list (up/down arrows)
+---   <<variable_name [{{Req.response.body.field}}] → dynamic options from request response
+--- Only processes prompt lines within the request block containing cursor_line.
+--- Always prompts for input (no caching) so users can use different values each time.
+--- Processes prompts asynchronously and calls on_complete with modified content.
+--- on_complete(modified_content) is called when all prompts are resolved.
+local function handle_prompt_variables_impl(buf, cursor_line, content, file, env_name, on_complete)
+  local cache = require("poste_http.http.cache")
+  local start_line, end_line = cache.find_request_block_bounds(buf, cursor_line)
+  if not start_line then
+    on_complete(content)
+    return
+  end
+
+  local lines = vim.split(content, "\n", { plain = true })
+  -- Get request name from the ### header line
+  local header_line = lines[start_line] or ""
+  local request_name = header_line:match("^%s*###%s+(%S.*)$")
+  request_name = request_name and vim.trim(request_name) or ""
+
+  local result = {}
+  local idx = 1
+  local cancelled = false
+
+  local function process_next()
+    if idx > #lines then
+      if cancelled then
+        on_complete(nil)
+      else
+        on_complete(table.concat(result, "\n"))
+      end
+      return
+    end
+
+    local line = lines[idx]
+    local line_num = idx
+    idx = idx + 1
+
+    -- Only process prompt directives within the current request block (1-indexed)
+    if line_num >= start_line and line_num <= end_line then
+      -- Match: <<varname [opt1, opt2, ...]  (selection mode)
+      local varname_sel, options_str = line:match("^%s*<<([%a_][%w_]*)%s*%[(.+)%]")
+
+      if varname_sel and options_str then
+        -- Check if options contain a request variable reference
+        local ref_match = options_str:match("{{(.+%.response%..+)}}")
+
+        if ref_match then
+          -- Parse out clean response ref and optional structured mapping
+          local ref_text, mapping = parse_dynamic_mapping("{{" .. ref_match .. "}}")
+          if not ref_text then ref_text = ref_match end
+
+          -- Dynamic options: resolve request variable reference
+          local requests = M.collect_requests(buf)
+          local req_name = ref_text:match("^([^%.]+)%.")
+
+          if req_name then
+            -- Find the referenced request
+            local dep_req = nil
+            for _, req in ipairs(requests) do
+              if req.name == req_name then
+                dep_req = req
+                break
+              end
+            end
+
+            if dep_req then
+              -- Execute the dependent request asynchronously
+              local all_lines = vim.split(content, "\n", { plain = true })
+              local dep_lines = {}
+              for i = dep_req.start_line, dep_req.end_line do
+                table.insert(dep_lines, all_lines[i] or "")
+              end
+              local dep_resolved = table.concat(dep_lines, "\n")
+
+              execute_dependent_request_async(buf, file, env_name, dep_req, dep_resolved, function(response)
+                if response then
+                  local value = resolve_request_variable(ref_text, { [req_name] = response })
+                  if type(value) == "string" and mapping then
+                    local ok, parsed = pcall(vim.json.decode, value)
+                    if ok then value = parsed end
+                  end
+                  if value and type(value) == "table" then
+                    if mapping then
+                      -- Apply structured mapping to build {name,key,desc} items
+                      local items = apply_jq_mapping(value, mapping)
+                      if #items > 0 then
+                        local prompt = string.format("[%s] Select value for '%s'", request_name, varname_sel)
+                        poste_select.select(items, prompt, function(selected)
+                          if selected then
+                            table.insert(result, string.format("@%s = %s", varname_sel, selected))
+                          else
+                            cancelled = true
+                          end
+                          process_next()
+                        end)
+                        return
+                      end
+                    else
+                      -- Legacy flatten logic (backward compatible)
+                      local options = {}
+                      local function flatten(item)
+                        if type(item) == "table" then
+                          for _, sub in ipairs(item) do flatten(sub) end
+                        elseif type(item) == "string" then
+                          table.insert(options, item)
+                        elseif type(item) == "number" then
+                          table.insert(options, tostring(item))
+                        end
+                      end
+                      for _, item in ipairs(value) do flatten(item) end
+
+                      if #options > 0 then
+                        local prompt = string.format("[%s] Select value for '%s'", request_name, varname_sel)
+                        poste_select.select(options, prompt, function(selected)
+                          if selected then
+                            table.insert(result, string.format("@%s = %s", varname_sel, selected))
+                          else
+                            cancelled = true
+                          end
+                          process_next()
+                        end)
+                        return
+                      end
+                    end
+                  end
+                end
+                -- Fallback to static options (structured)
+                local options = parse_structured_options(options_str:gsub("{{.+}}", ""))
+                if #options > 0 then
+                  local prompt = string.format("[%s] Select value for '%s'", request_name, varname_sel)
+                  poste_select.select(options, prompt, function(selected)
+                    if selected then
+                      table.insert(result, string.format("@%s = %s", varname_sel, selected))
+                    else
+                      cancelled = true
+                    end
+                    process_next()
+                  end)
+                else
+                  table.insert(result, line)
+                  process_next()
+                end
+              end)
+              return
+            end
+            -- If we get here, something went wrong with dynamic options
+            state.log("WARN", string.format("Could not resolve dynamic options for '%s'", varname_sel))
+          end
+        end
+
+        -- Static options: parse structured tuples (name|key|description)
+        local options = parse_structured_options(options_str)
+
+        if #options == 0 then
+          table.insert(result, line)
+          process_next()
+          return
+        end
+
+        -- Use built-in floating window selector (async)
+        local prompt = string.format("[%s] Select value for '%s'", request_name, varname_sel)
+        poste_select.select(options, prompt, function(selected)
+          if selected then
+            table.insert(result, string.format("@%s = %s", varname_sel, selected))
+          else
+            cancelled = true
+          end
+          process_next()
+        end)
+        return
+      end
+
+      -- Match: <<varname {{ref_var}}  (ref_var from @var definition, value used as prompt options)
+      local varname_ref, ref_var_name = line:match("^%s*<<([%a_][%w_]*)%s*{{([%a_][%w_]*)}}%s*$")
+      if varname_ref and ref_var_name then
+        local ref_value = nil
+        for i = start_line, end_line do
+          local val = lines[i]:match("^%s*@" .. ref_var_name .. "%s*=%s*(.+)$")
+          if val then
+            ref_value = vim.trim(val)
+            break
+          end
+        end
+        if ref_value == nil then
+          for i = 1, start_line - 1 do
+            local val = lines[i]:match("^%s*@" .. ref_var_name .. "%s*=%s*(.+)$")
+            if val then
+              ref_value = vim.trim(val)
+              break
+            end
+          end
+        end
+
+        if ref_value then
+          local options_content = ref_value:match("^%[(.+)%]$")
+          if options_content then
+            local options = parse_structured_options(options_content)
+            if #options > 0 then
+              local prompt = string.format("[%s] Select value for '%s'", request_name, varname_ref)
+              poste_select.select(options, prompt, function(selected)
+                if selected then
+                  table.insert(result, string.format("@%s = %s", varname_ref, selected))
+                else
+                  cancelled = true
+                end
+                process_next()
+              end)
+              return
+            end
+          end
+          vim.schedule(function()
+            local ok, value = pcall(vim.fn.input, {
+              prompt = string.format("[%s] Enter value for '%s': ", request_name, varname_ref),
+              default = ref_value,
+            })
+            if ok and value and value ~= "" then
+              table.insert(result, string.format("@%s = %s", varname_ref, value))
+            else
+              cancelled = true
+            end
+            process_next()
+          end)
+          return
+        end
+      end
+
+      -- Match: <<varname  (text input mode)
+      local varname = line:match("^%s*<<([%a_][%w_]*)")
+
+      if varname then
+        vim.schedule(function()
+          local ok, value = pcall(vim.fn.input, {
+            prompt = string.format("[%s] Enter value for '%s': ", request_name, varname),
+            default = "",
+          })
+
+          if ok and value and value ~= "" then
+            table.insert(result, string.format("@%s = %s", varname, value))
+          else
+            cancelled = true
+          end
+          process_next()
+        end)
+        return
+      end
+    end
+
+    -- No prompt on this line
+    table.insert(result, line)
+    process_next()
+  end
+
+  process_next()
+end
+
+---------------------------------------------------------------------------
+-- Request variable resolution (cross-request references)
+---------------------------------------------------------------------------
+
+--- Resolve all request variables in the buffer content for the current request block.
+--- Fully async: executes dependent requests via callback chain, then substitutes variables.
+--- Calls on_complete(resolved_content) when all dependencies are resolved.
+local function resolve_request_variables_impl(buf, file, env_name, cursor_line, content, on_complete)
+  -- Initialize dependency chain tracking
+  _chain_dep_set = {}
+  _chain_dep_order = {}
+
+  local requests = M.collect_requests(buf)
+
+  -- Find the current request block
+  local current_req = nil
+  for _, req in ipairs(requests) do
+    if cursor_line >= req.start_line and cursor_line <= req.end_line then
+      current_req = req
+      break
+    end
+  end
+
+  if not current_req then
+    on_complete(content)
+    return
+  end
+
+  -- Extract current block text
+  local all_lines = vim.split(content, "\n", { plain = true })
+  local block_lines = {}
+  for i = current_req.start_line, current_req.end_line do
+    table.insert(block_lines, all_lines[i] or "")
+  end
+  local block_text = table.concat(block_lines, "\n")
+
+  -- Find request variable references
+  local refs = find_request_variable_refs(block_text)
+  if #refs == 0 then
+    on_complete(content)
+    return
+  end
+
+  state.log("INFO", string.format("Found %d request variable reference(s)", #refs))
+
+  -- Build list of pending dependencies. Transitive resolution is handled
+  -- recursively via resolve_content_dependencies during execution.
+  local pending_deps = {}
+  for _, ref in ipairs(refs) do
+    if request_response_cache[ref.request_name] then
+      -- Already cached, skip execution
+    else
+      for _, req in ipairs(requests) do
+        if req.name == ref.request_name then
+          table.insert(pending_deps, req)
+          break
+        end
+      end
+    end
+  end
+
+  -- Substitution helper: replace all refs with cached values in the block
+  local function substitute_and_finish()
+    local resolved_block = block_text
+    for _, ref in ipairs(refs) do
+      local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
+      if value then
+        resolved_block = resolved_block:gsub(vim.pesc(ref.full), tostring(value))
+      else
+        state.log("WARN", string.format("Could not resolve variable: %s", ref.full))
+      end
+    end
+    local result_lines = {}
+    local resolved_split = vim.split(resolved_block, "\n", { plain = true })
+    for i, l in ipairs(all_lines) do
+      if i >= current_req.start_line and i <= current_req.end_line then
+        table.insert(result_lines, resolved_split[i - current_req.start_line + 1] or l)
+      else
+        table.insert(result_lines, l)
+      end
+    end
+    return table.concat(result_lines, "\n")
+  end
+
+  if #pending_deps == 0 then
+    on_complete(substitute_and_finish())
+    return
+  end
+
+  -- Execute dependencies with recursive sub-dep resolution + prompt handling.
+  -- Each dep first resolves its own sub-dependencies recursively, handles any
+  -- <<var prompts (same-buffer only), then executes via CLI and caches response.
+  local dep_idx = 1
+  local function execute_next_dep()
+    if dep_idx > #pending_deps then
+      -- Build dep chain for multi-response display, sorted by depth descending
+      table.sort(_chain_dep_order, function(a, b) return a.depth > b.depth end)
+      M._dep_chain = {}
+      for _, entry in ipairs(_chain_dep_order) do
+        local resp = request_response_cache[entry.name]
+        if resp then
+          table.insert(M._dep_chain, {name = entry.name, response = resp})
+        end
+      end
+      on_complete(substitute_and_finish())
+      return
+    end
+
+    local dep_req = pending_deps[dep_idx]
+    dep_idx = dep_idx + 1
+
+    -- Track for multi-response display (depth 0 = top-level dep of current request)
+    if not _chain_dep_set[dep_req.name] then
+      _chain_dep_set[dep_req.name] = true
+      table.insert(_chain_dep_order, { name = dep_req.name, depth = 0 })
+    end
+
+    state.log("INFO", string.format("Auto-executing dependency '%s'", dep_req.name))
+
+    -- Check if dep has prompt directives (<<variable)
+    local dep_raw_lines = {}
+    for i = dep_req.start_line, dep_req.end_line do
+      table.insert(dep_raw_lines, all_lines[i] or "")
+    end
+    local dep_raw_text = table.concat(dep_raw_lines, "\n")
+    local has_prompts = dep_raw_text:match("<<[%a_][%w_]")
+
+    local function do_execute(resolved_content)
+      if not resolved_content then resolved_content = content end
+      local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
+      local dep_lines = {}
+      for i = dep_req.start_line, dep_req.end_line do
+        table.insert(dep_lines, resolved_lines[i] or "")
+      end
+      local dep_block_text = table.concat(dep_lines, "\n")
+
+      execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text, function(response)
+        if response then
+          state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
+        else
+          state.log("WARN", string.format("Dependency '%s' failed to execute", dep_req.name))
+        end
+        execute_next_dep()
+      end)
+    end
+
+    local function after_subdep_resolve(subdep_resolved)
+      if not subdep_resolved then subdep_resolved = content end
+      if has_prompts then
+        handle_prompt_variables_impl(buf, dep_req.start_line, subdep_resolved, file, env_name, function(prompt_resolved)
+          if not prompt_resolved then
+            state.log("WARN", string.format("Dependency '%s' prompt cancelled, skipping", dep_req.name))
+            execute_next_dep()
+            return
+          end
+          do_execute(prompt_resolved)
+        end)
+      else
+        do_execute(subdep_resolved)
+      end
+    end
+
+    -- Recursively resolve sub-dependencies of this dep before executing it
+    resolve_content_dependencies_impl(buf, file, env_name, content, dep_req.start_line, after_subdep_resolve, 1)
+  end
+
+  execute_next_dep()
+end
+
+--- Cache the current request's response for use by subsequent request variables
+function M.cache_response(req_name, response)
+  if req_name then
+    request_response_cache[req_name] = response
+  end
+end
+
+--- Check if a request's response is cached.
+function M.is_response_cached(name)
+  return request_response_cache[name] ~= nil
+end
+
+--- Collect named requests from content string (not buffer).
+--- Returns { name = string, start_line = number, end_line = number }[]
+function M.collect_requests_from_content(content)
+  local requests = {}
+  local lines = vim.split(content, "\n", { plain = true })
+  local i = 1
+  while i <= #lines do
+    local name = lines[i]:match("^%s*###%s+(%S.*)$")
+    if name then
+      name = vim.trim(name)
+      local start_line = i
+      local end_line = #lines
+      for j = i + 1, #lines do
+        if lines[j]:match("^%s*###") then
+          end_line = j - 1
+          break
+        end
+      end
+      table.insert(requests, { name = name, start_line = start_line, end_line = end_line })
+    end
+    i = i + 1
+  end
+  return requests
+end
+
+--- Resolve request variable dependencies in a specific block of arbitrary content.
+--- Executes uncached dependencies found in the same content, then substitutes values.
+--- Calls on_complete(modified_content) when done.
+--- For cross-file run directive dependency resolution.
+--- @param binary string  poste binary path
+--- @param file_path string  target file path (for CLI execution)
+--- @param env_name string  environment name
+--- @param content string  full file content
+--- @param block_line number  ### marker line (1-indexed)
+--- @param on_complete function(string|nil)
+local function resolve_content_dependencies_impl(buf, file_path, env_name, content, block_line, on_complete, _depth)
+  _depth = _depth or 0
+  if _depth > 10 then
+    state.log("ERROR", string.format("Max dependency depth (10) reached at block line %d, aborting resolution", block_line))
+    on_complete(content)
+    return
+  end
+
+  local requests = M.collect_requests_from_content(content)
+
+  -- Extract target block text and find its bounds
+  local lines = vim.split(content, "\n", { plain = true })
+  local block_end = #lines
+  for i = block_line + 1, #lines do
+    if lines[i]:match("^%s*###") then
+      block_end = i - 1
+      break
+    end
+  end
+  local block_lines = {}
+  for i = block_line, block_end do
+    table.insert(block_lines, lines[i] or "")
+  end
+  local block_text = table.concat(block_lines, "\n")
+
+  -- Find request variable references (standard + dynamic prompt mappings)
+  local refs = find_request_variable_refs(block_text)
+  local dyn_refs = find_dynamic_prompt_refs(block_text)
+  for _, dr in ipairs(dyn_refs) do
+    local found = false
+    for _, r in ipairs(refs) do
+      if r.request_name == dr.request_name then
+        found = true
+        break
+      end
+    end
+    if not found then
+      table.insert(refs, dr)
+    end
+  end
+  if #refs == 0 then
+    on_complete(content)
+    return
+  end
+
+  state.log("INFO", string.format("Found %d request variable reference(s) in target block (depth %d)", #refs, _depth))
+
+  -- Build list of pending dependencies (transitive resolution).
+  local pending_deps = {}
+  for _, ref in ipairs(refs) do
+    if request_response_cache[ref.request_name] then
+      -- Already cached, skip execution
+    else
+      for _, req in ipairs(requests) do
+        if req.name == ref.request_name then
+          table.insert(pending_deps, req)
+          break
+        end
+      end
+    end
+  end
+
+  -- Substitution helper: replace all refs with cached values in the block
+  local function substitute_and_finish()
+    local resolved_block = block_text
+    local all_resolved = true
+    for _, ref in ipairs(refs) do
+      local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
+      if value then
+        resolved_block = resolved_block:gsub(vim.pesc(ref.full), tostring(value))
+      else
+        state.log("WARN", string.format("Could not resolve variable: %s — value may be missing from the response", ref.full))
+        all_resolved = false
+      end
+    end
+    local result_lines = {}
+    local resolved_split = vim.split(resolved_block, "\n", { plain = true })
+    for i, l in ipairs(lines) do
+      if i >= block_line and i <= block_end then
+        table.insert(result_lines, resolved_split[i - block_line + 1] or l)
+      else
+        table.insert(result_lines, l)
+      end
+    end
+    return table.concat(result_lines, "\n")
+  end
+
+  if #pending_deps == 0 then
+    on_complete(substitute_and_finish())
+    return
+  end
+
+  -- Execute dependencies with recursive sub-dep resolution.
+  -- Each dep first resolves its own sub-dependencies, then is executed via CLI.
+  local dep_idx = 1
+  local function execute_next_dep()
+    if dep_idx > #pending_deps then
+      on_complete(substitute_and_finish())
+      return
+    end
+
+    local dep_req = pending_deps[dep_idx]
+    dep_idx = dep_idx + 1
+
+    -- Track for multi-response display with depth for topological sort
+    if not _chain_dep_set[dep_req.name] then
+      _chain_dep_set[dep_req.name] = true
+      table.insert(_chain_dep_order, { name = dep_req.name, depth = _depth })
+    end
+
+    state.log("INFO", string.format("Resolving dependency '%s' (depth %d)", dep_req.name, _depth))
+
+    local function do_execute(resolved_content)
+      if not resolved_content then resolved_content = content end
+      local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
+      local dep_lines = {}
+      for i = dep_req.start_line, dep_req.end_line do
+        table.insert(dep_lines, resolved_lines[i] or "")
+      end
+      local dep_block_text = table.concat(dep_lines, "\n")
+
+      execute_dependent_request_async(buf, file_path, env_name, dep_req, dep_block_text, function(response)
+        if response then
+          state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
+        else
+          state.log("WARN", string.format("Dependency '%s' failed to execute", dep_req.name))
+        end
+        execute_next_dep()
+      end)
+    end
+
+    resolve_content_dependencies_impl(buf, file_path, env_name, content, dep_req.start_line, do_execute, _depth + 1)
+  end
+
+  execute_next_dep()
+end
+
+---------------------------------------------------------------------------
+-- Test interface
+---------------------------------------------------------------------------
+
+M._test = {
+  parse_structured_options = parse_structured_options,
+  parse_dynamic_mapping    = parse_dynamic_mapping,
+  apply_jq_mapping         = apply_jq_mapping,
+  find_request_variable_refs = find_request_variable_refs,
+  find_dynamic_prompt_refs = find_dynamic_prompt_refs,
+  collect_requests_from_content = M.collect_requests_from_content,
+  execute_dependent_request_async = execute_dependent_request_async,
+}
+
+M._handle_prompt_variables_impl = handle_prompt_variables_impl
+M._resolve_request_variables_impl = resolve_request_variables_impl
+M._resolve_content_dependencies_impl = resolve_content_dependencies_impl
+
+function M.handle_prompt_variables(...)
+  return handle_prompt_variables_impl(...)
+end
+
+function M.resolve_request_variables(...)
+  return resolve_request_variables_impl(...)
+end
+
+function M.resolve_content_dependencies(...)
+  return resolve_content_dependencies_impl(...)
+end
+
+return M

@@ -4,7 +4,7 @@
 --- These test the parsing functions directly by requiring request_vars.lua
 --- and calling its internal functions via the _test interface.
 
-local request_vars = require("poste.http.request_vars")
+local request_vars = require("poste_http.http.request_vars")
 
 -- Access internal functions exposed for testing
 local parse_structured_options = request_vars._test.parse_structured_options

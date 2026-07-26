@@ -1,8 +1,8 @@
 --- Tests for completion context (Phase 2).
 --- Tests context_detector.lua using cache.lua's line_type and block index.
 
-local context_detector = require("poste.http.context_detector")
-local cache = require("poste.http.cache")
+local context_detector = require("poste_http.http.context_detector")
+local cache = require("poste_http.http.cache")
 
 local function create_buf(lines)
   local buf = vim.api.nvim_create_buf(false, true)

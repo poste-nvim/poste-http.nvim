@@ -2,8 +2,8 @@
 --- Loads fixtures from tests/fixtures/http_completion/fixtures.lua
 --- and runs each through get_items_for_context.
 
-local completion = require("poste.http.completion")
-local cache = require("poste.http.cache")
+local completion = require("poste_http.http.completion")
+local cache = require("poste_http.http.cache")
 local state = require("poste.state")
 local get_items = completion._test.get_items_for_context
 

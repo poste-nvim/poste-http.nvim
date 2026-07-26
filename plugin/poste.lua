@@ -33,7 +33,7 @@ if vim.fn.isdirectory(doc_dir) == 1 then
   pcall(vim.cmd.helptags, doc_dir)
 end
 
-require("poste").setup()
+require("poste_http").setup()
 
 -- Ensure all Poste* highlight groups are defined (for tree-sitter).
 -- This must be in plugin/poste.lua because poste-http.nvim's
@@ -70,11 +70,11 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
       group = bg,
       buffer = 0,
       callback = function()
-        require("poste.http.boundary_indicator").refresh(0, vim.fn.line("."))
+        require("poste_http.http.boundary_indicator").refresh(0, vim.fn.line("."))
       end,
     })
     pcall(function()
-      require("poste.http.treesitter").enable(0)
+      require("poste_http.http.treesitter").enable(0)
     end)
   end,
 })
@@ -83,10 +83,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
   pattern = { "*.http", "*.rest" },
   callback = function()
     local buf = vim.api.nvim_get_current_buf()
-    local env_mod = require("poste.http.env")
+    local env_mod = require("poste_http.http.env")
     vim.wo.winbar = env_mod.build_http_winbar()
     if vim.bo.filetype == "poste_http" then
-      require("poste.http.boundary_indicator").refresh(buf, vim.fn.line("."))
+      require("poste_http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
     end
   end,
 })
@@ -101,7 +101,7 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       group = bg,
       buffer = buf,
       callback = function()
-        require("poste.http.boundary_indicator").refresh(buf, vim.fn.line("."))
+        require("poste_http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
       end,
     })
   end

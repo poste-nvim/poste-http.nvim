@@ -1,7 +1,7 @@
 --- Tests for block index (Phase 1).
 --- Tests cache.lua extensions: line_type, blocks, file_imports, and query functions.
 
-local cache = require("poste.http.cache")
+local cache = require("poste_http.http.cache")
 
 --- Create a scratch buffer with the given lines, return its number.
 --- Cleaned up automatically by the test framework.

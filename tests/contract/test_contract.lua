@@ -410,7 +410,7 @@ end)
 
 describe("contract: tree-sitter-describe", function()
   it("produces BlockMeta[] matching fixture shape", function()
-    local describe = require("poste.http.describe")
+    local describe = require("poste_http.http.describe")
     local fixture_path = fixture_dir .. "test_contract.http"
     local f = io.open(fixture_path, "r")
     if not f then

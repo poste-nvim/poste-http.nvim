@@ -1,8 +1,6 @@
 # Poste HTTP
 
-**HTTP request execution for Neovim.** Part of the [Poste](https://github.com/beyondlex/poste.nvim) family.
-
-**Requires**: [poste.nvim](https://github.com/beyondlex/poste.nvim) (shared infra + Rust binary)
+**HTTP request execution for Neovim.
 
 ## Features
 
@@ -46,7 +44,6 @@ poste import postman collection.json --out ./http-requests
 {
   "beyondlex/poste-http.nvim",
   dependencies = {
-    "beyondlex/poste.nvim",
     "saghen/blink.cmp",
     "stevearc/dressing.nvim",
     "beyondlex/finder",
