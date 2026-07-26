@@ -1,6 +1,6 @@
 --- Phase 2b: HTTP/SQL session lifecycle tests.
 
-local state = require("poste.state")
+local state = require("poste_http.state")
 local http_session = require("poste_http.http.session")
 local sql_session = require("poste.sql.session")
 

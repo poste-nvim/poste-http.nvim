@@ -6,7 +6,7 @@
 -- IMPORTANT: These are NOT "good design" tests.  They simply capture what
 -- the code currently does so we can safely change *how* it works.
 
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 ---------------------------------------------------------------------------
 -- Configuration defaults

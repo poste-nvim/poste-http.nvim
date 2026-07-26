@@ -12,7 +12,6 @@ tests/run.sh
 nvim --headless \
   -c "set rtp+=$HOME/.local/share/nvim/lazy/plenary.nvim" \
   -c "set rtp+=." \
-  -c "set rtp+=../poste.nvim" \
   -c "runtime plugin/poste.lua" \
   -c "PlenaryBustedDirectory tests/contract/ {minimal_init = 'tests/minimal_init.lua'}" \
   -c "qa"

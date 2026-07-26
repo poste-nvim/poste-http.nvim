@@ -4,7 +4,7 @@
 
 local completion = require("poste_http.http.completion")
 local cache = require("poste_http.http.cache")
-local state = require("poste.state")
+local state = require("poste_http.state")
 local get_items = completion._test.get_items_for_context
 
 local fixtures = require("tests.fixtures.http_completion.fixtures")

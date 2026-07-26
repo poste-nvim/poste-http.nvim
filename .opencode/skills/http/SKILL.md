@@ -19,7 +19,7 @@ The only subprocess is `curl`. See `docs/dev/rust-retirement-plan.md` for migrat
 
 ## File Index
 
-### Shared (from poste.nvim)
+### Shared (lua/poste_http/)
 
 | File | Why |
 |------|-----|

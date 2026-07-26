@@ -2,7 +2,7 @@
 
 A Neovim plugin for executing HTTP requests from `.http` files.
 
-**Requires**: [poste.nvim](https://github.com/beyondlex/poste.nvim) (shared infra + Rust binary)
+**Standalone** — no external dependencies. Requires `curl` on your system.
 
 ## Installation
 
@@ -12,11 +12,10 @@ A Neovim plugin for executing HTTP requests from `.http` files.
 {
   "beyondlex/poste-http.nvim",
   dependencies = {
-    "beyondlex/poste.nvim",
     "folke/snacks.nvim",
   },
   config = function()
-    require("poste").setup()
+    require("poste-http").setup()
   end,
 }
 ```
@@ -26,9 +25,8 @@ A Neovim plugin for executing HTTP requests from `.http` files.
 ```lua
 use {
   "beyondlex/poste-http.nvim",
-  requires = { "beyondlex/poste.nvim" },
   config = function()
-    require("poste").setup()
+    require("poste-http").setup()
   end,
 }
 ```
@@ -36,13 +34,12 @@ use {
 ### Using [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
-Plug 'beyondlex/poste.nvim'
 Plug 'beyondlex/poste-http.nvim'
 ```
 
 Then add to your init.vim:
 ```vim
-lua require("poste").setup()
+lua require("poste-http").setup()
 ```
 
 ## Usage
@@ -52,13 +49,13 @@ lua require("poste").setup()
 - `:PosteRun` - Execute the request at the current cursor position
 - `:PosteEnv` - Show the current environment
 - `:PosteEnv <name>` - Switch to the specified environment
-- `:PosteUpdate` - Download the latest poste-cli binary from GitHub Releases
 
 ### Keymaps (in .http files)
 
-- `<leader>rr` - Run request at cursor
+- `<CR>` - Run request at cursor
 - `]]` - Jump to next request separator (`###`)
 - `[[` - Jump to previous request separator (`###`)
+- `gd` - Go to variable/request definition
 
 ### Response Buffer
 
@@ -69,34 +66,17 @@ lua require("poste").setup()
 ## Configuration
 
 ```lua
-require("poste").setup({
-  poste_binary = "", -- Path to poste binary (auto-detects if empty)
+require("poste-http").setup({
   default_env = "dev", -- Default environment
   split_direction = "vertical", -- "vertical" or "horizontal"
   split_size = 80, -- Split size (columns for vertical, rows for horizontal)
 })
 ```
 
-## Status Line Integration
-
-Add to your status line configuration:
-
-```lua
--- For lualine.nvim
-require('lualine').setup({
-  sections = {
-    lualine_c = { 'filename', 'v:lua.poste_status()' }
-  }
-})
-
--- Or use in your custom status line
-vim.o.statusline = vim.o.statusline .. " %{v:lua.poste_status()}"
-```
-
 ## Requirements
 
-- Neovim 0.7.0 or later
-- `poste` CLI tool built and available in PATH or in `./target/debug/poste`
+- Neovim 0.10 or later
+- `curl` available in PATH
 - [snacks.nvim](https://github.com/folke/snacks.nvim) — used for the prompt/picker UI (variable selectors, environment switching, etc.)
 
 ## License

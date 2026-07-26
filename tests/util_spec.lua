@@ -3,7 +3,7 @@
 -- These functions are extracted from init.lua and sql/init.lua to
 -- eliminate code duplication between HTTP and SQL subsystems.
 
-local util = require("poste.util")
+local util = require("poste_http.util")
 
 ---------------------------------------------------------------------------
 -- clean_nil

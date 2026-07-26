@@ -1,5 +1,5 @@
 local mock = dofile("./tests/helpers/mock_nvim.lua")
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local function has_call(name)
   for _, call in ipairs(mock.calls) do

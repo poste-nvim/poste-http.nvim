@@ -1,6 +1,6 @@
 -- Tests for poste.state.event event bus.
 
-local event = require("poste.state.event")
+local event = require("poste_http.event")
 
 describe("Event Bus", function()
   before_each(function()

@@ -76,7 +76,7 @@ spawned via `vim.fn.jobstart`.
 
 ## Shared vs Isolated
 
-### Shared Files (poste.nvim infra)
+### Shared Files (poste-http.nvim infra)
 
 | File | Purpose |
 |------|---------|

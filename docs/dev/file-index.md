@@ -4,33 +4,13 @@
 
 ---
 
-## Rust Core (poste.nvim — SQL only, no longer used for HTTP)
-
-HTTP has been fully migrated from Rust to Lua. See [Rust Retirement Plan](./rust-retirement-plan.md).
-The Rust crates in `poste.nvim` are still used for SQL execution.
-
-| Function | File | Description |
-|----------|------|-------------|
-| SQL parsing | `crates/poste-core/src/sql_parser.rs` | @connection extraction, statement splitting |
-| SQL context | `crates/poste-core/src/sql_context/` | Tokenizer, scope resolver, context detection |
-| SQL execution | `crates/poste-exec/src/sql_executor.rs` | PG/MySQL/SQLite executor |
-| Connection management | `crates/poste-exec/src/sql_connection.rs` | connections.json read/write, test |
-| Dialect abstraction | `crates/poste-exec/src/sql_dialect.rs` | Dialect trait + 3 implementations |
-| Introspection | `crates/poste-exec/src/sql_introspect.rs` | Schema/table/column/index queries |
-| DDL generation | `crates/poste-exec/src/sql_ddl.rs` | DDL statement generator |
-| Response structure | `crates/poste-exec/src/response.rs` | Unified response format |
-| Cookie management | `crates/poste-exec/src/cookie_jar.rs` | Cookie persistence |
-| CLI entry | `crates/poste-cli/src/main.rs` | run/connection/introspect/fmt/context |
-
----
-
 ## Lua Plugin
 
-### Shared (`lua/poste/` — from poste.nvim)
+### Shared (`lua/poste_http/`)
 
 | File | Description |
 |------|-------------|
-| `init.lua` | Entry point, filetype dispatch |
+| `init.lua` | Entry point, `setup()` |
 | `state.lua` | Shared state management |
 | `select.lua` | Generic Picker UI |
 | `indicators.lua` | Spinner/✓/✘ indicators |

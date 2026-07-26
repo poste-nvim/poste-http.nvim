@@ -1,16 +1,7 @@
 -- Poste plugin loader — HTTP request executor.
--- Requires poste-core.nvim for shared infrastructure.
 
--- Check poste-core is installed
--- local core_ok, _ = pcall(require, "poste.core")
--- if not core_ok then
---   vim.notify("poste.nvim requires poste-core.nvim. Install it first.", vim.log.levels.ERROR)
---   return
--- end
-
--- Preload our core modules into package.loaded so they take precedence over
--- poste.nvim's versions regardless of runtimepath order. poste.nvim may have
--- SQL-only versions (e.g. state.lua without HTTP keymaps) that would break us.
+-- Preload our core modules into package.loaded so they are cached before
+-- any other plugin (e.g. poste.nvim) can load their own versions.
 require("poste_http.state")
 require("poste_http.constants")
 require("poste_http.util")
@@ -36,29 +27,9 @@ end
 require("poste_http").setup()
 
 -- Ensure all Poste* highlight groups are defined (for tree-sitter).
--- This must be in plugin/poste.lua because poste-http.nvim's
--- lua/poste/init.lua is shadowed by poste.nvim in the runtimepath.
 pcall(require, "poste.http.highlights")
 
--- Ensure poste-http.nvim's lua/ takes precedence over poste.nvim's lua/
--- in package.path, so require("poste_http.state") loads our HTTP-capable version.
--- poste-core.lua adds poste.nvim/lua/ to package.path front, which would shadow
--- us. We use VimEnter (once) to re-add our path to the front after all plugins load.
-vim.api.nvim_create_autocmd("VimEnter", {
-  once = true,
-  callback = function()
-    local src = debug.getinfo(1, "S").source:sub(2)
-    local plugin_dir = vim.fn.fnamemodify(src, ":h:h")
-    local lua_path = plugin_dir .. "/lua/?.lua;" .. plugin_dir .. "/lua/?/init.lua"
-    if not package.path:find(lua_path, 1, true) then
-      package.path = lua_path .. ";" .. package.path
-    end
-  end,
-})
-
 -- Register filetype autocmd and treesitter for .http/.rest files.
--- This must be in plugin/poste.lua (not lua/poste/init.lua) because
--- poste.nvim's lua/poste/init.lua shadows this module in the runtimepath.
 local buffer_setup = require("poste_http.buffer_setup")
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
   pattern = { "*.http", "*.rest" },
