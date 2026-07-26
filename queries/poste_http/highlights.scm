@@ -94,4 +94,4 @@
 
 ; File operations
 (file_upload) @PosteFileUpload
-(file_ref) @PosteFileRef
+(file_upload_token) @PosteFileUpload

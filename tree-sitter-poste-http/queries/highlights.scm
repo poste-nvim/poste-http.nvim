@@ -87,4 +87,4 @@
 ; URL-encoded form body
 (form_body) @PosteRequestBody
 (file_upload) @PosteFileUpload
-(file_ref) @PosteFileRef
+(file_upload_token) @PosteFileUpload
