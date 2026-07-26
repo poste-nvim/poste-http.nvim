@@ -1255,6 +1255,9 @@ M._test = {
   parse_dynamic_mapping    = parse_dynamic_mapping,
   apply_jq_mapping         = apply_jq_mapping,
   find_request_variable_refs = find_request_variable_refs,
+  find_dynamic_prompt_refs = find_dynamic_prompt_refs,
+  collect_requests_from_content = M.collect_requests_from_content,
+  execute_dependent_request_async = execute_dependent_request_async,
 }
 
 M._handle_prompt_variables_impl = handle_prompt_variables_impl

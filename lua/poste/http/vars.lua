@@ -199,4 +199,8 @@ function M.build_resolver_from_state(opts)
   return resolver
 end
 
+M._test = {
+  collect_var_defs = M.collect_var_defs,
+}
+
 return M

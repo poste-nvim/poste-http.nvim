@@ -86,7 +86,8 @@ local function parse_headers_file(headers_text)
       local _, code, reason = status_line:match("^(%S+)%s+(%d+)%s*(.*)")
       if code then
         status = tonumber(code) or 0
-        status_text = vim.trim(reason or "")
+        local reason_text = vim.trim(reason or "")
+        status_text = tostring(status) .. (reason_text ~= "" and " " .. reason_text or "")
       end
     end
     if status == 0 then
@@ -258,5 +259,9 @@ function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, meth
     },
   }
 end
+
+M._test = {
+  parse_headers_file = parse_headers_file,
+}
 
 return M

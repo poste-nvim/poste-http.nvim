@@ -1387,4 +1387,8 @@ function M.goto_references()
   end, preview_data)
 end
 
+M._test = {
+  find_var_def = find_var_def,
+}
+
 return M
