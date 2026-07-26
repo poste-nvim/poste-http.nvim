@@ -14,5 +14,7 @@ SHARED="tree-sitter-poste_json.so"
 gcc -c -I"src" -fPIC -O2 -o "$OUT" "$SRC"
 gcc -shared -o "$SHARED" "$OUT"
 
+cp $SHARED $HOME/.local/share/kickstart/site/parser/poste_json.so
+
 echo "Done: $SHARED"
 echo "Install: cp $SHARED \$HOME/.local/share/kickstart/site/parser/poste_json.so"

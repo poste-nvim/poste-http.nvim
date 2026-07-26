@@ -36,7 +36,6 @@ module.exports = grammar({
       $.request_line,
       $.comment,
       $.file_upload,
-      $.file_ref,
     ),
 
     // ─── Request Block Separator ────────────────────
@@ -211,29 +210,35 @@ module.exports = grammar({
       '<',
       /[ \t]+/,
       /\.\/\S*/,
-      optional(NL),
+      /\n/,
     ),
 
     external_assertion: $ => seq(
       '>',
       /[ \t]+/,
       /\.\/\S*/,
-      optional(NL),
+      /\n/,
     ),
 
     // ─── File Operations ────────────────────────────
     file_upload: $ => seq(
       '<',
       /[ \t]+/,
-      /[^\{][^\n]*/,
-      optional(NL),
+      /[^\.\n][^\n]*/,
+      /\n/,
     ),
+
+    file_upload_token: $ => token(seq(
+      '<',
+      /[ \t]+/,
+      /[^\n]+/,
+      /\n/,
+    )),
 
     file_ref: $ => seq(
       '>',
       /[ \t]+/,
-      /[^\{][^\n]*/,
-      optional(NL),
+      /[^\n]+/,
     ),
 
     // ─── Import / Run ───────────────────────────────
@@ -293,9 +298,14 @@ module.exports = grammar({
       optional($.multipart_content_type),
       /[ \t]*\n/,
       choice(
-        $.file_upload,
+        $.file_upload_token,
         $.multipart_value,
       ),
+    ),
+
+    multipart_body: $ => choice(
+      seq('<', /[ \t]+/, /[^\n]+/, /\n/),
+      /[^\n]+/,
     ),
 
     multipart_disposition: $ => seq(

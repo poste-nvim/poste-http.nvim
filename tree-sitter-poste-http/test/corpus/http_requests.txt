@@ -363,7 +363,7 @@ Content-Type: text/plain
     (multipart_content_type
       (multipart_content_type_key)
       (multipart_content_type_value))
-    (multipart_value))
+    (file_upload_token))
   (multipart_boundary))
 ===============================================================================
 POST with URL-encoded form body
