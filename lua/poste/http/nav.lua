@@ -521,7 +521,27 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
 
   local parent = ts_query.parent_of_type(node, "request_block", "run_directive")
   if parent and parent:type() == "run_directive" then
+    -- If cursor is on the alias prefix (e.g. "prompts." in "#prompts.name"),
+    -- jump to the "as prompts" definition in the current file
     local import_mod = require("poste.http.import")
+    if node_type == "run_target_prefix" then
+      local prefix_text = ts_query.node_text(node, buf)
+      local alias_name = prefix_text:match("^(.+)%.$")
+      if alias_name then
+        local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        for i, l in ipairs(buf_lines) do
+          local imp_alias = l:match("^import%s+%S+%s+as%s+(%S+)")
+          if imp_alias == alias_name then
+            vim.cmd("normal! m'")
+            vim.api.nvim_win_set_cursor(0, { i, 0 })
+            return
+          end
+        end
+      end
+      vim.notify("Alias not found: " .. (alias_name or prefix_text), vim.log.levels.WARN)
+      return
+    end
+    -- Otherwise, jump to the target request in the imported file
     local resolved = import_mod.resolve_run_at_cursor(buf, cursor[1])
     if (resolved.action == "execute" or resolved.action == "execute_all") and resolved.path then
       vim.cmd("normal! m'")
