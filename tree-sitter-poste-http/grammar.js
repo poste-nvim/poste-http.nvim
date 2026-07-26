@@ -116,7 +116,7 @@ module.exports = grammar({
       '}}',
     ),
 
-    identifier: $ => /[\w.$\u00A1-\uFFFF\[\]-]+/,
+    identifier: $ => /[^}]+(?:}[^}]+)*/,
 
     http_version: $ => /HTTP\/\d+(?:\.\d+)?/i,
 
