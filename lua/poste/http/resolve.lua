@@ -10,7 +10,7 @@ local M = {}
 local handlers = {}
 
 local function default_prompt_handler(content, opts, on_complete)
-  if not opts.buf or not opts.cursor_line or not opts.binary or not opts.file then
+  if not opts.buf or not opts.cursor_line or not opts.file then
     on_complete(content)
     return
   end
@@ -19,7 +19,6 @@ local function default_prompt_handler(content, opts, on_complete)
     opts.buf,
     opts.cursor_line,
     content,
-    opts.binary,
     opts.file,
     opts.env_name or state.current_env,
     on_complete
@@ -27,13 +26,13 @@ local function default_prompt_handler(content, opts, on_complete)
 end
 
 local function default_dependency_handler(content, opts, on_complete)
-  if not opts.binary or not opts.file or not opts.block_line then
+  if not opts.file or not opts.block_line then
     on_complete(content)
     return
   end
 
   request_vars._resolve_content_dependencies_impl(
-    opts.binary,
+    opts.buf,
     opts.file,
     opts.env_name or state.current_env,
     content,

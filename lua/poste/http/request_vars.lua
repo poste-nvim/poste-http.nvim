@@ -2,6 +2,9 @@
 local state = require("poste.state")
 local poste_select = require("poste.select")
 local assertions = require("poste.http.assertions")
+local curl_exec = require("poste.http.curl_exec")
+local describe = require("poste.http.describe")
+local vars = require("poste.http.vars")
 
 local M = {}
 
@@ -326,7 +329,7 @@ local function read_file_vars_from_path(file_path)
   return table.concat(lines, "\n"), #lines
 end
 
-local function execute_dependent_request_async(binary, file, env_name, dep_req, resolved_content, on_complete)
+local function execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text, on_complete)
   -- Check cache first
   if request_response_cache[dep_req.name] then
     state.log("INFO", string.format("Using cached response for '%s'", dep_req.name))
@@ -334,108 +337,64 @@ local function execute_dependent_request_async(binary, file, env_name, dep_req, 
     return
   end
 
-  -- Prepend file-level @var lines so the CLI resolver sees them via stdin
-  local file_vars_str, file_var_count = read_file_vars_from_path(file)
-  local stdin_content = resolved_content
-  local line_num = 1
-  if file_var_count > 0 then
-    stdin_content = file_vars_str .. "\n\n" .. resolved_content
-    line_num = file_var_count + 2
+  state.log("INFO", string.format("Executing dependency '%s' via curl", dep_req.name))
+
+  -- Parse the block to get method, url, headers, body
+  local blocks = describe.describe_content(dep_block_text, file)
+  if not blocks or #blocks == 0 then
+    state.log("WARN", string.format("Failed to parse dependency '%s' block", dep_req.name))
+    vim.schedule(function() on_complete(nil) end)
+    return
   end
+  local meta = blocks[1]
+  local method = meta.method or "GET"
+  local url = meta.path or ""
+  local headers = meta.headers or {}
+  local body = meta.body or ""
 
-  local cmd = string.format("%s run %s --line %d --env %s --json --stdin",
-    vim.fn.shellescape(binary),
-    vim.fn.shellescape(file),
-    line_num,
-    vim.fn.shellescape(env_name)
-  )
-
-  state.log("INFO", string.format("Executing dependent request '%s' (block text via stdin, line=%d)", dep_req.name, line_num))
-
-  local stdout_buf = {}
-  local stderr_buf = {}
-  local completed = false
-  local env = { POSTE_CACHE_DIR = state.config.response_cache_dir }
-
-  local job_id = vim.fn.jobstart(cmd, {
-    env = env,
-    stdin = "pipe",
-    stdout_buffered = true,
-    stderr_buffered = true,
-    on_stdout = function(_, data)
-      if data then
-        for _, line in ipairs(data) do
-          if line ~= "" then table.insert(stdout_buf, line) end
-        end
-      end
-    end,
-    on_stderr = function(_, data)
-      if data then
-        for _, line in ipairs(data) do
-          if line ~= "" then table.insert(stderr_buf, line) end
-        end
-      end
-    end,
-    on_exit = function(_, code)
-      if completed then return end
-      completed = true
-      -- Cancel the timeout timer
-      if timeout_timer then timeout_timer:stop() timeout_timer:close() end  -- luacheck: ignore 113
-
-      if code ~= 0 then
-        state.log("WARN", string.format("Dependent request '%s' failed with exit code %d", dep_req.name, code))
-        on_complete(nil)
-        return
-      end
-
-      if #stdout_buf == 0 then
-        state.log("WARN", "No output from dependent request")
-        on_complete(nil)
-        return
-      end
-
-      local stdout_text = table.concat(stdout_buf, "\n")
-      local ok, parsed = pcall(vim.json.decode, stdout_text)
-      if not ok then
-        state.log("WARN", string.format("Failed to parse dependent request response: %s", stdout_text:sub(1, 100)))
-        on_complete(nil)
-        return
-      end
-
-      request_response_cache[dep_req.name] = parsed
-      parsed.request_name = dep_req.name
-      state.log("INFO", string.format("Cached response for '%s'", dep_req.name))
-      on_complete(parsed)
-    end,
-  })
-
-  if job_id <= 0 then
-    state.log("ERROR", "Failed to start job for dependent request")
-    on_complete(nil)
+  if not url or url == "" then
+    state.log("WARN", string.format("Dependency '%s' has no URL", dep_req.name))
+    vim.schedule(function() on_complete(nil) end)
     return
   end
 
-  -- 30s timeout via uv timer (non-blocking, doesn't freeze event loop)
-  local uv = vim.uv or vim.loop
-  local timeout_timer = uv.new_timer()
-  timeout_timer:start(30000, 0, vim.schedule_wrap(function()
-    if completed then
-      timeout_timer:close()
+  -- Resolve variables using the var resolver
+  local resolver = vars.build_resolver_from_state({
+    buf = buf,
+    file_path = file,
+    block_start = dep_req.start_line,
+    block_end = dep_req.end_line,
+    env_name = env_name,
+  })
+
+  url = resolver:substitute(url)
+  local resolved_headers = {}
+  for _, h in ipairs(headers) do
+    table.insert(resolved_headers, { h[1], resolver:substitute(h[2]) })
+  end
+  if body ~= "" then
+    body = resolver:substitute(body)
+  end
+
+  local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
+
+  curl_exec.execute({
+    method = method,
+    url = url,
+    headers = resolved_headers,
+    body = body,
+    buf_dir = buf_dir,
+  }, function(response)
+    if response.error then
+      state.log("WARN", string.format("Dependency '%s' failed: %s", dep_req.name, response.error))
+      on_complete(nil)
       return
     end
-    completed = true
-    timeout_timer:close()
-    vim.fn.jobstop(job_id)
-    state.log("ERROR", string.format("Dependent request '%s' timed out after 30s", dep_req.name))
-    vim.notify(string.format("Dependency '%s' timed out", dep_req.name), vim.log.levels.ERROR, { title = "Poste" })
-    on_complete(nil)
-  end))
-
-  -- Send resolved content via stdin
-  local clean_content = strip_prompt_lines(stdin_content)
-  clean_content = assertions.extract_assertion_blocks(clean_content)
-  vim.fn.chansend(job_id, clean_content)
-  vim.fn.chanclose(job_id, "stdin")
+    request_response_cache[dep_req.name] = response
+    response.request_name = dep_req.name
+    state.log("INFO", string.format("Cached response for '%s'", dep_req.name))
+    on_complete(response)
+  end)
 end
 
 --- Build a flat execution order for all dependencies (topological via DFS).
@@ -490,7 +449,7 @@ end
 
 --- Execute all dependencies in order via callback chain.
 --- Each dep's on_exit triggers the next dep's execution.
-local function execute_deps_sequential(binary, file, env_name, dep_order, content, requests, idx, on_complete)
+local function execute_deps_sequential(buf, file, env_name, dep_order, content, requests, idx, on_complete)
   idx = idx or 1
   if idx > #dep_order then
     on_complete()
@@ -523,9 +482,9 @@ local function execute_deps_sequential(binary, file, env_name, dep_order, conten
   end
   local resolved_content = table.concat(all_lines, "\n")
 
-  execute_dependent_request_async(binary, file, env_name, dep_req, resolved_content, function(_response)
+  execute_dependent_request_async(buf, file, env_name, dep_req, resolved_dep_block, function(_response)
     -- Move to next dep regardless of success/failure
-    execute_deps_sequential(binary, file, env_name, dep_order, content, requests, idx + 1, on_complete)
+    execute_deps_sequential(buf, file, env_name, dep_order, content, requests, idx + 1, on_complete)
   end)
 end
 
@@ -684,7 +643,7 @@ end
 --- Always prompts for input (no caching) so users can use different values each time.
 --- Processes prompts asynchronously and calls on_complete with modified content.
 --- on_complete(modified_content) is called when all prompts are resolved.
-local function handle_prompt_variables_impl(buf, cursor_line, content, binary, file, env_name, on_complete)
+local function handle_prompt_variables_impl(buf, cursor_line, content, file, env_name, on_complete)
   local cache = require("poste.http.cache")
   local start_line, end_line = cache.find_request_block_bounds(buf, cursor_line)
   if not start_line then
@@ -753,7 +712,7 @@ local function handle_prompt_variables_impl(buf, cursor_line, content, binary, f
               end
               local dep_resolved = table.concat(dep_lines, "\n")
 
-              execute_dependent_request_async(binary, file, env_name, dep_req, dep_resolved, function(response)
+              execute_dependent_request_async(buf, file, env_name, dep_req, dep_resolved, function(response)
                 if response then
                   local value = resolve_request_variable(ref_text, { [req_name] = response })
                   if type(value) == "string" and mapping then
@@ -941,7 +900,7 @@ end
 --- Resolve all request variables in the buffer content for the current request block.
 --- Fully async: executes dependent requests via callback chain, then substitutes variables.
 --- Calls on_complete(resolved_content) when all dependencies are resolved.
-local function resolve_request_variables_impl(binary, file, env_name, buf, cursor_line, content, on_complete)
+local function resolve_request_variables_impl(buf, file, env_name, cursor_line, content, on_complete)
   -- Initialize dependency chain tracking
   _chain_dep_set = {}
   _chain_dep_order = {}
@@ -1070,7 +1029,7 @@ local function resolve_request_variables_impl(binary, file, env_name, buf, curso
       end
       local dep_block_text = table.concat(dep_lines, "\n")
 
-      execute_dependent_request_async(binary, file, env_name, dep_req, dep_block_text, function(response)
+      execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text, function(response)
         if response then
           state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
         else
@@ -1083,7 +1042,7 @@ local function resolve_request_variables_impl(binary, file, env_name, buf, curso
     local function after_subdep_resolve(subdep_resolved)
       if not subdep_resolved then subdep_resolved = content end
       if has_prompts then
-        handle_prompt_variables_impl(buf, dep_req.start_line, subdep_resolved, binary, file, env_name, function(prompt_resolved)
+        handle_prompt_variables_impl(buf, dep_req.start_line, subdep_resolved, file, env_name, function(prompt_resolved)
           if not prompt_resolved then
             state.log("WARN", string.format("Dependency '%s' prompt cancelled, skipping", dep_req.name))
             execute_next_dep()
@@ -1097,7 +1056,7 @@ local function resolve_request_variables_impl(binary, file, env_name, buf, curso
     end
 
     -- Recursively resolve sub-dependencies of this dep before executing it
-    resolve_content_dependencies_impl(binary, file, env_name, content, dep_req.start_line, after_subdep_resolve, 1)
+    resolve_content_dependencies_impl(buf, file, env_name, content, dep_req.start_line, after_subdep_resolve, 1)
   end
 
   execute_next_dep()
@@ -1150,7 +1109,7 @@ end
 --- @param content string  full file content
 --- @param block_line number  ### marker line (1-indexed)
 --- @param on_complete function(string|nil)
-local function resolve_content_dependencies_impl(binary, file_path, env_name, content, block_line, on_complete, _depth)
+local function resolve_content_dependencies_impl(buf, file_path, env_name, content, block_line, on_complete, _depth)
   _depth = _depth or 0
   if _depth > 10 then
     state.log("ERROR", string.format("Max dependency depth (10) reached at block line %d, aborting resolution", block_line))
@@ -1271,7 +1230,7 @@ local function resolve_content_dependencies_impl(binary, file_path, env_name, co
       end
       local dep_block_text = table.concat(dep_lines, "\n")
 
-      execute_dependent_request_async(binary, file_path, env_name, dep_req, dep_block_text, function(response)
+      execute_dependent_request_async(buf, file_path, env_name, dep_req, dep_block_text, function(response)
         if response then
           state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
         else
@@ -1281,7 +1240,7 @@ local function resolve_content_dependencies_impl(binary, file_path, env_name, co
       end)
     end
 
-    resolve_content_dependencies_impl(binary, file_path, env_name, content, dep_req.start_line, do_execute, _depth + 1)
+    resolve_content_dependencies_impl(buf, file_path, env_name, content, dep_req.start_line, do_execute, _depth + 1)
   end
 
   execute_next_dep()

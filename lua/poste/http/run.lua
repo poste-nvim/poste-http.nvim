@@ -508,9 +508,10 @@ end
 local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
   local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
 
-  -- Resolve variables in the content
+  -- Resolve variables in the content (use buf_content lines, not buffer, so
+  -- prompt-injected @var lines like @method = value are visible to the resolver)
   local resolver = vars.build_resolver_from_state({
-    buf = src_buf,
+    lines = vim.split(buf_content, "\n", { plain = true }),
     file_path = file,
     block_start = block_start,
     block_end = block_end,
