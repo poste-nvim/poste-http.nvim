@@ -9,8 +9,8 @@ GET https://api.github.com/repos/jqlang/jq/commits?per_page=5
 GET {{base_url}}/get?method={{method}}
 
 ### test_dependency
-@method = {{prompt_enhance.response.body.url}}
-GET {{base_url}}/get?method={{method}}
+@m = {{prompt_enhance.response.body.url}}
+GET {{base_url}}/get?method={{m}}
 
 ### Select items
 @key = fruit
