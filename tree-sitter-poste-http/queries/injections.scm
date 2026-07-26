@@ -1,7 +1,8 @@
-; Inject Lua into pre/post script blocks
-(pre_script) @lua
-(post_script) @lua
+; Inject Lua into pre/post script blocks (strip {% and %} markers)
+((script_block) @injection.content
+ (#offset! @injection.content 0 2 0 -2)
+ (#set! injection.language "lua"))
 
-; Inject JSON into json_body
+; Inject custom JSON (with {{var}} support) into json_body
 ((json_body) @injection.content
- (#set! injection.language "json"))
+ (#set! injection.language "poste_json"))

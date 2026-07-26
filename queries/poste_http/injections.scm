@@ -3,6 +3,6 @@
  (#offset! @injection.content 0 2 0 -2)
  (#set! injection.language "lua"))
 
-; Inject JSON into json_body
+; Inject custom JSON (with {{var}} support) into json_body
 ((json_body) @injection.content
- (#set! injection.language "json"))
+ (#set! injection.language "poste_json"))

@@ -1,0 +1,19 @@
+{
+  "name": "tree-sitter-poste-json",
+  "abi": "14",
+  "schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/grammar.schema.json",
+  "metadata": {
+    "name": "poste_json",
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "JSON with {{var}} variable references for Poste HTTP",
+    "authors": [{"name": "Poste contributors"}]
+  },
+  "grammars": [
+    {
+      "name": "poste_json",
+      "scope": "source.poste_json",
+      "injection-regex": "poste_json"
+    }
+  ]
+}
