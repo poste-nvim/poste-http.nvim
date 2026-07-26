@@ -70,7 +70,8 @@ end
 function M.collect_var_defs(lines, start_idx, end_idx)
   local vars = {}
   end_idx = end_idx or #lines
-  for i = start_idx or 1, end_idx do
+  local i = start_idx or 1
+  while i <= end_idx do
     local line = lines[i]
     if not line then break end
     local trimmed = vim.trim(line)
@@ -80,10 +81,27 @@ function M.collect_var_defs(lines, start_idx, end_idx)
         name, value = trimmed:match("^@(%S+)%s+(.+)")
       end
       if name and value then
-        value = value:match("^'(.-)'$") or value:match('^"(.-)"$') or value
+        -- Multi-line variable: @var=>>> ... <<<
+        if value:match("^>>>%s*$") then
+          local multiline = {}
+          i = i + 1
+          while i <= end_idx do
+            local ml = lines[i]
+            if not ml then break end
+            if vim.trim(ml):match("^<<<%s*$") then
+              break
+            end
+            table.insert(multiline, ml)
+            i = i + 1
+          end
+          value = table.concat(multiline, "\n")
+        else
+          value = value:match("^'(.-)'$") or value:match('^"(.-)"$') or value
+        end
         vars[name] = value
       end
     end
+    i = i + 1
   end
   return vars
 end
