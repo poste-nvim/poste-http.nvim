@@ -1,6 +1,6 @@
 --- Highlight group definitions for the Poste plugin.
 --- Called at module-load time and on ColorScheme/VimEnter autocmds.
-local state = require("poste.state")
+local state = require("poste_http.state")
 local M = {}
 
 --- Resolve highlight group links fully (follow chains of `link`).

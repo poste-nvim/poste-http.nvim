@@ -1,4 +1,4 @@
-local state = require("poste.state")
+local state = require("poste_http.state")
 local M = {}
 
 local DESCRIPTIONS = {

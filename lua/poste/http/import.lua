@@ -12,7 +12,7 @@
 ---   - Aliases must be unique (duplicate alias → error)
 ---   - Aliased requests only accessible via #alias.Name, not bare #Name
 ---   - Bare import name collisions: later overrides earlier (warning)
-local state = require("poste.state")
+local state = require("poste_http.state")
 local request_vars = require("poste.http.request_vars")
 local resolve = require("poste.http.resolve")
 local curl_exec = require("poste.http.curl_exec")

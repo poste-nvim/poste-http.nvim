@@ -2,7 +2,7 @@
 ---
 --- This module centralizes the async orchestration that used to be split across
 --- `run.lua`, `import.lua`, and `request_vars.lua` call sites.
-local state = require("poste.state")
+local state = require("poste_http.state")
 local request_vars = require("poste.http.request_vars")
 
 local M = {}

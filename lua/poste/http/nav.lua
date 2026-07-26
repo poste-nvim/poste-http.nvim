@@ -1,10 +1,10 @@
 local cache = require("poste.http.cache")
-local state = require("poste.state")
+local state = require("poste_http.state")
 local request_vars = require("poste.http.request_vars")
 local context_detector = require("poste.http.context_detector")
 local data = require("poste.http.data")
 local lua_docs = require("poste.http.lua_docs")
-local util = require("poste.util")
+local util = require("poste_http.util")
 local ts_query = require("poste.http.ts_query")
 
 local function use_ts()
@@ -795,7 +795,7 @@ local node_type = node:type()
     table.insert(items, string.format("L%d:%d: %s", r.line, r.col, r.text))
   end
 
-  local selector = require("poste.select")
+  local selector = require("poste_http.select")
   selector.select(items, "References to '" .. symbol_name .. "'", function(selected)
     if selected then
       local target_line, target_col = selected:match("^L(%d+):(%d+):")
@@ -1481,7 +1481,7 @@ function M.goto_references()
     end)
   end
 
-  local select = require("poste.select")
+  local select = require("poste_http.select")
   select.select(items, "References to '" .. symbol_name .. "'", function(selected)
     if selected then
       jump_to(selected)

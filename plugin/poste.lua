@@ -11,14 +11,14 @@
 -- Preload our core modules into package.loaded so they take precedence over
 -- poste.nvim's versions regardless of runtimepath order. poste.nvim may have
 -- SQL-only versions (e.g. state.lua without HTTP keymaps) that would break us.
-require("poste.state")
-require("poste.constants")
-require("poste.util")
-require("poste.state.event")
-require("poste.buffer_setup")
-require("poste.help")
-require("poste.select")
-require("poste.indicators")
+require("poste_http.state")
+require("poste_http.constants")
+require("poste_http.util")
+require("poste_http.event")
+require("poste_http.buffer_setup")
+require("poste_http.help")
+require("poste_http.select")
+require("poste_http.indicators")
 
 -- Ensure the plugin's lua directory is in package.path
 local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
@@ -41,7 +41,7 @@ require("poste").setup()
 pcall(require, "poste.http.highlights")
 
 -- Ensure poste-http.nvim's lua/ takes precedence over poste.nvim's lua/
--- in package.path, so require("poste.state") loads our HTTP-capable version.
+-- in package.path, so require("poste_http.state") loads our HTTP-capable version.
 -- poste-core.lua adds poste.nvim/lua/ to package.path front, which would shadow
 -- us. We use VimEnter (once) to re-add our path to the front after all plugins load.
 vim.api.nvim_create_autocmd("VimEnter", {
@@ -59,7 +59,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 -- Register filetype autocmd and treesitter for .http/.rest files.
 -- This must be in plugin/poste.lua (not lua/poste/init.lua) because
 -- poste.nvim's lua/poste/init.lua shadows this module in the runtimepath.
-local buffer_setup = require("poste.buffer_setup")
+local buffer_setup = require("poste_http.buffer_setup")
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
   pattern = { "*.http", "*.rest" },
   callback = function()
@@ -119,7 +119,7 @@ vim.api.nvim_create_user_command("PosteTree", function()
 end, { desc = "Show tree-sitter parse tree for current buffer" })
 
 vim.api.nvim_create_user_command("PosteInfo", function()
-  local state = require("poste.state")
+  local state = require("poste_http.state")
 
   local sep = "─"
   local parts = { sep }
@@ -170,7 +170,7 @@ vim.api.nvim_create_user_command("PosteInfo", function()
 end, { desc = "Show Poste environment info" })
 
 vim.api.nvim_create_user_command("PosteTSStatus", function()
-  local state = require("poste.state")
+  local state = require("poste_http.state")
   local ts = state.config.use_treesitter or {}
   local buf = vim.api.nvim_get_current_buf()
   local parser_ok = pcall(vim.treesitter.get_parser, buf, "poste_http")

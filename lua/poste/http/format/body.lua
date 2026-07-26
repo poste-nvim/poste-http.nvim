@@ -3,7 +3,7 @@
 --- Handles body rendering for HTTP responses, including JSON pretty-printing,
 --- URL-encoded form display, binary file display, and large body truncation.
 --- Extracted from the former format.lua god module.
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local M = {}
 

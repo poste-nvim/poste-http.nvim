@@ -32,7 +32,7 @@ end
 --- @param meta? table
 --- @return table  the active session
 function M.begin(meta)
-  local state = require("poste.state")
+  local state = require("poste_http.state")
   local session = M.new(meta)
 
   -- Full request-scoped clear (acceptance: no field survives into next request)
@@ -67,14 +67,14 @@ end
 --- Discard the active session reference (state fields left as-is for UI).
 function M.finish()
   active = nil
-  local state = require("poste.state")
+  local state = require("poste_http.state")
   state._http_session = nil
 end
 
 --- Sync session fields from current state (call after writes to state.*).
 function M.sync_from_state()
   if not active then return end
-  local state = require("poste.state")
+  local state = require("poste_http.state")
   active.response = state.last_response
   active.responses = state.last_responses
   active.response_index = state.response_index

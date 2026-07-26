@@ -3,7 +3,7 @@
 --- Handles the General/Request/Response/Connection sections of the verbose view,
 --- including extmark-based syntax highlighting.
 --- Extracted from the former format.lua god module.
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local M = {}
 

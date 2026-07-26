@@ -1,5 +1,5 @@
 --- Copy HTTP request as curl command.
-local state = require("poste.state")
+local state = require("poste_http.state")
 local vars = require("poste.http.vars")
 
 local M = {}

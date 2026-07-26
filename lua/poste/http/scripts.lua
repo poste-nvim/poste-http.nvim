@@ -1,6 +1,6 @@
 --- Pre-request scripts (< {% ... %} syntax): extraction, sandboxed execution, variable injection.
 --- Also handles external script references (< ./path.lua).
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local M = {}
 

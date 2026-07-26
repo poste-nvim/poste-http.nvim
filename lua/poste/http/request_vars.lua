@@ -1,6 +1,6 @@
 --- Prompt variables, form data processing, and cross-request variable resolution.
-local state = require("poste.state")
-local poste_select = require("poste.select")
+local state = require("poste_http.state")
+local poste_select = require("poste_http.select")
 local assertions = require("poste.http.assertions")
 local curl_exec = require("poste.http.curl_exec")
 local describe = require("poste.http.describe")

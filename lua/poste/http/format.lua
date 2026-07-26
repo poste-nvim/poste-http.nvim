@@ -8,7 +8,7 @@
 ---
 --- NOTE: New code should require the sub-modules directly. The re-exports
 --- here are maintained for backward compatibility.
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local body_mod = require("poste.http.format.body")
 local verbose_mod = require("poste.http.format.verbose")

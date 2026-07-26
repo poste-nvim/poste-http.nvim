@@ -1,6 +1,6 @@
 local M = {}
 local cache = require("poste.http.cache")
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local ns = vim.api.nvim_create_namespace("poste_http_var_refs")
 local mapping_ns = vim.api.nvim_create_namespace("poste_http_prompt_mapping")

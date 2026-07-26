@@ -4,7 +4,7 @@ local M = {}
 local data = require("poste.http.data")
 local cache = require("poste.http.cache")
 local ts_query = require("poste.http.ts_query")
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local function use_ts()
   return state.config.use_treesitter and state.config.use_treesitter.context_detector ~= false

@@ -1,5 +1,5 @@
 local uv = vim.uv or vim.loop
-local C = require("poste.constants")
+local C = require("poste_http.constants")
 local M = {}
 local sign_group = C.SIGN_GROUP_NAME
 local indicator_ns = vim.api.nvim_create_namespace(C.INDICATOR_NS_NAME)

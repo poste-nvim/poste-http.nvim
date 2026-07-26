@@ -1,6 +1,6 @@
 local M = {}
-local state = require("poste.state")
-local util = require("poste.util")
+local state = require("poste_http.state")
+local util = require("poste_http.util")
 local response_parser = require("poste.http.response_parser")
 local file_include = require("poste.http.file_include")
 

@@ -1,5 +1,5 @@
-local state = require("poste.state")
-local _ = require("poste.indicators")
+local state = require("poste_http.state")
+local _ = require("poste_http.indicators")
 local M = {}
 
 function M.setup_buffer_keymaps(buf)
@@ -69,7 +69,7 @@ function M.setup_buffer_keymaps(buf)
   end
   k = km("http_source", "help", "g?")
   if k then
-    vim.keymap.set("n", k, function() require("poste.help").open() end, keymap_opts)
+    vim.keymap.set("n", k, function() require("poste_http.help").open() end, keymap_opts)
   end
 
   local indicator_ns = vim.api.nvim_create_namespace("poste_indicator")

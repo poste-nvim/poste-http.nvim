@@ -1,4 +1,4 @@
-local state = require("poste.state")
+local state = require("poste_http.state")
 require("poste.http.highlights")
 require("poste.http.format")
 require("poste.http.buffer")
@@ -95,7 +95,7 @@ function M.setup(opts)
   end, { desc = "Copy current request as curl command to clipboard" })
 
   vim.api.nvim_create_user_command("PosteHelp", function()
-    require("poste.help").open()
+    require("poste_http.help").open()
   end, { desc = "Show Poste keymap help" })
 
   vim.api.nvim_create_user_command("PosteImportResolve", function()

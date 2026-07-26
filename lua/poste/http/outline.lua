@@ -1,7 +1,7 @@
-local _ = require("poste.state")
+local _ = require("poste_http.state")
 local request_vars = require("poste.http.request_vars")
 local ts_query = require("poste.http.ts_query")
-local state = require("poste.state")
+local state = require("poste_http.state")
 
 local M = {}
 

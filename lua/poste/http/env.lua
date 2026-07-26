@@ -1,5 +1,5 @@
-local state = require("poste.state")
-local util = require("poste.util")
+local state = require("poste_http.state")
+local util = require("poste_http.util")
 
 local M = {}
 
@@ -52,7 +52,7 @@ function M.pick_env()
     vim.notify("No environments found in env.json", vim.log.levels.WARN, { title = "Poste" })
     return
   end
-  local select_mod = require("poste.select")
+  local select_mod = require("poste_http.select")
   select_mod.select(envs, "Select Environment", function(choice)
     if choice then M.set_env(choice) end
   end)

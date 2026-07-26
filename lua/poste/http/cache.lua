@@ -308,7 +308,7 @@ function M.collect_env_vars()
   local info = vim.uv.fs_stat(env_file)
   local mtime = info and info.mtime and info.mtime.sec or 0
 
-  local state = require("poste.state")
+  local state = require("poste_http.state")
   local env_name = state.current_env or state.config.default_env
 
   local cached = env_cache[env_file]
@@ -438,7 +438,7 @@ function M.get_semantic_blocks(buf)
     -- Binary missing or parse error: empty semantic index (UI cache still works)
     if err then
       pcall(function()
-        require("poste.state").log("WARN", "describe failed: " .. tostring(err))
+        require("poste_http.state").log("WARN", "describe failed: " .. tostring(err))
       end)
     end
     blocks = {}
