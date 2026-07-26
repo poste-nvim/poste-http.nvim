@@ -1,56 +1,62 @@
 local M = {}
 
-local ns = vim.api.nvim_create_namespace("poste_http_boundary")
 local _prev_buf = nil
 local _disabled = false
+local _sign_ids = {}  -- { line_0 = sign_id, ... }
+local _sign_group = "poste_boundary_sg"
+local _sign_gen = 0
+
+local function define_signs()
+  pcall(vim.fn.sign_define, "PosteBoundaryTop",    { text = "─┐", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundaryMid",    { text = " │", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundaryBot",    { text = "─┘", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundarySingle", { text = "──", texthl = "PosteHttpBoundaryBorder" })
+end
+define_signs()
 
 local function clear_all(buf)
-  if buf and vim.api.nvim_buf_is_valid(buf) then
-    vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  _sign_gen = _sign_gen + 1
+  for _, sid in pairs(_sign_ids) do
+    pcall(vim.fn.sign_unplace, _sign_group, { id = sid })
   end
+  _sign_ids = {}
+  _prev_buf = nil
 end
 
 local function apply_range(buf, start, stop)
   clear_all(_prev_buf)
-  if not vim.api.nvim_buf_is_valid(buf) then
-    _prev_buf = nil
-    return
-  end
+  if not vim.api.nvim_buf_is_valid(buf) then return end
   clear_all(buf)
+  _sign_ids = {}
   local line_count = vim.api.nvim_buf_line_count(buf)
-  if line_count == 0 then
-    _prev_buf = nil
-    return
-  end
-  -- Clamp to valid 0-based range
+  if line_count == 0 then return end
   start = math.max(0, math.min(start, line_count - 1))
   stop  = math.max(0, math.min(stop,  line_count - 1))
   for line = start, stop do
-    local text
-    if start == stop then text = "──"
-    elseif line == start then text = "─┐"
-    elseif line == stop then  text = "─┘"
-    else text = " │"
+    local sign_name
+    if start == stop then
+      sign_name = "PosteBoundarySingle"
+    elseif line == start then
+      sign_name = "PosteBoundaryTop"
+    elseif line == stop then
+      sign_name = "PosteBoundaryBot"
+    else
+      sign_name = "PosteBoundaryMid"
     end
-    vim.api.nvim_buf_set_extmark(buf, ns, line, 0, {
-      virt_text = {{text, "PosteHttpBoundaryBorder"}},
-      virt_text_pos = "right_align",
-      priority = 100,
-    })
+    local sid = vim.fn.sign_place(0, _sign_group, sign_name, buf, { lnum = line + 1 })
+    if sid and sid > 0 then
+      _sign_ids[line] = sid
+    end
   end
   _prev_buf = buf
 end
 
---- Find the request block for a given cursor position using tree-sitter.
---- Falls back to cache.lua block index if tree-sitter is unavailable.
 local function find_block(buf, cursor)
   local cache = require("poste.http.cache")
-  -- Try tree-sitter based semantic blocks first
   local block = cache.get_semantic_block_at_line(buf, cursor)
   if block and block.line and block.end_line then
     return block.line, block.end_line
   end
-  -- Fallback to heuristic block index
   block = cache.get_block_at_line(buf, cursor)
   if not block then return nil, nil end
   local stop_line = block.last_content_line or block.end_line
@@ -63,7 +69,7 @@ local function update(buf, cursor)
   local total = vim.api.nvim_buf_line_count(buf)
   if total == 0 then return end
   local start, stop = find_block(buf, cursor)
-  if not start then clear_all(_prev_buf); _prev_buf = nil; return end
+  if not start then clear_all(_prev_buf); return end
   apply_range(buf, start - 1, stop - 1)
 end
 
@@ -74,7 +80,6 @@ end
 
 function M.clear(buf)
   clear_all(buf)
-  _prev_buf = nil
 end
 
 function M.toggle()
