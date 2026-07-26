@@ -254,44 +254,60 @@ local function find_var_def(buf, var_name, cursor_line)
     end
   end
 
-  local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
-  local block_match = nil
-  local file_match = nil
+  -- Find the first ### line — definitions before it are file-level (global)
+  local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local first_block_line = nil
+  for i, l in ipairs(buf_lines) do
+    if l:match("^%s*###") then
+      first_block_line = i
+      break
+    end
+  end
 
+  -- Search prompt_variable in current block first (<<method)
+  if current_req then
+    local prompt_defs = ts_query.find_nodes_of_type(buf, "prompt_variable")
+    for _, def in ipairs(prompt_defs) do
+      local name_node = def:named_child(0)
+      if name_node and ts_query.node_text(name_node) == var_name then
+        local sr = def:start()
+        local def_line = sr + 1
+        if def_line >= current_req.start_line and def_line <= current_req.end_line then
+          return name_node
+        end
+      end
+    end
+  end
+
+  -- Search variable_definition in current block (@var = value)
+  if current_req then
+    local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
+    for _, def in ipairs(var_defs) do
+      local name_node = def:named_child(0)
+      if name_node and ts_query.node_text(name_node) == var_name then
+        local sr = def:start()
+        local def_line = sr + 1
+        if def_line >= current_req.start_line and def_line <= current_req.end_line then
+          return name_node
+        end
+      end
+    end
+  end
+
+  -- Search file-level definitions (before first ###)
+  local var_defs = ts_query.find_nodes_of_type(buf, "variable_definition")
   for _, def in ipairs(var_defs) do
     local name_node = def:named_child(0)
     if name_node and ts_query.node_text(name_node) == var_name then
       local sr = def:start()
       local def_line = sr + 1
-      if current_req and def_line >= current_req.start_line and def_line <= current_req.end_line then
-        block_match = name_node
-        break
-      elseif not file_match then
-        file_match = name_node
+      if not first_block_line or def_line < first_block_line then
+        return name_node
       end
     end
   end
 
-  -- Also search for prompt variable definitions (<<varname).
-  -- Run unconditionally so same-block <<method takes priority over
-  -- other-block @method (the guard if not block_match and not file_match
-  -- would skip this when @method was found first as file_match).
-  local prompt_defs = ts_query.find_nodes_of_type(buf, "prompt_variable")
-  for _, def in ipairs(prompt_defs) do
-    local name_node = def:named_child(0)
-    if name_node and ts_query.node_text(name_node) == var_name then
-      local sr = def:start()
-      local def_line = sr + 1
-      if current_req and def_line >= current_req.start_line and def_line <= current_req.end_line then
-        block_match = name_node
-        break
-      elseif not file_match then
-        file_match = name_node
-      end
-    end
-  end
-
-  return block_match or file_match
+  return nil
 end
 
 local function find_var_in_pre_script(buf, var_name, cursor_line)
