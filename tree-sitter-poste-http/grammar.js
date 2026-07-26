@@ -140,8 +140,10 @@ module.exports = grammar({
       '@',
       field('name', $.var_name),
       optional(seq(
+        optional(WS),
         optional($.var_assign),
-        field('value', $.var_value),
+        optional(WS),
+        field('value', choice($.variable, $.var_value)),
       )),
       NL,
     ),
@@ -150,7 +152,10 @@ module.exports = grammar({
 
     var_assign: $ => '=',
 
-    var_value: $ => /[^\n]+/,
+    var_value: $ => seq(
+      /[^\{]/,
+      /[^\n]*/,
+    ),
 
     // ─── Multi-line Variable ────────────────────────
     multiline_variable: $ => token(seq(

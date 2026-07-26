@@ -47,9 +47,11 @@ Variable definition
 (document
   (variable_definition
     (var_name)
+    (var_assign)
     (var_value))
   (variable_definition
     (var_name)
+    (var_assign)
     (var_value)))
 
 ================================================================================
