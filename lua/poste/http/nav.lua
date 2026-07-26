@@ -540,6 +540,31 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     return
   end
 
+  if node_type == "file_upload" or node_type == "file_upload_token" then
+    local text = ts_query.node_text(node, buf)
+    local path = text:match("^<[ \t]+(.+)$")
+    if path then
+      path = vim.trim(path)
+      local buf_path = vim.api.nvim_buf_get_name(buf)
+      local search_dir = buf_path ~= "" and vim.fn.fnamemodify(buf_path, ":h") or vim.fn.getcwd()
+      local full_path
+      if path:sub(1, 1) == "/" then
+        full_path = path
+      elseif path:sub(1, 1) == "~" then
+        full_path = vim.fn.expand(path)
+      else
+        full_path = search_dir .. "/" .. path
+      end
+      if vim.fn.filereadable(full_path) == 1 then
+        vim.cmd("normal! m'")
+        vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+        return
+      end
+    end
+    vim.notify("File not found: " .. tostring(path), vim.log.levels.WARN)
+    return
+  end
+
   local line_text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
   local s, e = line_text:find("{{(.-)}}")
   while s do
