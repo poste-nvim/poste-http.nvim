@@ -88,15 +88,6 @@ end
 function M.format(content)
   if not content or content == "" then return content end
 
-  local ok, parser = pcall(vim.treesitter.get_string_parser, content, "poste_http")
-  if not ok or not parser then
-    return content
-  end
-
-  local trees = parser:parse()
-  if not trees or #trees == 0 then return content end
-
-  local root = trees[1]:root()
   local lines = vim.split(content, "\n", { plain = true })
   local result = {}
   local i = 1
@@ -149,10 +140,25 @@ function M.format(content)
         table.insert(result, "")
       end
       i = i + 1
+    elseif trimmed:match("^#") then
+      table.insert(result, line)
+      i = i + 1
     else
       local body_lines = {}
+      local body_start = i
       while i <= #lines do
-        table.insert(body_lines, lines[i])
+        local bl = lines[i]
+        local bt = vim.trim(bl)
+        -- Stop at new section markers
+        if bt:match("^###") or bt:match("^@") or bt:match("^#") then
+          break
+        end
+        if bt:match("^[A-Z]+%s+%S") and not bt:match("^[%w%-]+%s*:") then
+          -- Request line starts a new section, but only if we've already
+          -- collected some body (to avoid false positive on first line)
+          if #body_lines > 0 then break end
+        end
+        table.insert(body_lines, bl)
         i = i + 1
       end
       local body = table.concat(body_lines, "\n")
