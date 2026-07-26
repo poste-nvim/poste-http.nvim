@@ -8,6 +8,18 @@
 --   return
 -- end
 
+-- Preload our core modules into package.loaded so they take precedence over
+-- poste.nvim's versions regardless of runtimepath order. poste.nvim may have
+-- SQL-only versions (e.g. state.lua without HTTP keymaps) that would break us.
+require("poste.state")
+require("poste.constants")
+require("poste.util")
+require("poste.state.event")
+require("poste.buffer_setup")
+require("poste.help")
+require("poste.select")
+require("poste.indicators")
+
 -- Ensure the plugin's lua directory is in package.path
 local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
 local lua_path = plugin_dir .. "/lua/?.lua;" .. plugin_dir .. "/lua/?/init.lua"
