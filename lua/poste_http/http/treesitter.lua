@@ -109,7 +109,7 @@ function M.enable(bufnr)
 
   if state.config.use_treesitter and state.config.use_treesitter.folding then
     vim.bo[bufnr].foldmethod = "expr"
-    vim.bo[bufnr].foldexpr = "v:lua.require('poste.http.folding').foldexpr()"
+    vim.bo[bufnr].foldexpr = "v:lua.require('poste_http.http.folding').foldexpr()"
   end
 
   if state.config.use_treesitter and state.config.use_treesitter.diagnostics then

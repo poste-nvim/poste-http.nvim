@@ -27,7 +27,7 @@ end
 require("poste_http").setup()
 
 -- Ensure all Poste* highlight groups are defined (for tree-sitter).
-pcall(require, "poste.http.highlights")
+pcall(require, "poste_http.http.highlights")
 
 -- Register filetype autocmd and treesitter for .http/.rest files.
 local buffer_setup = require("poste_http.buffer_setup")
@@ -85,7 +85,7 @@ pcall(vim.api.nvim_del_user_command, "PosteInfo")
 -- PosteTree: show treesitter parse tree for debugging highlight issues.
 pcall(vim.api.nvim_del_user_command, "PosteTree")
 vim.api.nvim_create_user_command("PosteTree", function()
-  local ok, mod = pcall(require, "poste.http.treesitter")
+  local ok, mod = pcall(require, "poste_http.http.treesitter")
   if ok then mod.inspect() end
 end, { desc = "Show tree-sitter parse tree for current buffer" })
 
@@ -128,7 +128,7 @@ vim.api.nvim_create_user_command("PosteInfo", function()
     table.insert(parts, "nvim-cmp:   loaded")
   end
 
-  local completion_ok, completion = pcall(require, "poste.http.completion")
+  local completion_ok, completion = pcall(require, "poste_http.http.completion")
   if completion_ok then
     table.insert(parts, "poste cmp:  " .. completion.status())
   end

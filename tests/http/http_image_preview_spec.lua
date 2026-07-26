@@ -23,16 +23,16 @@ describe("http image preview", function()
     state.last_response = nil
     state.pending_request = nil
     state.current_view = "body"
-    package.loaded["poste.http.format"] = nil
-    package.loaded["poste.http.view"] = nil
+    package.loaded["poste_http.http.format"] = nil
+    package.loaded["poste_http.http.view"] = nil
     format = require("poste_http.http.format")
     view = require("poste_http.http.view")
   end)
 
   after_each(function()
     mock.teardown()
-    package.loaded["poste.http.format"] = nil
-    package.loaded["poste.http.view"] = nil
+    package.loaded["poste_http.http.format"] = nil
+    package.loaded["poste_http.http.view"] = nil
     package.loaded["image"] = nil
     package.preload["image"] = original_image_preload
     package.loaded["snacks"] = nil

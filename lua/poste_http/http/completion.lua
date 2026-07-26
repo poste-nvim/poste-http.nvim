@@ -135,7 +135,7 @@ local registered = false
 local function register_blink()
   local blink = require("blink.cmp")
   blink.add_source_provider("poste", {
-    module = "poste.http.completion",
+    module = "poste_http.http.completion",
     name = "Poste",
     score_offset = 100,
   })
