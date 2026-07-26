@@ -25,7 +25,7 @@ end
 
 local function apply_range(buf, start, stop)
   clear_all(_prev_buf)
-  if not vim.api.nvim_buf_is_valid(buf) then return end
+  if not buf or buf == 0 or not vim.api.nvim_buf_is_valid(buf) then return end
   clear_all(buf)
   _sign_ids = {}
   local line_count = vim.api.nvim_buf_line_count(buf)
@@ -65,7 +65,7 @@ end
 
 local function update(buf, cursor)
   if _disabled then return end
-  if not vim.api.nvim_buf_is_valid(buf) then return end
+  if not buf or buf == 0 or not vim.api.nvim_buf_is_valid(buf) then return end
   local total = vim.api.nvim_buf_line_count(buf)
   if total == 0 then return end
   local start, stop = find_block(buf, cursor)
