@@ -47,6 +47,14 @@ local function json_pretty(value, indent)
   end
 end
 
+local function fix_json_commas(text)
+  -- Insert missing commas before newlines followed by a key (")
+  -- but not after {, [, :, ,, or at the start of the file
+  return text:gsub('([^}{%[%]:,])%s*\n%s*"', function(before)
+    return before .. ',\n"'
+  end)
+end
+
 local function format_json_body(body)
   if not body or body == "" then return body end
   local trimmed = vim.trim(body)
@@ -71,6 +79,13 @@ local function format_json_body(body)
   end)
 
   local ok, decoded = pcall(vim.json.decode, stripped)
+  if not ok then
+    -- Try to fix common JSON issues: missing commas
+    local fixed = fix_json_commas(stripped)
+    if fixed ~= stripped then
+      ok, decoded = pcall(vim.json.decode, fixed)
+    end
+  end
   if not ok then return body end
   local formatted = json_pretty(decoded)
 

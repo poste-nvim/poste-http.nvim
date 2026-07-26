@@ -1,9 +1,11 @@
 
+@names = ["a", "b"]
+
 ### 0 Magic variables: all four types
 POST {{base_url}}/post
 Content-Type: application/json
 
-{"name":"doge",
+{"names": {{names}}
     "value":13
 
 }
