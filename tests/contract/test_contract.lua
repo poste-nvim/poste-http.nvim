@@ -345,9 +345,6 @@ end)
 describe("contract: cli-integration", function()
   it("poste run --describe matches fixture", function()
     local binary = io.popen("which poste 2>/dev/null"):read("*l")
-    if not binary then
-      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
-    end
     if not binary or binary == "" then
       pending("poste binary not found, skipping integration test")
       return
@@ -367,9 +364,6 @@ describe("contract: cli-integration", function()
 
   it("poste resolve --format content block 1 matches fixture", function()
     local binary = io.popen("which poste 2>/dev/null"):read("*l")
-    if not binary then
-      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
-    end
     if not binary or binary == "" then
       pending("poste binary not found, skipping integration test")
       return
@@ -386,9 +380,6 @@ describe("contract: cli-integration", function()
 
   it("poste resolve --format curl block 1 matches fixture", function()
     local binary = io.popen("which poste 2>/dev/null"):read("*l")
-    if not binary then
-      binary = io.popen("ls /Users/lex/code/github/poste.nvim/target/release/poste 2>/dev/null"):read("*l")
-    end
     if not binary or binary == "" then
       pending("poste binary not found, skipping integration test")
       return
