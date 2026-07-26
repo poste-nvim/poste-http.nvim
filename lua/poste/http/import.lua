@@ -424,7 +424,7 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
     lines = vim.split(resolved_content, "\n", { plain = true }),
     file_path = file_path,
     block_start = block_line,
-    block_end = block_line,
+    block_end = meta.end_line or block_line,
     env_name = env_name,
   })
 
