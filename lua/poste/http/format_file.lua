@@ -15,6 +15,17 @@ local function get_node_text(node, lines)
   return table.concat(parts, "\n")
 end
 
+local function format_json_body(body)
+  if not body or body == "" then return body end
+  local trimmed = vim.trim(body)
+  if trimmed:sub(1, 1) ~= "{" and trimmed:sub(1, 1) ~= "[" then return body end
+  local ok, decoded = pcall(vim.json.decode, body)
+  if not ok then return body end
+  local ok2, encoded = pcall(vim.json.encode, decoded, { indent = 2 })
+  if not ok2 then return body end
+  return encoded
+end
+
 function M.format(content)
   if not content or content == "" then return content end
 
@@ -87,6 +98,7 @@ function M.format(content)
       end
       local body = table.concat(body_lines, "\n")
       body = body:gsub("^(\n*)", "")
+      body = format_json_body(body)
       if body ~= "" then
         if #result > 0 and result[#result] ~= "" then
           table.insert(result, "")
