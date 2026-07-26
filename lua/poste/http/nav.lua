@@ -532,8 +532,10 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
         for i, l in ipairs(buf_lines) do
           local imp_alias = l:match("^import%s+%S+%s+as%s+(%S+)")
           if imp_alias == alias_name then
+            local _, ae = l:find("as%s+")
+            local col = ae or 0
             vim.cmd("normal! m'")
-            vim.api.nvim_win_set_cursor(0, { i, 0 })
+            vim.api.nvim_win_set_cursor(0, { i, col })
             return
           end
         end
