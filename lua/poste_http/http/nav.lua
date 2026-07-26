@@ -354,10 +354,7 @@ local function ts_goto_definition()
 
 local node_type = node:type()
 
-  if node_type == "identifier" then
-    local variable = ts_query.parent_of_type(node, "variable")
-    if variable then
-      local var_name = ts_query.node_text(node)
+  vim.notify("gd node_type: " .. tostring(node_type), vim.log.levels.INFO)
       local req_name = var_name:match("^([^%.]+)")
       if not req_name then req_name = var_name end
 
@@ -667,7 +664,7 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     s, e = line_text:find("{{(.-)}}", e + 1)
   end
 
-  vim.notify("No definition target under cursor", vim.log.levels.INFO)
+  vim.notify("No definition target under cursor (node_type: " .. tostring(node_type) .. ")", vim.log.levels.INFO)
 end
 
 local function ts_goto_references()
