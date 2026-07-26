@@ -49,17 +49,17 @@ describe("indicators", function()
   -------------------------------------------------------------------------
 
   describe("set_indicator('running')", function()
-    it("places spinner sign", function()
+    it("places spinner extmark", function()
       indicators.set_indicator(1, 0, "running")
-      -- Should have called sign_place
-      local has_sign_place = false
+      -- Should have called nvim_buf_set_extmark
+      local has_extmark = false
       for _, call in ipairs(mock.calls) do
-        if call == "sign_place" then
-          has_sign_place = true
+        if call == "nvim_buf_set_extmark" then
+          has_extmark = true
           break
         end
       end
-      assert.is_true(has_sign_place)
+      assert.is_true(has_extmark)
     end)
 
     it("starts timer for spinner animation", function()

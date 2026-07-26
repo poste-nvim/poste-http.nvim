@@ -354,8 +354,6 @@ local function ts_goto_definition()
 
 local node_type = node:type()
 
-  vim.notify("gd node_type: " .. tostring(node_type), vim.log.levels.INFO)
-
   if node_type == "identifier" then
     local variable = ts_query.parent_of_type(node, "variable")
     if variable then
@@ -558,6 +556,34 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     return
   end
 
+  if node_type == "var_value" then
+    local text = ts_query.node_text(node, buf)
+    local var_name = text:match("{{(.+)}}")
+    if var_name then
+      local req_name = var_name:match("^([^%.]+)")
+      if not req_name then req_name = var_name end
+      local def_node = find_var_def(buf, var_name, cursor[1])
+      if def_node then
+        local sr, sc = def_node:start()
+        vim.cmd("normal! m'")
+        vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
+        return
+      end
+      local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
+      for _, block in ipairs(req_blocks) do
+        local name_node = block:named_child(1)
+        if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
+          local sr, sc = name_node:start()
+          vim.cmd("normal! m'")
+          vim.api.nvim_win_set_cursor(0, { sr + 1, sc })
+          return
+        end
+      end
+    end
+    vim.notify("Definition not found: " .. tostring(var_name), vim.log.levels.WARN)
+    return
+  end
+
   if node_type == "request_name" then
     vim.notify("Request name defined here", vim.log.levels.INFO)
     return
@@ -669,7 +695,7 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     s, e = line_text:find("{{(.-)}}", e + 1)
   end
 
-  vim.notify("No definition target under cursor (node_type: " .. tostring(node_type) .. ")", vim.log.levels.INFO)
+  vim.notify("No definition target under cursor", vim.log.levels.INFO)
 end
 
 local function ts_goto_references()
