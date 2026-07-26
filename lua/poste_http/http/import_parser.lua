@@ -4,7 +4,7 @@ function M.generate_http_block(name, method, url, headers, body, prompts)
   local lines = {}
   table.insert(lines, "### " .. name)
   for _, p in ipairs(prompts or {}) do
-    table.insert(lines, "<<" .. p.name .. " [{{" .. p.options_var .. "}}]")
+    table.insert(lines, "<<" .. p.name .. " " .. p.options)
   end
   table.insert(lines, method .. " " .. url)
   local has_content_type
@@ -157,12 +157,9 @@ function M.collect_parameters(openapi_params, path_params, spec)
       end
 
       if enum_values and #enum_values > 0 then
-        -- Create a base variable with enum options
-        local base_var_name = "base_" .. name
-        local enum_json = '["' .. table.concat(enum_values, '","') .. '"]'
-        table.insert(url_vars, { name = base_var_name, value = enum_json })
-        -- Add a prompt for this parameter
-        table.insert(prompts, { name = name, options_var = base_var_name })
+        -- Add a prompt with enum values directly as options
+        local options_str = "[" .. table.concat(enum_values, ", ") .. "]"
+        table.insert(prompts, { name = name, options = options_str })
         -- Use {{varname}} in the URL instead of the hardcoded value
         if in_location == "query" then
           table.insert(query_parts, name .. "={{ " .. name .. " }}")
