@@ -540,6 +540,35 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     return
   end
 
+  -- Handle script blocks: find Lua local variable definitions
+  if node_type == "post_script" or node_type == "pre_script" or node_type == "script_block" then
+    local line_text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
+    local var_name = line_text:match("([%a_][%w_]*)")
+    if var_name then
+      -- Search for 'local var_name =' or 'var_name =' in the current script block
+      local ok_r, sr, sc, er, ec = pcall(node.range, node)
+      if ok_r then
+        for i = sr + 1, er + 1 do
+          local l = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1] or ""
+          local def_text = l:match("^%s*local%s+" .. vim.pesc(var_name) .. "%s*=")
+          if not def_text then
+            def_text = l:match("^%s*" .. vim.pesc(var_name) .. "%s*=")
+          end
+          if def_text then
+            local eq_pos = l:find("=", 1, true)
+            if eq_pos then
+              vim.cmd("normal! m'")
+              vim.api.nvim_win_set_cursor(0, { i, eq_pos - 1 })
+              return
+            end
+          end
+        end
+      end
+    end
+    vim.notify("Definition not found: " .. var_name, vim.log.levels.WARN)
+    return
+  end
+
   if node_type == "file_upload" or node_type == "file_upload_token" or node_type == "external_script" or node_type == "external_assertion" then
     local text = ts_query.node_text(node, buf)
     local path = text:match("^[<>][ \t]+(.+)$")
