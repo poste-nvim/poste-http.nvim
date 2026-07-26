@@ -359,6 +359,9 @@ local function ts_goto_definition()
     local variable = ts_query.parent_of_type(node, "variable")
     if variable then
       local var_name = ts_query.node_text(node)
+      -- Extract first component of dotted path (e.g. "jq" from "jq.response.body")
+      local req_name = var_name:match("^([^%.]+)")
+      if not req_name then req_name = var_name end
 
       local def_node = find_var_def(buf, var_name, cursor[1])
       if def_node then
@@ -372,7 +375,7 @@ local function ts_goto_definition()
       local req_node = nil
       for _, block in ipairs(req_blocks) do
         local name_node = block:named_child(0)
-        if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == var_name then
+        if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
           req_node = name_node
           break
         end
@@ -422,6 +425,8 @@ local function ts_goto_definition()
     local identifier_node = node:named_child(0)
     if not identifier_node then return end
     local var_name = ts_query.node_text(identifier_node)
+    local req_name = var_name:match("^([^%.]+)")
+    if not req_name then req_name = var_name end
 
     local def_node = find_var_def(buf, var_name, cursor[1])
     if def_node then
@@ -435,7 +440,7 @@ local function ts_goto_definition()
     local req_node = nil
     for _, block in ipairs(req_blocks) do
       local name_node = block:named_child(0)
-      if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == var_name then
+      if name_node and name_node:type() == "request_name" and vim.trim(ts_query.node_text(name_node)) == req_name then
         req_node = name_node
         break
       end

@@ -116,7 +116,7 @@ module.exports = grammar({
       '}}',
     ),
 
-    identifier: $ => /[A-Za-z_.$\d\u00A1-\uFFFF-]+/,
+    identifier: $ => /[\w.$\u00A1-\uFFFF\[\]-]+/,
 
     http_version: $ => /HTTP\/\d+(?:\.\d+)?/i,
 
@@ -173,7 +173,8 @@ module.exports = grammar({
     prompt_options: $ => seq(
       '[',
       repeat(choice(
-        /[^\[\]]+/,
+        $.variable,
+        /[^\[\]{}]+/,
         $.prompt_options,
       )),
       ']',

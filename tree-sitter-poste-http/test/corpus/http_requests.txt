@@ -93,10 +93,13 @@ Content-Type: application/json
       (url_path)))
   (header
     (header_key)
-    (header_value))
+    (header_value
+      (variable
+        (identifier))))
   (header
     (header_key)
     (header_value)))
+
 
 ================================================================================
 POST with JSON body
@@ -447,8 +450,9 @@ Prompt variable with nested brackets (jq syntax)
   (prompt_variable
     (prompt_name)
     (prompt_options
-      (prompt_options)
-      (prompt_options))))
+      (variable
+        (identifier)))))
+
 
 ================================================================================
 URL with query parameters
