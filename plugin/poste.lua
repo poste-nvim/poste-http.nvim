@@ -98,21 +98,19 @@ end, { desc = "Show tree-sitter parse tree for current buffer" })
 
 vim.api.nvim_create_user_command("PosteInfo", function()
   local state = require("poste.state")
-  local binary = state.find_poste_binary()
-  local binary_path = binary or "(not found)"
-  local version = "(unknown)"
-  if binary then
-    local ok, output = pcall(vim.fn.system, { binary, "--version" })
-    if ok then
-      version = vim.trim(output)
-    end
-  end
 
   local sep = "─"
   local parts = { sep }
 
-  table.insert(parts, "binary:  " .. binary_path)
-  table.insert(parts, "version: " .. version)
+  local curl_ok = vim.fn.executable("curl") == 1
+  table.insert(parts, "curl:      " .. (curl_ok and "found" or "not found"))
+
+  local ts_ok, _ = pcall(vim.treesitter.get_parser, 0, "poste_http")
+  table.insert(parts, "treesitter: " .. (ts_ok and "active" or "unavailable"))
+
+  local ts_json_ok, _ = pcall(vim.treesitter.get_parser, 0, "poste_json")
+  table.insert(parts, "poste_json:" .. (ts_json_ok and "active" or "unavailable"))
+
   table.insert(parts, sep)
 
   local blink_ok = pcall(require, "blink.cmp")
