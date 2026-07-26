@@ -542,23 +542,36 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
 
   -- Handle script blocks: find Lua local variable definitions
   if node_type == "post_script" or node_type == "pre_script" or node_type == "script_block" then
-    local line_text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
-    -- Extract the word at the cursor position using column
-    local col = cursor[2]  -- 0-indexed
-    local word_start = col
-    while word_start > 0 and line_text:sub(word_start, word_start):match("[%w_]") do
-      word_start = word_start - 1
+    -- Try to use the Lua parser for the injected script block
+    local ok_lua, lua_parser = pcall(vim.treesitter.get_parser, buf, "lua")
+    local var_name = nil
+    if ok_lua and lua_parser then
+      local lua_trees = lua_parser:parse()
+      if lua_trees and #lua_trees > 0 then
+        local lua_node = lua_trees[1]:root():named_descendant_for_range(cursor[1] - 1, cursor[2], cursor[1] - 1, cursor[2])
+        if lua_node then
+          local lt = lua_node:type()
+          if lt == "identifier" then
+            var_name = ts_query.node_text(lua_node, buf)
+          elseif lt == "variable" then
+            local id = lua_node:named_child(0)
+            if id then var_name = ts_query.node_text(id, buf) end
+          end
+        end
+      end
     end
-    if word_start < col then word_start = word_start + 1 end
-    local word_end = col + 1
-    while word_end <= #line_text and line_text:sub(word_end, word_end):match("[%w_]") do
-      word_end = word_end + 1
+    -- Fallback: extract word from cursor column
+    if not var_name then
+      local line_text = vim.api.nvim_buf_get_lines(buf, cursor[1] - 1, cursor[1], false)[1] or ""
+      local col = cursor[2]
+      local s = col
+      while s > 0 and line_text:sub(s, s):match("[%w_]") do s = s - 1 end
+      if s < col then s = s + 1 end
+      local e = col + 1
+      while e <= #line_text and line_text:sub(e, e):match("[%w_]") do e = e + 1 end
+      var_name = line_text:sub(s, e - 1)
     end
-    local var_name = line_text:sub(word_start, word_end - 1)
-    if var_name == "" then
-      var_name = line_text:match("([%a_][%w_]*)")
-    end
-    if var_name then
+    if var_name and var_name ~= "" then
       -- Search for 'local var_name =' or 'var_name =' in the current script block
       local ok_r, sr, sc, er, ec = pcall(node.range, node)
       if ok_r then
