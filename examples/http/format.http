@@ -1,15 +1,13 @@
-
 @names = ["a", "b"]
 
 ### 0 Magic variables: all four types
 POST {{base_url}}/post
 Content-Type: application/json
 
-{"names": {{names}}
-    "value":13
-
+{
+  "names": {{names}},
+  "value": 13
 }
-
 # ────────────────────────────────────────────────────────────────────
 # 0.1 {{$magic}} — magic variable substitution
 # ────────────────────────────────────────────────────────────────────

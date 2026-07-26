@@ -158,14 +158,25 @@ function M.format(content)
     elseif trimmed:match("^#") then
       table.insert(result, line)
       i = i + 1
+    elseif trimmed:match("^[<>]%s+{%%") then
+      -- Collect entire pre/post script block
+      local script_lines = { line }
+      i = i + 1
+      while i <= #lines do
+        local sl = lines[i]
+        table.insert(script_lines, sl)
+        i = i + 1
+        if vim.trim(sl):match("^%%}") then break end
+      end
+      table.insert(result, table.concat(script_lines, "\n"))
     else
       local body_lines = {}
       local body_start = i
       while i <= #lines do
         local bl = lines[i]
         local bt = vim.trim(bl)
-        -- Stop at new section markers
-        if bt:match("^###") or bt:match("^@") or bt:match("^#") then
+        -- Stop at new section markers (including pre/post script blocks)
+        if bt:match("^###") or bt:match("^@") or bt:match("^#") or bt:match("^[<>]%s+{%%") then
           break
         end
         if bt:match("^[A-Z]+%s+%S") and not bt:match("^[%w%-]+%s*:") then

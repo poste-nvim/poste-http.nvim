@@ -8,7 +8,8 @@
 POST {{base_url}}/post
 Content-Type: application/json
 
-{"username": "admin", "password": "secret123"}
+{"username": 
+"admin", "password": "secret123"}
 
 > {%
   client.log('username:' .. response.body.data.username)
@@ -19,7 +20,10 @@ Content-Type: application/json
 POST {{base_url}}/post
 Content-Type: application/json
 
-{"username": "admin", "password": "{{token}}"}
+{
+  "password": "{{token}}",
+  "username": "admin"
+}
 
 ### Profile
 GET {{base_url}}/get?user_id=42&role=admin
