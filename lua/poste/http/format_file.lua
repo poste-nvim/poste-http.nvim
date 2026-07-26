@@ -52,20 +52,35 @@ local function format_json_body(body)
   local trimmed = vim.trim(body)
   if trimmed:sub(1, 1) ~= "{" and trimmed:sub(1, 1) ~= "[" then return body end
 
-  -- Replace {{var}} references with placeholders to avoid JSON decode errors
-  local placeholders = {}
-  local stripped, n = body:gsub("{{.-}}", function(m)
-    table.insert(placeholders, m)
-    return '"__POSTE_VAR_' .. #placeholders .. '__"'
+  -- Replace {{var}} references with JSON-valid placeholders.
+  -- Quoted (inside string): "{{var}}" → '"__POSTE_VAR_Q_N__"'
+  -- Unquoted (as value): {{var}} → '"__POSTE_VAR_U_N__"'
+  local quoted_ph = {}
+  local unquoted_ph = {}
+  local q_idx = 0
+  local u_idx = 0
+  local stripped = body:gsub('"{{.-}}"', function(m)
+    q_idx = q_idx + 1
+    table.insert(quoted_ph, m)
+    return '"__POSTE_VAR_Q_' .. q_idx .. '__"'
+  end)
+  stripped = stripped:gsub("{{.-}}", function(m)
+    u_idx = u_idx + 1
+    table.insert(unquoted_ph, m)
+    return '"__POSTE_VAR_U_' .. u_idx .. '__"'
   end)
 
   local ok, decoded = pcall(vim.json.decode, stripped)
   if not ok then return body end
   local formatted = json_pretty(decoded)
 
-  -- Restore {{var}} references
-  for i, ph in ipairs(placeholders) do
-    formatted = formatted:gsub('"__POSTE_VAR_' .. i .. '__"', ph, 1)
+  -- Restore unquoted {{var}} first (replace "__POSTE_VAR_U_N__" with {{var}})
+  for i, ph in ipairs(unquoted_ph) do
+    formatted = formatted:gsub('"__POSTE_VAR_U_' .. i .. '__"', ph, 1)
+  end
+  -- Restore quoted {{var}} (replace "__POSTE_VAR_Q_N__" with "{{var}}")
+  for i, ph in ipairs(quoted_ph) do
+    formatted = formatted:gsub('"__POSTE_VAR_Q_' .. i .. '__"', ph, 1)
   end
   return formatted
 end
@@ -112,7 +127,7 @@ function M.format(content)
         table.insert(result, line)
       end
       i = i + 1
-    elseif trimmed:match("^[A-Z]+%s+%S") and not trimmed:match(":") then
+    elseif trimmed:match("^[A-Z]+%s+%S") and not trimmed:match("^[%w%-]+%s*:") then
       local method = trimmed:match("^(%S+)")
       local rest = trimmed:match("^%S+%s+(.+)")
       if method and rest then
