@@ -5,8 +5,8 @@ local M = {}
 function M.setup_buffer_keymaps(buf)
   local keymap_opts = { buffer = buf, noremap = true, silent = true }
   local km = state.get_keymap
-  local nav_ok, nav = pcall(require, "poste.http.nav")
-  local run_ok, run = pcall(require, "poste.http.run")
+  local nav_ok, nav = pcall(require, "poste_http.http.nav")
+  local run_ok, run = pcall(require, "poste_http.http.run")
   local run_request = run_ok and run.run_request or nil
 
   if run_request then

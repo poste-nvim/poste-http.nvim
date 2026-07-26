@@ -2,15 +2,6 @@
 
 File-driven HTTP request executor (Lua + curl). `.http` → execute → results in editable buffer.
 
-## Protocol Scope
-
-**HTTP only.** No SQL, no Redis. See [poste.nvim](https://github.com/beyondlex/poste.nvim) for shared infra, [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) for SQL.
-
-| Task mentions | Load |
-|---------------|------|
-| `.http`, `curl`, `jq`, pre-script, assertion, `{{var}}`, import, env vars, completion, history | HTTP skill `.opencode/skills/http/SKILL.md` |
-| Rust CLI (poste.nvim shared infra — `poste conn/introspect/context`) | `main.rs` in poste.nvim |
-
 ## Design Principles
 
 - **Extensibility over speed** — no shortcuts for quick wins
