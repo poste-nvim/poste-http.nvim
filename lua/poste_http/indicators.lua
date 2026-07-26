@@ -98,18 +98,12 @@ function M.set_indicator(buf, line_0, status, latency_ms, assertion_results)
     spinner_timer = uv.new_timer()
     spinner_timer:start(C.SPINNER_INTERVAL_MS, C.SPINNER_INTERVAL_MS, vim.schedule_wrap(update_spinner))
   elseif status == "success" then
-    local virt_text = { { "✓", "PosteSuccess" } }
-    local rest = build_virt_text(latency_ms, assertion_results)
-    for _, item in ipairs(rest) do
-      table.insert(virt_text, item)
-    end
+    local virt_text = build_virt_text(latency_ms, assertion_results)
+    table.insert(virt_text, 1, { "✓ ", "PosteSuccess" })
     set_extmark(buf, line_0, virt_text)
   elseif status == "error" then
-    local virt_text = { { "✘", "PosteError" } }
-    local rest = build_virt_text(latency_ms, assertion_results)
-    for _, item in ipairs(rest) do
-      table.insert(virt_text, item)
-    end
+    local virt_text = build_virt_text(latency_ms, assertion_results)
+    table.insert(virt_text, 1, { "✘ ", "PosteError" })
     set_extmark(buf, line_0, virt_text)
   end
 end
