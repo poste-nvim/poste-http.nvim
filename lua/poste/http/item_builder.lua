@@ -301,6 +301,57 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
     end
 
     local keywords = ctx == "pre_script" and data.pre_script_keywords or data.post_script_keywords
+
+    -- Namespace-aware completion: if the typed text contains a dot, show only
+    -- the immediate children of the namespace (one level at a time).
+    local dot_pos = line:match("^()(%w+%.+%w*)$")
+    if dot_pos then
+      local prefix = line:match("^([%w.]+)%.%w*$")
+      local partial = line:match("%.(%w*)$")
+      if prefix then
+        prefix = prefix .. "."
+        local seen = {}
+        for _, kw in ipairs(keywords) do
+          if kw.name:sub(1, #prefix) == prefix then
+            local rest = kw.name:sub(#prefix + 1)
+            local next_level = rest:match("^([%w_]+)") or rest
+            if not seen[next_level] then
+              seen[next_level] = true
+              local full_label = prefix .. next_level
+              local has_children = false
+              for _, kw2 in ipairs(keywords) do
+                if kw2.name:sub(1, #full_label + 1) == full_label .. "." then
+                  has_children = true
+                  break
+                end
+              end
+              table.insert(items, {
+                label = full_label,
+                kind = has_children and KIND_PROPERTY or KIND_FUNCTION,
+                insertText = next_level,
+                filterText = prefix .. next_level,
+                sortText = (has_children and "1" or "2") .. next_level,
+                detail = has_children and "namespace" or (kw.desc or ""),
+              })
+            end
+          end
+        end
+        -- If no namespace matches, fall through to flat keyword list
+        if #items > 0 then
+          -- Add Lua keywords and functions
+          local lua_items = M.build_items(data.lua_keywords, KIND_KEYWORD)
+          for _, item in ipairs(lua_items) do table.insert(items, item) end
+          local func_items = M.build_keyword_items(data.lua_sandbox_functions, KIND_FUNCTION)
+          for _, item in ipairs(func_items) do table.insert(items, item) end
+          local module_items = M.build_keyword_items(data.lua_sandbox_modules, KIND_PROPERTY)
+          for _, item in ipairs(module_items) do table.insert(items, item) end
+          local var_items = M.build_script_variable_items(extra or "", buf, cursor_line)
+          for _, item in ipairs(var_items) do table.insert(items, item) end
+          return items
+        end
+      end
+    end
+
     items = M.build_keyword_items(keywords, KIND_FUNCTION)
 
     local lua_key_items = M.build_items(data.lua_keywords, KIND_KEYWORD)
