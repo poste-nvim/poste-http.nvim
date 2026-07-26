@@ -30,11 +30,19 @@ pcall(require, "poste.http.highlights")
 
 -- Ensure poste-http.nvim's lua/ takes precedence over poste.nvim's lua/
 -- in package.path, so require("poste.state") loads our HTTP-capable version.
-local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
-local lua_path = plugin_dir .. "/lua/?.lua;" .. plugin_dir .. "/lua/?/init.lua"
-if not package.path:find(lua_path, 1, true) then
-  package.path = lua_path .. ";" .. package.path
-end
+-- poste-core.lua adds poste.nvim/lua/ to package.path front, which would shadow
+-- us. We use VimEnter (once) to re-add our path to the front after all plugins load.
+vim.api.nvim_create_autocmd("VimEnter", {
+  once = true,
+  callback = function()
+    local src = debug.getinfo(1, "S").source:sub(2)
+    local plugin_dir = vim.fn.fnamemodify(src, ":h:h")
+    local lua_path = plugin_dir .. "/lua/?.lua;" .. plugin_dir .. "/lua/?/init.lua"
+    if not package.path:find(lua_path, 1, true) then
+      package.path = lua_path .. ";" .. package.path
+    end
+  end,
+})
 
 -- Register filetype autocmd and treesitter for .http/.rest files.
 -- This must be in plugin/poste.lua (not lua/poste/init.lua) because
