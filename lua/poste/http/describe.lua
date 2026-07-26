@@ -155,38 +155,6 @@ local function describe_via_treesitter(content)
   return blocks, nil
 end
 
-local function describe_via_cli(content, file, opts)
-  local cli = require("poste.cli")
-  if not content or content == "" then
-    return {}, nil
-  end
-  if not file or file == "" then
-    file = "untitled.http"
-  end
-  local args = {
-    "run",
-    file,
-    "--stdin",
-    "--describe",
-  }
-  local env = opts.env or state.current_env
-  if env then
-    table.insert(args, "--env")
-    table.insert(args, env)
-  end
-  local blocks, err = cli.run_json(args, {
-    stdin = content,
-    binary = opts.binary,
-  })
-  if not blocks then
-    return nil, err
-  end
-  if type(blocks) ~= "table" then
-    return nil, "describe returned non-array JSON"
-  end
-  return blocks, nil
-end
-
 function M.describe_content(content, file, opts)
   opts = opts or {}
   if not content or content == "" then
@@ -201,8 +169,8 @@ function M.describe_content(content, file, opts)
     return blocks, nil
   end
 
-  state.log("DEBUG", "tree-sitter describe unavailable, falling back to CLI: " .. tostring(err))
-  return describe_via_cli(content, file, opts)
+  state.log("WARN", "tree-sitter describe unavailable: " .. tostring(err))
+  return {}, nil
 end
 
 function M.block_at_line(blocks, line)

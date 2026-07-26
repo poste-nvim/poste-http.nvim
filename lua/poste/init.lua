@@ -154,15 +154,6 @@ function M.setup(opts)
     require("poste.http.history").show()
   end, { desc = "Show HTTP request history" })
 
-  vim.api.nvim_create_user_command("PosteUpdate", function()
-    local install = require("poste.install")
-    local ok = install.update()
-    if ok then
-      local v = install.installed_version()
-      vim.notify("[Poste] Updated to " .. (v or "latest"), vim.log.levels.INFO)
-    end
-   end, { desc = "Update poste-cli binary to latest release" })
-
   vim.api.nvim_create_user_command("PosteClearCache", function()
     local format = require("poste.http.format")
     local cleaned = format.clean_response_cache()

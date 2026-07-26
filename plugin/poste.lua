@@ -21,12 +21,6 @@ if vim.fn.isdirectory(doc_dir) == 1 then
   pcall(vim.cmd.helptags, doc_dir)
 end
 
--- Ensure the Rust CLI binary is installed (downloads if missing)
-local install_ok, install = pcall(require, "poste.install")
-if install_ok then
-  install.ensure()
-end
-
 require("poste").setup()
 
 -- Ensure all Poste* highlight groups are defined (for tree-sitter).
