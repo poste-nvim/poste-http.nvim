@@ -28,6 +28,14 @@ require("poste").setup()
 -- lua/poste/init.lua is shadowed by poste.nvim in the runtimepath.
 pcall(require, "poste.http.highlights")
 
+-- Ensure poste-http.nvim's lua/ takes precedence over poste.nvim's lua/
+-- in package.path, so require("poste.state") loads our HTTP-capable version.
+local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
+local lua_path = plugin_dir .. "/lua/?.lua;" .. plugin_dir .. "/lua/?/init.lua"
+if not package.path:find(lua_path, 1, true) then
+  package.path = lua_path .. ";" .. package.path
+end
+
 -- Register filetype autocmd and treesitter for .http/.rest files.
 -- This must be in plugin/poste.lua (not lua/poste/init.lua) because
 -- poste.nvim's lua/poste/init.lua shadows this module in the runtimepath.

@@ -7,10 +7,10 @@ local _sign_group = "poste_boundary_sg"
 local _sign_gen = 0
 
 local function define_signs()
-  pcall(vim.fn.sign_define, "PosteBoundaryTop",    { text = "─┐", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundaryMid",    { text = " │", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundaryBot",    { text = "─┘", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundarySingle", { text = "──", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundaryTop",    { text = "┌", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundaryMid",    { text = "│ ", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundaryBot",    { text = "└", texthl = "PosteHttpBoundaryBorder" })
+  pcall(vim.fn.sign_define, "PosteBoundarySingle", { text = "─", texthl = "PosteHttpBoundaryBorder" })
 end
 define_signs()
 
