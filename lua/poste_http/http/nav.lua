@@ -355,6 +355,11 @@ local function ts_goto_definition()
 local node_type = node:type()
 
   vim.notify("gd node_type: " .. tostring(node_type), vim.log.levels.INFO)
+
+  if node_type == "identifier" then
+    local variable = ts_query.parent_of_type(node, "variable")
+    if variable then
+      local var_name = ts_query.node_text(node)
       local req_name = var_name:match("^([^%.]+)")
       if not req_name then req_name = var_name end
 
