@@ -526,7 +526,7 @@ local req_blocks = ts_query.find_nodes_of_type(buf, "request_block")
     local import_mod = require("poste.http.import")
     if node_type == "run_target_prefix" then
       local prefix_text = ts_query.node_text(node, buf)
-      local alias_name = prefix_text:match("^(.+)%.$")
+      local alias_name = prefix_text:match("^#(.+)%.$") or prefix_text:match("^(.+)%.$")
       if alias_name then
         local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
         for i, l in ipairs(buf_lines) do
