@@ -32,3 +32,26 @@ Content-Type: application/json
   "name": "{{user_name}}",
   "timeout": {{timeout}}
 }
+
+
+
+### POST with random variables
+< {%
+  local randInt = math.random(5, 8);
+  request.variables.set('userId', randInt);
+  math.randomseed(os.time());
+  local names = {"Jack", "Jhon", "Rose", "Doe"};
+  local name = names[math.random(#names)];
+  request.variables.set('name', name);
+%}
+@base_url = http://localhosot:8888
+POST {{base_url}}/anything
+Content-Type: application/json
+
+{
+  "user_id": "{{userId}}",
+  "name": "{{name}}",
+  "timestamp": {{$timestamp}}
+}
+
+

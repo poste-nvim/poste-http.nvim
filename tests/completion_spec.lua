@@ -131,6 +131,59 @@ describe("get_items_for_context", function()
       assert.is_true(labels["$date"])
       assert.is_true(labels["$randomInt"])
     end)
+
+    it("includes script-set variables from pre-script block", function()
+      local buf = block_buf({
+        "< {%",
+        "  request.variables.set('name', 'Jack')",
+        "  request.variables.set('userId', 42)",
+        "%}",
+        "@base_url = http://localhost:8888",
+        "POST {{na",
+      })
+      local items = get_items_for_context("{{na", buf, 6, 5)
+      vim.api.nvim_buf_delete(buf, { force = true })
+      local labels = {}
+      for _, item in ipairs(items) do
+        labels[item.label] = true
+      end
+      assert.is_true(labels["name"], "Should suggest 'name' from request.variables.set")
+      assert.is_true(labels["userId"], "Should suggest 'userId' from request.variables.set")
+    end)
+
+    it("script-set variables appear alongside @var definitions", function()
+      local buf = block_buf({
+        "< {%",
+        "  request.variables.set('token', 'abc123')",
+        "%}",
+        "@base_url = http://localhost:8888",
+        "GET {{",
+      })
+      local items = get_items_for_context("{{", buf, 5, 3)
+      vim.api.nvim_buf_delete(buf, { force = true })
+      local labels = {}
+      for _, item in ipairs(items) do
+        labels[item.label] = true
+      end
+      assert.is_true(labels["token"], "Should suggest 'token' from request.variables.set")
+      assert.is_true(labels["base_url"], "Should suggest 'base_url' from @var")
+    end)
+
+    it("script-set variables with double-quoted strings", function()
+      local buf = block_buf({
+        "< {%",
+        '  request.variables.set("name", "Jack")',
+        "%}",
+        "POST {{na",
+      })
+      local items = get_items_for_context("{{na", buf, 4, 5)
+      vim.api.nvim_buf_delete(buf, { force = true })
+      local labels = {}
+      for _, item in ipairs(items) do
+        labels[item.label] = true
+      end
+      assert.is_true(labels["name"], "Should suggest 'name' with double-quoted set")
+    end)
   end)
 
   describe("item structure", function()

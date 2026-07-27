@@ -68,6 +68,7 @@ lua require("poste-http").setup()
 ```lua
 require("poste-http").setup({
   default_env = "dev", -- Default environment
+  default_view = "body", -- Initial response tab: "body" or "verbose"
   split_direction = "vertical", -- "vertical" or "horizontal"
   split_size = 80, -- Split size (columns for vertical, rows for horizontal)
 })

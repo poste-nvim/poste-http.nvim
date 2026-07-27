@@ -224,6 +224,13 @@ function M._get_variable_items(after_open, buf, cursor_line)
     all_vars[name] = "request"
   end
 
+  local script_set_vars = cache.collect_script_set_vars(buf, cursor_line)
+  for name in pairs(script_set_vars) do
+    if not all_vars[name] then
+      all_vars[name] = "script"
+    end
+  end
+
   local env_vars = cache.collect_env_vars()
   for name in pairs(env_vars) do
     if not all_vars[name] then
@@ -268,6 +275,29 @@ function M._get_variable_items(after_open, buf, cursor_line)
     })
   end
 
+  return items
+end
+
+--- Build completion items for local Lua variables in script blocks.
+--- @param line_text string Full line text
+--- @param buf number|nil Buffer number
+--- @param cursor_line number|nil Cursor line number
+--- @return table Completion items
+function M.build_script_local_variable_items(line_text, buf, cursor_line)
+  local items = {}
+  buf = buf or vim.api.nvim_get_current_buf()
+  cursor_line = cursor_line or vim.api.nvim_win_get_cursor(0)[1]
+  local local_vars = cache.collect_script_local_vars(buf, cursor_line)
+  for name in pairs(local_vars) do
+    table.insert(items, {
+      label = name,
+      kind = KIND_VARIABLE,
+      insertText = name,
+      filterText = name,
+      sortText = "0" .. name,
+      detail = "local variable",
+    })
+  end
   return items
 end
 
@@ -366,6 +396,11 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
 
     local var_items = M.build_script_variable_items(extra or "", buf, cursor_line)
     for _, item in ipairs(var_items) do
+      table.insert(items, item)
+    end
+
+    local local_var_items = M.build_script_local_variable_items(extra or "", buf, cursor_line)
+    for _, item in ipairs(local_var_items) do
       table.insert(items, item)
     end
 

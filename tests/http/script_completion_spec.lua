@@ -532,4 +532,82 @@ describe("lua completion in script blocks", function()
     end
     assert.truthy(has_if, "Should fall back to Lua keywords for unknown module")
   end)
+
+  it("local variable is suggested in same script block", function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "< {%",
+      "  local randInt = math.random(5, 8)",
+      "  request.variables.set(\"userId\", ra",
+      "%}",
+      "GET /api/users",
+    })
+    local items = test.get_items_for_context("  request.variables.set(\"userId\", ra", buf, 3, 38)
+    local found = false
+    for _, item in ipairs(items) do
+      if item.label == "randInt" then
+        found = true
+        break
+      end
+    end
+    assert.truthy(found, "Should suggest 'randInt' local variable")
+  end)
+
+  it("local variable is suggested in post-script block", function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "GET /api/users",
+      "> {%",
+      "  local result = response.body",
+      "  cl",
+      "%}",
+    })
+    local items = test.get_items_for_context("  cl", buf, 4, 4)
+    local found = false
+    for _, item in ipairs(items) do
+      if item.label == "result" then
+        found = true
+        break
+      end
+    end
+    assert.truthy(found, "Should suggest 'result' local variable")
+  end)
+
+  it("local function does not create a fake local variable", function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "< {%",
+      "  local function helper()",
+      "    return 42",
+      "  end",
+      "  he",
+      "%}",
+      "GET /api/users",
+    })
+    local items = test.get_items_for_context("  he", buf, 5, 4)
+    local found_function_as_local = false
+    local found_helper = false
+    for _, item in ipairs(items) do
+      if item.label == "function" and item.kind == 6 then found_function_as_local = true end
+      if item.label == "helper" then found_helper = true end
+    end
+    assert.is_false(found_function_as_local, "Should not suggest 'function' as a local variable")
+    assert.truthy(found_helper, "Should suggest 'helper' as a local variable")
+  end)
+
+  it("multiple local variables are suggested", function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "< {%",
+      "  local a, b = 1, 2",
+      "  ",
+      "%}",
+      "GET /api/users",
+    })
+    local items = test.get_items_for_context("  ", buf, 3, 2)
+    local has_a = false
+    local has_b = false
+    for _, item in ipairs(items) do
+      if item.label == "a" then has_a = true end
+      if item.label == "b" then has_b = true end
+    end
+    assert.truthy(has_a, "Should suggest 'a'")
+    assert.truthy(has_b, "Should suggest 'b'")
+  end)
 end)

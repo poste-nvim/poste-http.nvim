@@ -42,10 +42,18 @@ local function get_active_tabs()
     body_label = tab_label("body") .. " | jq: " .. state._json.query
   end
   local tabs = {
-    { id = "body",    label = body_label },
-    { id = "request", label = tab_label("request") },
-    { id = "verbose", label = tab_label("verbose") },
+    { id = "body", label = body_label },
   }
+  -- Only show Rqst tab when request has a body
+  local r = state.last_response
+  if state.last_responses and #state.last_responses > 0 then
+    local idx = state.response_index or 1
+    r = state.last_responses[idx] and state.last_responses[idx].response
+  end
+  if r and r.metadata and r.metadata.request_body and r.metadata.request_body ~= "" then
+    table.insert(tabs, { id = "request", label = tab_label("request") })
+  end
+  table.insert(tabs, { id = "verbose", label = tab_label("verbose") })
   -- Only show Asserts tab when assertions were run
   if state.last_assertion_results then
     table.insert(tabs, { id = "assertions", label = tab_label("assertions") })

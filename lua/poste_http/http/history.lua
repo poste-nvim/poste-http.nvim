@@ -66,9 +66,12 @@ local function get_active_tabs()
   end
   local tabs = {
     { id = "body", label = body_label },
-    { id = "request", label = "Rqst [" .. state.format_keymap("http_response", "view_request") .. "]" },
-    { id = "verbose", label = "Verb [" .. state.format_keymap("http_response", "view_verbose") .. "]" },
   }
+  local r = entry.response
+  if r and r.metadata and r.metadata.request_body and r.metadata.request_body ~= "" then
+    table.insert(tabs, { id = "request", label = "Rqst [" .. state.format_keymap("http_response", "view_request") .. "]" })
+  end
+  table.insert(tabs, { id = "verbose", label = "Verb [" .. state.format_keymap("http_response", "view_verbose") .. "]" })
   if entry.assertion_results then
     table.insert(tabs, { id = "assertions", label = "Asserts [" .. state.format_keymap("http_response", "view_assertions") .. "]" })
   end

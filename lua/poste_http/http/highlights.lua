@@ -170,7 +170,7 @@ function M.setup()
   vim.api.nvim_set_hl(0, "PosteVerboseSeparator", { fg = 0x3e4452 })                -- dim line
   vim.api.nvim_set_hl(0, "PosteVerboseSection", { fg = 0x61afef, bold = true })      -- blue bold
   vim.api.nvim_set_hl(0, "PosteVerboseSubHeader", { fg = 0xABB2BF, bold = true })    -- bright bold
-  vim.api.nvim_set_hl(0, "PosteVerboseKey", { fg = 0xC678DD })                       -- magenta
+  vim.api.nvim_set_hl(0, "PosteVerboseKey", { fg = 0x7b78dd })                       -- magenta
   vim.api.nvim_set_hl(0, "PosteVerboseValue", { fg = 0x5c6370 })                     -- grey value
 
   -- Request tab extmark highlights (Key: bold, Value: gray)

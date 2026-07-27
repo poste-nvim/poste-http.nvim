@@ -110,6 +110,53 @@ describe("completion context", function()
       local ctx = context_detector.detect_context("GET https://api.example.com/users", nil, nil, nil)
       assert.is_nil(ctx)
     end)
+
+    it("returns 'variable' inside {{...}} in JSON body", function()
+      local buf = create_buf({
+        "### Test",
+        "POST /api/users",
+        "Content-Type: application/json",
+        "",
+        "{",
+        '  "user_id": "{{na',
+        "}",
+      })
+      local ctx, extra = context_detector.detect_context('  "user_id": "{{na', buf, 6, 20)
+      assert.equals("variable", ctx)
+      assert.equals("na", extra)
+    end)
+
+    it("returns 'variable' for bare {{...}} in JSON body", function()
+      local buf = create_buf({
+        "### Test",
+        "POST /api/users",
+        "Content-Type: application/json",
+        "",
+        "{",
+        '  "name": "{{',
+        "}",
+      })
+      local ctx, extra = context_detector.detect_context('  "name": "{{', buf, 6, 15)
+      assert.equals("variable", ctx)
+      assert.equals("", extra)
+    end)
+
+    it("returns 'method_or_header' for header key being typed after request line", function()
+      local buf = create_buf({
+        "### Test",
+        "POST {{base_url}}/path",
+        "Con",
+      })
+      local ctx, extra = context_detector.detect_context("Con", buf, 3, 3)
+      assert.equals("method_or_header", ctx)
+      assert.is_nil(extra)
+    end)
+
+    it("returns 'header_value' for existing header line with colon and value", function()
+      local ctx, extra = context_detector.detect_context("Content-Type: a", nil, nil, nil)
+      assert.equals("header_value", ctx)
+      assert.equals("Content-Type", extra)
+    end)
   end)
 
   describe("collect_request_vars", function()

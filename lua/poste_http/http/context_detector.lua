@@ -75,11 +75,13 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
   end
 
   if parent_type == "header" then
-    if node_type == "header_key" then
-      return "header_value", ts_query.node_text(node)
-    end
+    local header_key = ts_query.find_child_by_type(parent, "header_key")
+    local key_text = header_key and ts_query.node_text(header_key) or ""
     if node_type == "header_value" then
-      return "header_value", ts_query.node_text(node)
+      return "header_value", key_text
+    end
+    if key_text ~= "" then
+      return "header_value", key_text
     end
     return "method_or_header", nil
   end
@@ -152,6 +154,13 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
 
   if parent_type == "json_body" or parent_type == "multipart_boundary"
     or parent_type == "multipart_form_data" or parent_type == "form_body" then
+    local rev = line_before_cursor:reverse()
+    local last_open = rev:find("{{", 1, true)
+    local last_close = rev:find("}}", 1, true)
+    if last_open and (not last_close or last_close > last_open) then
+      local after_open = line_before_cursor:sub(#line_before_cursor - last_open + 2)
+      return "variable", after_open
+    end
     return nil
   end
 
@@ -162,6 +171,19 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
   local trimmed = vim.trim(line_before_cursor)
   if trimmed == "" then
     return "method", nil
+  end
+
+  if not line_before_cursor:find(" ", 1, true) then
+    return "method_or_header", nil
+  end
+
+  local colon_pos = line_before_cursor:find(":", 1, true)
+  if colon_pos then
+    local header_part = line_before_cursor:sub(1, colon_pos - 1)
+    local header_name = header_part:match("^%s*([A-Za-z][A-Za-z0-9%-]*)$")
+    if header_name then
+      return "header_value", header_name
+    end
   end
 
   return nil

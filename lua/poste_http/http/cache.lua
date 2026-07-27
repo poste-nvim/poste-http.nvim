@@ -285,6 +285,88 @@ function M.collect_request_vars(buf, cursor_line)
   return vim.deepcopy(block.block_vars)
 end
 
+--- Collect local variable names from script blocks in the current request block.
+--- Scans pre/post script lines for `local name = ...` declarations.
+--- @param buf number  Buffer number
+--- @param cursor_line number  Cursor line number (1-indexed)
+--- @return table  { name = true, ... }
+function M.collect_script_local_vars(buf, cursor_line)
+  local block = M.get_block_at_line(buf, cursor_line)
+  local start_line, end_line
+  if block then
+    start_line = block.start_line
+    end_line = block.end_line
+  else
+    local cache = M.get_buffer_cache(buf)
+    local first_head = nil
+    for i = 1, #cache.line_type do
+      if cache.line_type[i] == "head" then
+        first_head = i
+        break
+      end
+    end
+    start_line = 1
+    end_line = (first_head and first_head - 1) or #cache.line_type
+  end
+  local cache = M.get_buffer_cache(buf)
+  local local_vars = {}
+  local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+  for i, line in ipairs(lines) do
+    local line_num = start_line + i - 1
+    local lt = cache.line_type[line_num]
+    if lt == "pre_script" or lt == "post_script" then
+      local after_local = line:match("local%s+(.*)")
+      if after_local then
+        local names_part = after_local:match("^(.-)%s*=") or after_local
+        for name in names_part:gmatch("([%w_]+)") do
+          if name ~= "function" then
+            local_vars[name] = true
+          end
+        end
+      end
+    end
+  end
+  return local_vars
+end
+
+--- Collect variable names set via `request.variables.set("name", ...)` in pre-script blocks.
+--- These variables are available for `{{name}}` expansion in HTTP templates.
+--- @param buf number  Buffer number
+--- @param cursor_line number  Cursor line number (1-indexed)
+--- @return table  { name = true, ... }
+function M.collect_script_set_vars(buf, cursor_line)
+  local block = M.get_block_at_line(buf, cursor_line)
+  local start_line, end_line
+  if block then
+    start_line = block.start_line
+    end_line = block.end_line
+  else
+    local cache = M.get_buffer_cache(buf)
+    local first_head = nil
+    for i = 1, #cache.line_type do
+      if cache.line_type[i] == "head" then
+        first_head = i
+        break
+      end
+    end
+    start_line = 1
+    end_line = (first_head and first_head - 1) or #cache.line_type
+  end
+  local cache = M.get_buffer_cache(buf)
+  local set_vars = {}
+  local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+  for i, line in ipairs(lines) do
+    local line_num = start_line + i - 1
+    local lt = cache.line_type[line_num]
+    if lt == "pre_script" then
+      for _, name in line:gmatch("request%.variables%.set%((['\"])([%w_]+)%1") do
+        set_vars[name] = true
+      end
+    end
+  end
+  return set_vars
+end
+
 --- Get environment variables from env.json (cached by path + mtime + env).
 function M.collect_env_vars()
   local bufname = vim.api.nvim_buf_get_name(0)

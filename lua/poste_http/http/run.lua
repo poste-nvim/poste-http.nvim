@@ -101,7 +101,7 @@ local function choose_view_tab(parsed, assertion_results)
   if parsed.status and parsed.status >= 400 then
     return "verbose"
   end
-  return "body"
+  return state.config.default_view or "body"
 end
 
 --- Set indicator based on status and assertions.

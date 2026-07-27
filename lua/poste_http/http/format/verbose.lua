@@ -320,7 +320,7 @@ function M.format_verbose(r, pending)
   _sep_lines[#lines] = true
 
   if request_headers ~= "" then
-    table.insert(lines, "▸ Request Headers")
+    table.insert(lines, "  Request Headers")
     for l in request_headers:gmatch("[^\r\n]+") do
       local k, v = l:match("^([^:]+):%s*(.+)$")
       if k and v then
@@ -336,7 +336,7 @@ function M.format_verbose(r, pending)
     local qmark = url:find("?")
     if qmark then
       local query_string = url:sub(qmark + 1)
-      table.insert(lines, "▸ Query Parameters")
+      table.insert(lines, "  Query Parameters")
       for pair in query_string:gmatch("[^&]+") do
         local key, val = pair:match("^([^=]+)=(.*)$")
         if key then
@@ -355,7 +355,7 @@ function M.format_verbose(r, pending)
     local multipart = require("poste_http.http.format.multipart")
     local verbose_body = multipart.strip_request_preamble(request_body, request_headers)
     if verbose_body ~= "" then
-      table.insert(lines, "▸ Request Body")
+      table.insert(lines, "  Request Body")
       local ct = ""
       for l in request_headers:gmatch("[^\r\n]+") do
         local k, v = l:match("^([^:]+):%s*(.+)$")
@@ -391,7 +391,7 @@ function M.format_verbose(r, pending)
       table.insert(lines, "  ")
       _sep_lines[#lines] = true
       if r.body and r.body ~= "" then
-        table.insert(lines, "▸ Details")
+        table.insert(lines, "  Details")
         table.insert(lines, "  " .. r.body:gsub("\n", "\n  "))
       end
       r._cached_verbose = lines
@@ -403,14 +403,14 @@ function M.format_verbose(r, pending)
     _sep_lines[#lines] = true
 
     if r.headers and #r.headers > 0 then
-      table.insert(lines, "▸ Response Headers")
+      table.insert(lines, "  Response Headers")
       for _, h in ipairs(r.headers) do
         table.insert(lines, "  " .. h[1] .. ": " .. h[2])
       end
     end
 
     if r.body and r.body ~= "" then
-      table.insert(lines, "▸ Response Body")
+      table.insert(lines, "  Response Body")
       if r.metadata and r.metadata.file_path then
         table.insert(lines, string.format("  Path:         %s", r.metadata.file_path))
         table.insert(lines, string.format("  Size:         %s  (%s bytes)", human_size(r.metadata.file_size), r.metadata.file_size or "?"))
@@ -432,7 +432,7 @@ function M.format_verbose(r, pending)
     if verbose and verbose ~= "" then
       local conn_info = extract_connection_info(verbose)
       if next(conn_info) then
-        table.insert(lines, "▸ Connection")
+        table.insert(lines, "  Connection")
         if conn_info.proxy then
           table.insert(lines, "  Proxy:     " .. conn_info.proxy)
         end
@@ -657,16 +657,17 @@ function M.apply_verbose_highlights(buf, lines, r)
   local in_req_body = false
   local in_req_headers = false
   local req_content_type = nil
+  local sep_lookup = _sep_lines or (r and r._sep_lines) or {}
   for i, line in ipairs(lines) do
-    if line == "▸ Response Body" then
+    if line == "  Response Body" then
       in_body = true
       body_start = i + 1
-    elseif line == "▸ Request Body" then
+    elseif line == "  Request Body" then
       in_req_body = true
       req_body_start = i + 1
-    elseif line == "▸ Request Headers" then
+    elseif line == "  Request Headers" then
       in_req_headers = true
-    elseif line:match("^▸ ") or line:match("^[─—]+$") then
+    elseif (line:match("^  [A-Z][a-z]") and not line:find(":")) or sep_lookup[i] then
       if in_body then
         body_end = i - 1
         in_body = false
@@ -716,7 +717,7 @@ function M.apply_verbose_highlights(buf, lines, r)
         virt_text_pos = "overlay",
         priority = 100,
       })
-    elseif line:match("^▸ ") then
+    elseif line:match("^  [A-Z][a-z]") and not line:find(":") then
       vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
         end_row = row, end_col = #line,
         hl_group = "PosteVerboseSection", priority = 100,
