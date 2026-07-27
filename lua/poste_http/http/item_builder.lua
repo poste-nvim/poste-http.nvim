@@ -357,7 +357,7 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
               end
               table.insert(items, {
                 label = full_label,
-                kind = has_children and KIND_PROPERTY or KIND_FUNCTION,
+                kind = KIND_PROPERTY,
                 insertText = next_level,
                 filterText = prefix .. next_level,
                 sortText = (has_children and "1" or "2") .. next_level,
@@ -377,7 +377,7 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
       end
     end
 
-    items = M.build_keyword_items(keywords, KIND_FUNCTION)
+    items = M.build_keyword_items(keywords, KIND_PROPERTY)
 
     local lua_key_items = M.build_items(data.lua_keywords, KIND_KEYWORD)
     for _, item in ipairs(lua_key_items) do
