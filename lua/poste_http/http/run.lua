@@ -82,14 +82,8 @@ end
 local function run_and_store_assertions(parsed, assertion_code, script_vars)
   if not assertion_code then return nil end
   local results = assertions.run_assertions(parsed, assertion_code, script_vars)
-  state.last_assertion_results = results
+  state.set_assertion_results(results)
   state.log("INFO", string.format("Assertions: %d passed, %d failed", results.passed, results.failed))
-  if results.logs and #results.logs > 0 then
-    state.last_script_logs = state.last_script_logs or {}
-    for _, msg in ipairs(results.logs) do
-      table.insert(state.last_script_logs, msg)
-    end
-  end
   return results
 end
 
@@ -124,13 +118,23 @@ local function add_to_history(name, response_data, file_path)
 end
 
 --- Handle the parsed response from curl_exec.
-local function handle_curl_response(response, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file, start_hires)
+--- @param ctx table  Pipeline context with src_buf, req_line, req_block, req_text,
+---                   assertion_code, script_vars, current_req_name, file, start_hires
+local function handle_curl_response(response, ctx)
   vim.schedule(function()
     state._json.query = nil
     state._json.original_lines = nil
     state._json.is_filtered = false
 
-    -- Update pending_request with actual response data (keep URL/headers/body)
+    local src_buf = ctx.src_buf
+    local req_line = ctx.req_line
+    local current_req_name = ctx.current_req_name
+    local file = ctx.file
+    local assertion_code = ctx.assertion_code
+    local script_vars = ctx.script_vars
+    local req_block = ctx.req_block
+    local req_text = ctx.req_text
+
     if state.pending_request then
       state.pending_request = vim.tbl_extend("keep", {
         method = (response.metadata and response.metadata.method) or "",
@@ -147,9 +151,7 @@ local function handle_curl_response(response, src_buf, req_line, req_block, req_
         headers = {}, body = response.error, cookies = {},
         metadata = { method = "", error = response.error, exit_code = "1" },
       }
-      state.last_response = error_response
-      state.last_responses = nil
-      state.response_index = nil
+      state.set_response(error_response)
       response_buf.reset_multi_response()
       emit_response(error_response, current_req_name, file, nil, nil)
       view.show_view("verbose")
@@ -160,10 +162,8 @@ local function handle_curl_response(response, src_buf, req_line, req_block, req_
 
     if response.status == 0 and response.protocol == "error" then
       indicators.set_indicator(src_buf, req_line, "error")
-      state.last_responses = nil
-      state.response_index = nil
+      state.set_response(response)
       response_buf.reset_multi_response()
-      state.last_response = response
       emit_response(response, current_req_name, file, nil, nil)
       view.show_view("verbose")
       local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
@@ -171,8 +171,7 @@ local function handle_curl_response(response, src_buf, req_line, req_block, req_
       return
     end
 
-    state.last_response = response
-    -- Carry request data into response metadata so Request/Verbose tabs can display it
+    state.set_response(response)
     if state.pending_request then
       response.metadata = response.metadata or {}
       if not response.metadata.request_headers then
@@ -199,13 +198,10 @@ local function handle_curl_response(response, src_buf, req_line, req_block, req_
       end
       table.insert(chain, {name = current_req_name or "Request", response = response})
       response_buf.reset_multi_response()
-      state.last_responses = chain
-      state.response_index = #chain
+      state.set_responses(chain, #chain)
       request_vars._dep_chain = nil
       pcall(response_buf.prepare_multi_responses, chain)
     else
-      state.last_responses = nil
-      state.response_index = nil
       response_buf.reset_multi_response()
     end
 
@@ -318,7 +314,7 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     end
   end
 
-  state.pending_request = {
+  state.set_pending_request({
     method = req_method,
     url = req_url,
     headers_str = headers_str,
@@ -327,7 +323,7 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     env = state.current_env,
     timestamp = os.date("%Y-%m-%d %H:%M:%S"),
     start_hires = uv.hrtime(),
-  }
+  })
 end
 
 --- Handle the import/run directive response callback.
@@ -340,13 +336,9 @@ local function handle_directive_response(success, response, src_buf, indicator_l
 
     -- Batch execution: response is an array of {name, response}
     if type(response) == "table" and response[1] and response[1].response then
-      state.last_responses = response
-      state.response_index = 1
-      state.last_response = response[1].response
+      state.set_responses(response, 1)
     else
-      state.last_responses = nil
-      state.response_index = 1
-      state.last_response = response
+      state.set_response(response)
     end
 
     emit_response(state.last_response, resolved.request_name, resolved.path or file, nil, nil)
@@ -405,8 +397,13 @@ local function resolve_current_req_name(src_buf, line)
 end
 
 --- Prepare request: resolve prompt variables and request deps → modified content.
---- Returns (modified_content, req_line, block_start, block_end) via callback.
-local function prepare_request(src_buf, line, buf_content, file, callback)
+--- Fills ctx.modified_content, ctx.req_line, ctx.block_start, ctx.block_end via callback.
+local function prepare_request(ctx, callback)
+  local src_buf = ctx.src_buf
+  local line = ctx.line
+  local buf_content = ctx.buf_content
+  local file = ctx.file
+
   local req_line = cache.find_request_line(src_buf, line)
   if not req_line then
     indicators.clear_all(src_buf)
@@ -426,15 +423,29 @@ local function prepare_request(src_buf, line, buf_content, file, callback)
   }, function(modified_content)
     if not modified_content then
       indicators.clear_all(src_buf)
-      state.pending_request = nil
+      state.set_pending_request(nil)
       return
     end
-    callback(modified_content, req_line, block_start, block_end)
+    ctx.modified_content = modified_content
+    ctx.req_line = req_line
+    ctx.block_start = block_start
+    ctx.block_end = block_end
+    callback(ctx)
   end)
 end
 
 --- Execute request: run scripts, inject vars, build curl cmd, start job.
-local function execute_request(src_buf, line, file, modified_content, req_line, block_start, block_end, callback)
+--- Fills ctx.buf_content, ctx.req_block, ctx.req_text, ctx.assertion_code,
+--- ctx.script_vars, ctx.current_req_name, ctx.block_start, ctx.block_end
+local function execute_request(ctx, callback)
+  local src_buf = ctx.src_buf
+  local line = ctx.line
+  local file = ctx.file
+  local modified_content = ctx.modified_content
+  local req_line = ctx.req_line
+  local block_start = ctx.block_start
+  local block_end = ctx.block_end
+
   local buf_content = modified_content
   local pre_script_code
   local script_vars = nil
@@ -450,13 +461,13 @@ local function execute_request(src_buf, line, file, modified_content, req_line, 
       state.log("ERROR", pre_result.error)
       indicators.set_indicator(src_buf, req_line, "error")
       local err_resp = make_error_response("", nil, pre_result.error, "Pre-script error", 1)
-      state.last_response = err_resp
+      state.set_response(err_resp)
       emit_response(err_resp, nil, file, nil, nil)
       view.show_view("verbose")
       return
     end
     if #pre_result.logs > 0 then
-      state.last_script_logs = pre_result.logs
+      state.set_script_logs(pre_result.logs)
     end
     if next(pre_result.variables) then
       local injected_count = 0
@@ -501,11 +512,34 @@ local function execute_request(src_buf, line, file, modified_content, req_line, 
   local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
   buf_content = import_mod.resolve_lua_imports(buf_content, buf_dir)
 
-  callback(buf_content, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
+  ctx.buf_content = buf_content
+  ctx.req_block = req_block
+  ctx.req_text = req_text
+  ctx.assertion_code = assertion_code
+  ctx.script_vars = script_vars
+  ctx.current_req_name = current_req_name
+  ctx.block_start = block_start
+  ctx.block_end = block_end
+  callback(ctx)
 end
 
 --- Start curl execution via curl_exec, passing parsed request details.
-local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, req_text, assertion_code, script_vars, current_req_name, block_start, block_end)
+--- @param ctx table  Pipeline context with file, buf_content, req_line, src_buf,
+---                   req_block, req_text, assertion_code, script_vars, current_req_name,
+---                   block_start, block_end
+local function start_curl_exec(ctx)
+  local file = ctx.file
+  local buf_content = ctx.buf_content
+  local req_line = ctx.req_line
+  local src_buf = ctx.src_buf
+  local req_block = ctx.req_block
+  local req_text = ctx.req_text
+  local assertion_code = ctx.assertion_code
+  local script_vars = ctx.script_vars
+  local current_req_name = ctx.current_req_name
+  local block_start = ctx.block_start
+  local block_end = ctx.block_end
+
   local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
 
   -- Resolve variables in the content (use buf_content lines, not buffer, so
@@ -564,7 +598,7 @@ local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, 
     body = body,
     buf_dir = buf_dir,
   }, function(response)
-    handle_curl_response(response, src_buf, req_line, req_block, req_text, assertion_code, script_vars, current_req_name, file, start_hires)
+    handle_curl_response(response, ctx)
   end)
 
   -- Set pending request from values we already have (no re-parse)
@@ -572,7 +606,7 @@ local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, 
   for _, h in ipairs(headers) do
     table.insert(h_parts, h[1] .. ": " .. h[2])
   end
-  state.pending_request = {
+  state.set_pending_request({
     method = method,
     url = url,
     headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or "",
@@ -581,7 +615,7 @@ local function start_curl_exec(file, buf_content, req_line, src_buf, req_block, 
     env = state.current_env,
     timestamp = os.date("%Y-%m-%d %H:%M:%S"),
     start_hires = start_hires,
-  }
+  })
   view.show_view("verbose")
 end
 
@@ -600,7 +634,7 @@ function M.run_request()
 
   -- Fresh session: clears all request-scoped state (Phase 2b)
   session.begin({ buf = src_buf, line = line, file = file })
-  state.last_request = { buf = src_buf, line = line }
+  state.set_request(src_buf, line)
 
   local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
   local buf_content = table.concat(buf_lines, "\n")
@@ -643,37 +677,47 @@ function M.run_request()
   end
 
   -- Standard request pipeline
-  prepare_request(src_buf, line, buf_content, file, function(modified_content, req_line, block_start, block_end)
-    execute_request(src_buf, line, file, modified_content, req_line, block_start, block_end,
-      function(inner_content, req_block, req_text, assertion_code, script_vars, current_req_name, blk_start, blk_end)
-        if req_text and vim.trim(req_text):upper() == "SCRIPT" then
-          local script_response = make_script_response(req_text, req_block)
-          state.last_response = script_response
-          state._json.query = nil
-          state._json.original_lines = nil
-          state._json.is_filtered = false
-          emit_response(script_response, current_req_name, file, nil, nil)
+  local ctx = {
+    src_buf = src_buf,
+    line = line,
+    file = file,
+    buf_content = buf_content,
+  }
 
-          local assertion_results = run_and_store_assertions(script_response, assertion_code, script_vars)
+  prepare_request(ctx, function(ctx)
+    execute_request(ctx, function(ctx)
+      if ctx.req_text and vim.trim(ctx.req_text):upper() == "SCRIPT" then
+        local script_response = make_script_response(ctx.req_text, ctx.req_block)
+        state.set_response(script_response)
+        state.clear_json_state()
+        emit_response(script_response, ctx.current_req_name, file, nil, nil)
 
-          if assertion_results and assertion_results.total > 0 then
-            view.show_view("assertions")
-          elseif state.last_script_logs and #state.last_script_logs > 0 then
-            view.show_view("script_logs")
-          else
-            view.show_view("verbose")
-          end
+        local assertion_results = run_and_store_assertions(script_response, ctx.assertion_code, ctx.script_vars)
 
-          set_result_indicator(src_buf, req_line, script_response, assertion_results)
-          local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Script #" .. tostring(req_line + 1))
-          add_to_history(hist_name, script_response, file)
-          return
+        if assertion_results and assertion_results.total > 0 then
+          view.show_view("assertions")
+        elseif state.last_script_logs and #state.last_script_logs > 0 then
+          view.show_view("script_logs")
+        else
+          view.show_view("verbose")
         end
 
-        start_curl_exec(file, inner_content, req_line, src_buf, req_block, req_text,
-          assertion_code, script_vars, current_req_name, blk_start, blk_end)
-      end)
+        set_result_indicator(src_buf, ctx.req_line, script_response, assertion_results)
+        local hist_name = (ctx.current_req_name or "") ~= "" and ctx.current_req_name or ("Script #" .. tostring(ctx.req_line + 1))
+        add_to_history(hist_name, script_response, file)
+        return
+      end
+
+      start_curl_exec(ctx)
+    end)
   end)
 end
+
+M._test = {
+  make_script_response = make_script_response,
+  make_error_response = make_error_response,
+  choose_view_tab = choose_view_tab,
+  inject_global_vars = inject_global_vars,
+}
 
 return M

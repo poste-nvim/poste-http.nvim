@@ -35,21 +35,8 @@ function M.begin(meta)
   local state = require("poste_http.state")
   local session = M.new(meta)
 
-  -- Full request-scoped clear (acceptance: no field survives into next request)
-  state.last_response = nil
-  state.last_responses = nil
-  state.response_index = nil
-  state.last_assertion_results = nil
-  state.last_script_logs = nil
-  state.pending_request = nil
-  if state._json then
-    state._json.query = nil
-    state._json.original_lines = nil
-    state._json.is_filtered = false
-    -- pretty_mode is a user preference — keep it
-  end
+  state.clear_request_scoped()
 
-  -- Drop multi-response pre-rendered buffers
   pcall(function()
     require("poste_http.http.buffer").reset_multi_response()
   end)

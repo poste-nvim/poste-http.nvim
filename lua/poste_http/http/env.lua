@@ -5,7 +5,7 @@ local M = {}
 
 local function build_http_winbar()
   local left = string.format(" Env: %s ", state.current_env)
-  local right = " <leader>vv switch "
+  local right = " g? help "
   return "%#PosteSqlMeta#" .. left .. "%=" .. "%#PosteSqlMetaDim#" .. right
 end
 

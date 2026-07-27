@@ -8,6 +8,7 @@ require("poste_http.http.request_vars")
 pcall(require, "blink.cmp")
 local completion = require("poste_http.http.completion")
 local symbols = require("poste_http.http.symbols")
+local commands = require("poste_http.commands")
 
 local view = require("poste_http.http.view")
 local env_mod = require("poste_http.http.env")
@@ -56,117 +57,9 @@ function M.setup(opts)
   completion.register()
   require("poste_http.http.lua_docs").setup()
   require("poste_http.http.script_snippet").setup()
+  commands.setup()
 
-  vim.api.nvim_create_user_command("PosteRun", function()
-    M.run_request()
-  end, { desc = "Run request at cursor" })
-
-  vim.api.nvim_create_user_command("PosteEnv", function(args)
-    if args.args == "" then
-      vim.notify("Current environment: " .. state.current_env, vim.log.levels.INFO)
-    else
-      M.set_env(args.args)
-    end
-  end, {
-    nargs = "?",
-    desc = "Switch environment or show current",
-  })
-
-  vim.api.nvim_create_user_command("PostePasteCurl", function()
-    local curl = require("poste_http.http.curl")
-    curl.paste_curl("+")
-  end, { desc = "Paste curl command from clipboard as HTTP request" })
-
-  vim.api.nvim_create_user_command("PosteImportOpenAPI", function()
-    require("poste_http.http.import_openapi").run()
-  end, { desc = "Import OpenAPI 3.x spec as .http files" })
-
-  vim.api.nvim_create_user_command("PosteImportSwagger", function()
-    require("poste_http.http.import_swagger").run()
-  end, { desc = "Import Swagger 2.0 spec as .http files" })
-
-  vim.api.nvim_create_user_command("PosteImportPostman", function()
-    require("poste_http.http.import_postman").run()
-  end, { desc = "Import Postman collection as .http files" })
-
-  vim.api.nvim_create_user_command("PosteCopyAsCurl", function()
-    local copy = require("poste_http.http.copy")
-    copy.copy_to_clipboard("+")
-  end, { desc = "Copy current request as curl command to clipboard" })
-
-  vim.api.nvim_create_user_command("PosteHelp", function()
-    require("poste_http.help").open()
-  end, { desc = "Show Poste keymap help" })
-
-  vim.api.nvim_create_user_command("PosteImportResolve", function()
-    local import = require("poste_http.http.import")
-    local lines = import.status()
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_name(buf, "poste://import-status")
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.bo[buf].filetype = "poste"
-    vim.bo[buf].modifiable = false
-    local width = 80
-    local height = math.min(#lines + 2, 20)
-    local win = vim.api.nvim_open_win(buf, true, {
-      relative = "editor",
-      width = width,
-      height = height,
-      row = math.max(0, (vim.o.lines - height) / 2 - 1),
-      col = math.max(0, (vim.o.columns - width) / 2),
-      style = "minimal",
-      border = "single",
-      title = " Import Resolution Status ",
-      title_pos = "center",
-    })
-    vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
-      { buffer = buf, noremap = true, silent = true })
-    vim.api.nvim_buf_attach(buf, false, { on_detach = function() pcall(vim.api.nvim_win_close, win, true) end })
-  end, { desc = "Show import resolution status" })
-
-  vim.api.nvim_create_user_command("PosteCmpStatus", function()
-    vim.notify(completion.status(), vim.log.levels.INFO)
-  end, { desc = "Check poste completion status" })
-
-  vim.api.nvim_create_user_command("PosteCmpProfile", function()
-    completion.profile()
-  end, { desc = "Profile poste completion performance" })
-
-  vim.api.nvim_create_user_command("PosteSymbols", function()
-    symbols.show_symbols()
-  end, { desc = "Show symbol outline (all HTTP requests)" })
-
-  vim.api.nvim_create_user_command("PosteOutline", function()
-    symbols.show_symbols()
-  end, { desc = "Show symbol picker (all HTTP requests)" })
-
-  vim.api.nvim_create_user_command("PosteFormatHttp", function()
-    local format_file = require("poste_http.http.format_file")
-    local changed = format_file.format_buffer()
-    if changed then
-      vim.notify("poste: formatted", vim.log.levels.INFO)
-    else
-      vim.notify("poste: already formatted", vim.log.levels.INFO)
-    end
-  end, { desc = "Format .http buffer" })
-
-  vim.api.nvim_create_user_command("PosteHttpHistory", function()
-    require("poste_http.http.history").show()
-  end, { desc = "Show HTTP request history" })
-
-  vim.api.nvim_create_user_command("PosteClearCache", function()
-    local format = require("poste_http.http.format")
-    local cleaned = format.clean_response_cache()
-    vim.notify(string.format("[Poste] Cleared %d old response file(s)", cleaned), vim.log.levels.INFO)
-  end, { desc = "Remove old cached response files from stdpath(cache)/poste_res/" })
-
-  vim.api.nvim_create_user_command("PosteTSInspect", function()
-    require("poste_http.http.treesitter").inspect()
-  end, { desc = "Inspect tree-sitter parse tree for current buffer" })
-
-  _G.poste_status = function()
-    return string.format("[env: %s]", state.current_env)
-  end
+  _G.poste_status = commands.status
 end
 
 return M

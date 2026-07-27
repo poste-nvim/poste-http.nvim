@@ -1,0 +1,141 @@
+--- Shared utilities for response formatters.
+local state = require("poste_http.state")
+
+local M = {}
+
+function M.split_lines(str)
+  if not str or str == "" then return {} end
+  local lines = {}
+  local idx = 1
+  while idx <= #str do
+    local next_idx = str:find("\n", idx)
+    if not next_idx then
+      table.insert(lines, str:sub(idx))
+      break
+    end
+    table.insert(lines, str:sub(idx, next_idx - 1))
+    idx = next_idx + 1
+  end
+  return lines
+end
+
+function M.human_size(bytes)
+  if not bytes or bytes == 0 then return "0 B" end
+  local units = { "B", "KB", "MB", "GB", "TB" }
+  local magnitude = math.floor(math.log(math.abs(bytes), 1024))
+  local unit = units[magnitude + 1] or "TB"
+  local value = bytes / (1024 ^ magnitude)
+  if magnitude == 0 then
+    return string.format("%d %s", bytes, unit)
+  end
+  return string.format("%.1f %s", value, unit)
+end
+
+function M.is_large_body(body)
+  if not body then return false end
+  local cfg = state.config or {}
+  local max_size = cfg.max_body_preview_size or (1024 * 1024)
+  return #body > max_size
+end
+
+function M.save_body_to_file(body, content_type, r)
+  local cfg = state.config or {}
+  local preview_lines = tonumber(cfg.body_preview_lines) or 20
+  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
+  vim.fn.mkdir(cache_dir, "p")
+  local tmp_file = string.format("%s/res_%s.txt", cache_dir, vim.fn.strftime("%Y%m%d_%H%M%S_%6N"))
+  local f = io.open(tmp_file, "w")
+  if not f then return nil end
+  f:write(body)
+  f:close()
+  if not r.metadata then r.metadata = {} end
+  r.metadata.file_path = tmp_file
+  r.metadata.file_size = #body
+  r.metadata.file_content_type = content_type
+  local lines = M.split_lines(body)
+  local truncated = {}
+  local preview_count = math.min(preview_lines, #lines)
+  for i = 1, preview_count do
+    table.insert(truncated, lines[i])
+  end
+  local remaining = #lines - preview_count
+  table.insert(truncated, string.format("...  (%d more lines, %s total)", remaining, M.human_size(#body)))
+  table.insert(truncated, string.format("  File:        %s", tmp_file))
+  return truncated
+end
+
+function M.json_pretty(value, indent)
+  indent = indent or 0
+  local indent_str = string.rep("  ", indent)
+  local indent_str_inner = string.rep("  ", indent + 1)
+  if type(value) == "table" then
+    local is_array = true
+    local max_idx = 0
+    for k, _ in pairs(value) do
+      if type(k) ~= "number" or k ~= math.floor(k) or k < 1 then
+        is_array = false
+        break
+      end
+      max_idx = math.max(max_idx, k)
+    end
+    is_array = is_array and max_idx == #value
+    if is_array then
+      if #value == 0 then return "[]" end
+      local items = {}
+      for _, v in ipairs(value) do
+        table.insert(items, indent_str_inner .. M.json_pretty(v, indent + 1))
+      end
+      return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "]"
+    else
+      local keys = {}
+      for k in pairs(value) do table.insert(keys, k) end
+      table.sort(keys)
+      if #keys == 0 then return "{}" end
+      local items = {}
+      for _, k in ipairs(keys) do
+        local v = value[k]
+        table.insert(items, indent_str_inner .. '"' .. k .. '": ' .. M.json_pretty(v, indent + 1))
+      end
+      return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "}"
+    end
+  elseif type(value) == "string" then
+    return '"' .. value:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t') .. '"'
+  elseif type(value) == "number" then
+    return tostring(value)
+  elseif type(value) == "boolean" then
+    return value and "true" or "false"
+  elseif value == nil or value == vim.NIL then
+    return "null"
+  else
+    return tostring(value)
+  end
+end
+
+function M.format_urlencoded_body(body)
+  if not body or body == "" then return nil end
+  local lines = {}
+  for pair in body:gmatch("[^&]+") do
+    local key, val = pair:match("^([^=]+)=(.*)$")
+    if key and val ~= nil then
+      val = val:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+      val = val:gsub("+", " ")
+      table.insert(lines, string.format("  %s: %s", key, val))
+    end
+  end
+  if #lines == 0 then return nil end
+  return lines
+end
+
+--- Try to pretty-print JSON body; return as-is if not JSON or if already formatted
+function M.pretty_body(body, content_type)
+  if not body or body == "" then return "" end
+  if not body:find("\n") and (not content_type or content_type:find("json") or body:sub(1, 1) == "{" or body:sub(1, 1) == "[") then
+    local ok, decoded = pcall(vim.json.decode, body)
+    if ok and decoded then
+      return M.json_pretty(decoded)
+    end
+  end
+  return body
+end
+
+return M

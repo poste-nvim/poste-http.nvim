@@ -150,4 +150,84 @@ function M.log(level, msg)
   end
 end
 
+---------------------------------------------------------------------------
+-- Setters for request-scoped mutable state
+---------------------------------------------------------------------------
+
+function M.set_response(resp)
+  M.last_response = resp
+  M.last_responses = nil
+  M.response_index = nil
+end
+
+function M.set_responses(chain, idx)
+  M.last_responses = chain
+  M.response_index = idx or (#chain or 1)
+end
+
+function M.set_assertion_results(results)
+  M.last_assertion_results = results
+  if results and results.logs and #results.logs > 0 then
+    M.last_script_logs = M.last_script_logs or {}
+    for _, msg in ipairs(results.logs) do
+      table.insert(M.last_script_logs, msg)
+    end
+  end
+end
+
+function M.set_script_logs(logs)
+  M.last_script_logs = logs
+end
+
+function M.append_script_logs(logs)
+  M.last_script_logs = M.last_script_logs or {}
+  for _, msg in ipairs(logs) do
+    table.insert(M.last_script_logs, msg)
+  end
+end
+
+function M.set_request(buf, line)
+  M.last_request = { buf = buf, line = line }
+end
+
+function M.set_pending_request(info)
+  M.pending_request = info
+end
+
+function M.set_current_view(view)
+  M.current_view = view
+end
+
+function M.set_global_var(name, value)
+  M.global_vars[name] = value
+end
+
+function M.set_script_variable(name, value)
+  M.script_variables[name] = value
+end
+
+function M.set_json_filter(query)
+  M._json.query = query
+end
+
+function M.clear_json_state()
+  M._json.query = nil
+  M._json.original_lines = nil
+  M._json.is_filtered = false
+end
+
+function M.clear_request_scoped()
+  M.last_response = nil
+  M.last_responses = nil
+  M.response_index = nil
+  M.last_assertion_results = nil
+  M.last_script_logs = nil
+  M.last_request = nil
+  M.pending_request = nil
+  M.current_view = "body"
+  M._json.query = nil
+  M._json.original_lines = nil
+  M._json.is_filtered = false
+end
+
 return M

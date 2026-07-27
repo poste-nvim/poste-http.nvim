@@ -1,407 +1,144 @@
-# Poste Refactoring Plan
+# Poste HTTP Refactoring Plan
 
-> Based on the architecture review in `ignore/review.md`. This plan translates the 8 findings (F1–F8) into actionable stages, ordered by risk/reward and dependency.
+> Code quality & architecture improvement plan for `poste-http.nvim`.
+> Based on the 2026-07 code review.
 
 ---
 
 ## Overview
 
-| Finding | Issue | Prio | Effort | Risk |
-|---------|-------|------|--------|------|
-| **F1** | HTTP request parsed in 3 places independently | P1 | Medium | Medium |
-| **F2** | `request_vars.lua` is a second execution engine | P1→P2 | Large | High |
-| **F3** | God modules (`format.lua`, `executor.rs`, `parser.rs`, `editor.lua`) | P1 | Medium | Low |
-| **F4** | No contract tests for Rust↔Lua JSON shapes | P1 | Medium | Low |
-| **F5** | Mutable global state lacks lifecycle invariants | P1 | Medium | Medium |
-| **F6** | Redis lives under `lua/poste/http/` | P2 | Small–Medium | Low |
-| **F7** | `prototype.lua` and heavy `poste-core` import deps | P3 | Small | Low |
-| **F8** | Scattered child-process invocations across Lua | P2 | Medium | Medium |
+| # | Issue | Severity | Effort | Risk |
+|---|-------|----------|--------|------|
+| **R1** | 循环依赖 `cache ↔ import ↔ resolve ↔ request_vars ↔ cache` | Critical | Small | Medium |
+| **R2** | 神级模块 `request_vars.lua` (1316行, 7+职责) | Critical | Large | High |
+| **R3** | 神级模块 `nav.lua` (1524行, 重复代码) | High | Large | High |
+| **R4** | 代码重复: `format/body.lua` ↔ `format/verbose.lua` (~200行) | High | Small | Low |
+| **R5** | `run.lua` 回调链 + 函数参数过多 (10个参数) | High | Medium | Medium |
+| **R6** | `init.lua:setup()` 单体 (140行内嵌15个命令) | Medium | Small | Low |
+| **R7** | 全局状态失控: 16+模块直接写 `state.*` | High | Medium | High |
 
-### Execution order (recommended)
+### 执行顺序
 
 ```
-Phase 0: F4 — Contract tests (safety net for everything below)
-Phase 1: F3 — Split god modules (behaviour-preserving, reduces friction)
-Phase 2: F1+F5 — Single parse authority + session lifecycle
-Phase 3: F2 — Unify resolve entry, then consider Rust
-Phase 4: F8 — Centralise child-process calls
-Phase 5: F6+F7 — Redis isolation & housekeeping
+Phase 0: 低风险先改 — R4 (重复代码抽取) + R6 (命令提取)
+Phase 1: 加 characterization tests (run.lua, nav.lua, cache.lua, buffer.lua)
+Phase 2: 修复 R1 循环依赖
+Phase 3: 拆分 R2 request_vars.lua
+Phase 4: 拆分 R3 nav.lua
+Phase 5: 改造 R5 run.lua 参数表 + 扁平化
+Phase 6: R7 state 封装 setter
 ```
 
 ---
 
-## Phase 0: Contract Tests (F4)
+## Phase 0: 低风险先改 (R4 + R6)
 
-**Goal**: Lock down the Rust→Lua JSON contract so every subsequent refactor has a regression guard.
+### R4 — 抽取 `format/body.lua` ↔ `format/verbose.lua` 重复代码
 
-### Problem
+**目标**: 消除两文件间 ~200 行重复代码。
 
-`Response` (and friends) are typed in Rust and decoded with `vim.json.decode` in Lua, but there is no shared schema or golden test. SQL completion has golden fixtures; HTTP run/context do not. A silent break on field rename or nesting change is a matter of time.
+**做法**:
+1. 创建 `lua/poste_http/http/format/util.lua`
+2. 移入: `split_lines()`, `human_size()`, `is_large_body()`, `save_body_to_file()`, `json_pretty()`, `format_urlencoded_body()`
+3. `body.lua` 和 `verbose.lua` 改为 `require("format.util")` + 删除本地副本
+4. 运行测试验证
 
-### Approach
+### R6 — 提取 `init.lua:setup()` 中的用户命令
 
-Introduce `tests/contract/` with static fixtures and one test per JSON-consuming Lua path.
+**目标**: 消除 `setup()` 中 15 个内联命令定义。
 
-```
-tests/contract/
-├── fixtures/
-│   ├── http-run-response.json       # poste run --json output
-│   ├── context-detect.json
-│   ├── context-stmt.json
-│   └── context-stmt-ranges.json
-└── test_contract.lua               # Lua-side consumer assertions
-```
-
-### Key checks per fixture
-
-- `http-run-response.json` → assert status, body, headers from Lua's `vim.json.decode`
-- `context-detect.json` → assert filetype, protocol, start_line
-- `context-stmt.json` → assert sql dialect, statement boundaries
-- `context-stmt-ranges.json` → assert range map shape
-
-### Work items
-
-1. Pick one JSON path (e.g. `poste run --json`) and write a Lua contract test
-2. Generate a golden fixture by running the CLI on a known `.http` file
-3. Assert the Lua decode matches expected fields
-4. Repeat for `context` subcommands (model on existing SQL context golden tests)
-5. Document the pattern so new features add a fixture
-
-### Acceptance
-
-- [x] Every `--json` consumer has at least one contract test
-- [x] CI runs `tests/run.sh` which includes contract assertions
-- [x] Adding a field to a Rust response struct requires updating the fixture (test fails until done)
+**做法**:
+1. 创建 `lua/poste_http/commands.lua` — 用数据表定义所有命令
+2. `setup()` 改为循环注册
+3. 移除 `_G.poste_status` 全局污染
 
 ---
 
-## Phase 1: Split God Modules (F3)
+## Phase 1: Characterization Tests
 
-**Goal**: Break up the four largest files by responsibility without changing behaviour.
+**目标**: 为无测试的关键模块加 characterization tests，锁定当前行为。
 
-### 1a — `format.lua` (~1697 lines)
-
-Sits under `lua/poste/http/format.lua` and handles: body formatting, verbose mode, multipart, image preview, Redis highlighting.
-
-#### Proposed split
-
-```
-lua/poste/http/
-├── format.lua              ← ~200 lines: public API, dispatches to sub-modules
-├── format/
-    ├── body.lua            ← HTTP response body formatting
-    ├── verbose.lua         ← Verbose response rendering
-    ├── multipart.lua       ← Multipart body parsing & display
-    ├── image.lua           ← Image preview (iTerm imgcat / kitty protocol)
-    └── redis.lua           ← Future: Redis response formatting (moved from here)
-```
-
-**Order**: Extract one sub-module at a time. Each extraction:
-1. Move functions + their direct dependencies into the new file
-2. Keep a thin re-export in `format.lua` (deprecated path)
-3. Run `tests/run.sh` to confirm no regression
-4. After all extractions, update importers to use the new paths and drop re-exports
-
-### 1b — `executor.rs` (~1248 lines)
-
-HTTP curl execution + Redis execution + MIME tools live in one file. SQL already split out.
-
-#### Proposed split
-
-```
-crates/poste-exec/src/
-├── mod.rs
-├── executor.rs             ← Current file (will be split)
-└── ...
-```
-
-Move Redis execution into `redis.rs`, MIME helpers into `mime.rs`, keeping HTTP-specific code in `executor.rs`. Follow the same crate-internal module pattern SQL used.
-
-### 1c — `parser.rs` (~1173 lines)
-
-HTTP parser. This is trickier because the parsing logic is tightly coupled. For now, extract the clearly separable sections:
-- Multipart/form-data parsing → `parser/multipart.rs`
-- Variable interpolation (`{{var}}`) → `parser/vars.rs`
-
-Keep the main parse loop in `parser.rs`; these are purely structural moves.
-
-### 1d — `sql/editor.lua` (~1050 lines)
-
-SQL dataset editor. Split transient concerns:
-- Cell manipulation → `sql/editor/cell.lua`
-- Column operations → `sql/editor/column.lua`
-- Row navigation → `sql/editor/nav.lua`
-
-Leave the orchestration in `editor.lua`.
-
-### Acceptance
-
-- [x] `format.lua` < 300 lines (from ~1700) — **255 lines ✅**
-- [x] `executor.rs` < 600 lines (from ~1250) — **525 lines ✅**
-- [ ] `parser.rs` < 800 lines (from ~1170) — **877 lines** (close, VarResolver extracted to `parser/vars.rs`)
-- [x] `sql/editor.lua` < 500 lines (from ~1050) — **52 lines ✅** (cell/column/nav sub-modules)
-- [x] All existing tests pass at each extraction step
-- [x] Behaviour is identical — no functional change
+| 模块 | 行数 | 测试策略 |
+|------|------|---------|
+| `run.lua` | 679 | 测试 `M.run_request` 调用链、`execute_request` 参数处理、`handle_curl_response` 分支 |
+| `nav.lua` | 1524 | 测试 `M.goto_definition`、`ts_goto_definition`、`M.goto_references` 的边界情况 |
+| `cache.lua` | 634 | 测试 `M.get_buffer_cache` 的缓存命中/失效、`M.collect_import_index` |
+| `buffer.lua` | 487 | 测试 `sanitize_lines`、`setup_keymaps` 的键位注册 |
 
 ---
 
-## Phase 2: Single Parse Authority + Session Lifecycle (F1 + F5)
+## Phase 2: 修复循环依赖 R1
 
-**Goal**: Eliminate the three-way parse duplication and ensure mutable state is reset per request.
+**目标**: 消除 `cache → import → resolve → request_vars → cache` 循环。
 
-### 2a — Single parse authority (F1)
-
-#### Problem
-
-`parser.rs`, `cache.lua` (`build_cache`), and `run.lua` (`build_pending_request`) each scan for `###` delimiters, method lines, and headers. Minor semantic differences cause bugs (`--line` vs stdin inconsistency, lost file-level `@var`, etc.).
-
-#### Approach
-
-Make the CLI JSON output the single source of truth for request metadata.
-
-1. **Add a new CLI subcommand** (or extend `poste run --describe`) that emits structured block metadata as JSON:
-   ```json
-   [
-     {
-       "name": "Get Users",
-       "line": 5,
-       "method": "GET",
-       "path": "/api/users",
-       "headers": [["Accept", "application/json"]]
-     }
-   ]
-   ```
-2. **Replace `cache.lua`** block indexing with a call to this CLI command. `cache.lua` keeps only UI-level indexing (line → block name mappings for navigation).
-3. **Replace `build_pending_request`** in verbose mode with the same CLI metadata source.
-4. **Remove** the redundant parse passes from Lua.
-
-#### Work items
-
-1. Design the JSON schema for block metadata
-2. Implement `poste run --describe` in Rust (reuses existing parser)
-3. Wire `cache.lua` to call it
-4. Wire verbose pending display to call it
-5. Remove `build_pending_request` Lua code
-6. Add contract tests for the new JSON output
-
-### 2b — Session lifecycle (F5)
-
-#### Problem
-
-~27% of historic bugs are orphaned state (`response_index`, `_json`, indicator spinner, `global_vars`, `block_end`). State set in one request leaks into the next.
-
-#### Approach
-
-Introduce an explicit `Session` object per protocol that is created at `run_*` entry and discarded on completion.
-
-```
-lua/poste/http/session.lua     ← new
-lua/poste/sql/session.lua      ← new
-```
-
-Each session owns:
-- `response` — current response data
-- `meta` — request metadata (name, line, duration)
-- `assertions` — assertion results
-- `logs` — script logs
-
-The `run_request()` / `run_sql_request()` entry point:
-1. Creates a fresh `Session`
-2. Passes it through the request pipeline
-3. Stores it in a stack (support multi-tab) or ephemeral reference
-4. The old `state.lua` fields become deprecated aliases reading from the active session
-
-#### Work items
-
-1. Design `Session` struct for HTTP (fields, nesting)
-2. Design `Session` struct for SQL
-3. Create `http/session.lua` constructor + reset
-4. Create `sql/session.lua` constructor + reset
-5. Wire `run.lua` to create session on entry, discard on completion
-6. Add a `state.deprecated_*` shim that logs on write
-7. Add CI check: `tests/relation-check.sh` or equivalent verifies SET↔CLEAR symmetry
-
-### Acceptance
-
-- [x] `cache.lua` no longer parses HTTP semantics (only UI indexing) — semantic method/path/headers via `get_semantic_blocks()` → `poste run --describe`
-- [x] `run.lua` no longer re-parses request blocks from buffer text — uses `poste.http.describe`
-- [x] Each `run_*` entry creates a fresh session (`http/session.lua`, `sql/session.lua`)
-- [x] No `state.*` field written in one request survives into the next — `session.begin()` clears all request-scoped fields
-- [x] `tools/relation-check.sh session` (or full run) verifies SET↔CLEAR / session lifecycle
+**做法**:
+1. `request_vars.lua:94` 的 `require("cache")` 从函数内提到模块级 —— 利用 Lua 模块缓存机制，等 `cache.lua` 加载完后再执行 `request_vars` 的其余代码
+2. 或者: 将 `collect_requests` 函数移出 `request_vars.lua` 到新模块 `request_collector.lua`，该模块不依赖 `cache.lua`
 
 ---
 
-## Phase 3: Unify Resolve Entry (F2)
+## Phase 3: 拆分 request_vars.lua (R2)
 
-**Goal**: Eliminate `request_vars.lua` as a second execution engine by having all variable/import resolution go through one API.
+**目标**: 将 1316 行的神级模块拆为 4 个专注模块。
 
-### Problem
-
-`request_vars.lua` (~1247 lines) does dependency topology, sub-requests via `jobstart`, prompt handling, `<<var` syntax, magic variables, and file-var preprocessing. Meanwhile Rust `run`/`resolve` does `{{env}}` and `< file`. The split happens at "semi-processed string" — a fragile boundary.
-
-### Short-term (Phase 3a)
-
-**All Lua-side consumers call the same resolve API.**
-
-Currently `run.lua` and `import.lua` each assemble their own resolve pipeline. Centralise:
-
-```lua
--- lua/poste/http/resolve.lua (cleaned up)
-local M = {}
-
--- Single entry point for request variable resolution
-function M.resolve(content, opts)
-  -- 1. Handle prompt variables (<<var)
-  -- 2. Resolve dependency refs / imports
-  -- 3. Return resolved request content
-  return resolved_content
-end
-
-return M
+```
+lua/poste_http/http/
+├── request_vars.lua          ← ~200行: 公共 API + 分发
+├── form_data.lua             ← 表单数据、multipart、magic vars ({{$uuid}}等)
+├── prompt_vars.lua           ← <<var 指令处理、异步 UI
+├── request_deps.lua          ← 跨请求依赖解析、执行链
+├── jq_mapping.lua            ← jq 风格路径映射、结构化选项
 ```
 
-All callers switch to `resolve.resolve(content, opts)`.
-
-### Long-term (Phase 3b)
-
-**Move the resolve pipeline into Rust.**
-
-`poste resolve --deps <file>` would:
-1. Parse the file
-2. Resolve variable chains (env → file vars → imports → prompts)
-3. Resolve import/RUN/COPY dependency graph
-4. Output fully resolved, executable content as JSON
-
-Lua then only needs to send content → Rust → receive executable content.
-
-This is a large change — only begin after Phases 0–2 are stable.
-
-### Work items (Phase 3a only)
-
-1. Audit all callers of `request_vars` functions
-2. Design the unified `resolve()` signature
-3. Refactor `request_vars.lua` internals to serve the unified entry point
-4. Update each caller to use the single API
-5. Add tests for the unified resolve entry point
-6. Mark old per-function exports as deprecated
-
-- [x] Old `request_vars` resolve exports remain as compat shims only
-
-### Acceptance
-
-- [x] One function resolves the shared prompt/dependency pipeline for all callers
-- [x] No caller independently assembles a resolve pipeline
-- [ ] All existing tests pass
+**步骤**:
+1. 先写 `form_data.lua` — 提取 `generate_uuid`、`process_form_data` 等
+2. 再写 `jq_mapping.lua` — 提取 `parse_structured_options`、`parse_dynamic_mapping`、`apply_jq_mapping`
+3. 再写 `prompt_vars.lua` — 提取 `handle_prompt_variables_impl` 及相关函数
+4. 最后写 `request_deps.lua` — 提取依赖解析和执行链
+5. `request_vars.lua` 保留为 thin facade + 兼容 re-export
 
 ---
 
-## Phase 4: Centralise Child-Process Calls (F8)
+## Phase 4: 拆分 nav.lua (R3)
 
-**Goal**: A thin wrapper around CLI invocation so argument construction, error handling, and JSON parsing happen in one place.
+**目标**: 将 1524 行的导航模块拆分 + 消除重复代码。
 
-### Problem
-
-`run.lua`, `resolve.lua`, `dep.lua`, `context.lua`, `introspect.lua`, `import/*.lua` — each constructs its own `vim.fn.system` / `vim.system` / `jobstart` call with different argv conventions and error handling.
-
-### Approach
-
-```lua
--- lua/poste/cli.lua
-local M = {}
-
-local default_opts = {
-  json = false,
-  stdin = nil,
-  timeout_ms = 30000,
-}
-
---- Run a poste CLI subcommand.
---- @param cmd table  e.g. {"run", "--json", "--line", "5", file}
---- @param opts? table  Overrides for default_opts
---- @return table|string  Parsed JSON table or raw stdout string
-function M.run(cmd, opts)
-  opts = vim.tbl_deep_extend("keep", opts or {}, default_opts)
-  local full_cmd = vim.list_extend({"poste"}, cmd)
-  local result = vim.fn.system(full_cmd, opts.stdin)
-  local ok, parsed = pcall(vim.json.decode, result)
-  if opts.json and ok then
-    return parsed
-  end
-  return result
-end
-
-return M
-```
-
-### Work items
-
-1. Create `lua/poste/cli.lua`
-2. Migrate all `vim.fn.system("poste ...")` calls to the wrapper
-3. Standardise error handling: non-zero exit → `vim.notify` with stderr
-4. Add `timeout_ms` handling for long-running commands
-5. For the hot path (`run.lua`), keep `jobstart` for async but use the same argv construction
-
-### Acceptance
-
-- [x] `cli.lua` created with `binary()`, `run()`, `run_json()`, `run_async()` API
-- [x] Migrated: `column.lua`, `connections.lua`, `statement.lua`, `statement_indicator.lua`
-- [x] Migrated: `http/copy.lua`, `http/run.lua` (resolve section), `http/nav.lua`
-- [x] Migrated: `introspect.lua`, `import/execute.lua`, `db_browser/async.lua`, `db_browser/operations.lua`
-- [x] Migrated: `import_openapi.lua`, `import_postman.lua`, `import_swagger.lua`
-- [ ] Remaining: `edit_commit.lua` (2 sites), `http/import.lua` (2 sites), `sql/init.lua` (1 site, complex)
+**做法**:
+1. `nav.lua` 保留公共 API (`M.goto_definition`, `M.goto_references`)
+2. 提取 `nav/ts.lua` — tree-sitter 导航逻辑 (`ts_goto_definition`, `ts_goto_references`)
+3. 提取 `nav/text.lua` — 文本回退导航逻辑 (`M.goto_definition` 中非 TS 部分)
+4. 消除 `ts_goto_definition` 中 `identifier` / `variable` 节点类型的重复分支
 
 ---
 
-## Phase 5: Redis Isolation & Housekeeping (F6 + F7)
+## Phase 5: 改造 run.lua (R5)
 
-**Goal**: Complete protocol isolation for Redis; remove dead code.
+**目标**: 消除 10 参数函数 + 扁平化回调链。
 
-### 5a — Redis isolation (F6)
-
-Move Redis Lua code out of `lua/poste/http/`:
-
-```
-lua/poste/
-├── http/          ← HTTP-only (was: http/format.lua handled Redis)
-├── redis/         ← NEW
-│   ├── init.lua   ← Filetype dispatch for poste_redis
-│   ├── format.lua ← Redis response formatting (moved from http/format.lua)
-│   └── ...        ← highlight.lua, etc.
-```
-
-Update `init.lua` to dispatch `poste_redis` → `redis.init.*`.
-
-### 5b — Housekeeping (F7)
-
-- Remove or move `lua/poste/sql/prototype.lua` to `experiments/` (it's dead experimental code)
-- Audit `poste-core` import dependencies (`import/*` + `openapiv3`, ~3.3k lines). Consider splitting into a `poste-import` crate if the dependency weight is significant for non-import consumers. **(P3, defer unless directly blocking)**
-
-### Acceptance
-
-- [x] No Redis code lives under `lua/poste/http/` (Redis highlighting delegated to `lua/poste/redis/`)
-- [x] `poste_redis` filetype dispatches to `lua/poste/redis/`
-- [x] `prototype.lua` moved to `experiments/`
-- [x] All existing tests pass
+**做法**:
+1. `handle_curl_response(response, ...)` 改为 `handle_curl_response(opts)` 接收一个 table
+2. `start_curl_exec(file, ...)` 同理
+3. `M.run_request` 中的 3 层回调链改为命名阶段函数:
+   - `prepare_request` → `execute_request` → `start_curl_exec` → `handle_curl_response`
 
 ---
 
-## Implementation Notes
+## Phase 6: state 封装 (R7)
 
-### How to approach each item
+**目标**: 控制全局状态写入路径。
 
-1. **Write the test first** — even for a pure refactor (behaviour-preserving split), write a contract test that asserts the current behaviour, then refactor, then confirm the test still passes.
-2. **One extraction per PR** — never combine two F-items in one change. Each is independently reviewable and revertible.
-3. **Deprecation, not deletion** — Phase 2/3 should introduce the new path while keeping the old path as a thin wrapper. Remove the old path after 1–2 weeks of real use.
-4. **Update `LEARNINGS.md`** — every non-obvious edge case encountered during refactoring should be logged.
+**做法**:
+1. `state.lua` 加 setter: `M.set_last_response(resp)`, `M.set_script_variables(vars)`, `M.clear_request_scoped()`
+2. 直接写 `state.last_response = ...` 的地方改为调用 setter
+3. `session.lua` 使用 setter 替代直接赋值
 
-### Cross-cutting concerns
+---
 
-All findings except F4 are interrelated: fixing F1 makes F5 easier (state has fewer writers), fixing F5 makes F8 less risky (centralised CLI calls go through a known lifecycle). **Start with F4** — contract tests are the cheapest safety net and every subsequent phase benefits from them.
+## 验收标准
 
-### When to stop
-
-A refactoring phase is complete when:
-- All acceptance criteria listed above are met
-- All existing tests pass
-- `cargo test` + `tests/run.sh` are green
-- No new bug reports linked to the changes in the first week after merge
+- [ ] 所有 Phase 完成后 `tests/run.sh` 全绿
+- [ ] 每个 Phase 独立可回退，不跨 Phase 混合提交
+- [ ] 无新模块 > 500 行
+- [ ] 无函数 > 50 行
+- [ ] 无函数参数 > 5 个
+- [ ] 无循环依赖 (verified by `require` 图分析)

@@ -4,6 +4,7 @@
 --- including extmark-based syntax highlighting.
 --- Extracted from the former format.lua god module.
 local state = require("poste_http.state")
+local fmt_util = require("poste_http.http.format.util")
 
 local M = {}
 
@@ -41,144 +42,6 @@ function M.detect_filetype(content_type)
   if content_type_map[mime] then return content_type_map[mime] end
   if mime:match("%+json$") then return "json" end
   return "text"
-end
-
----------------------------------------------------------------------------
--- Internal helpers
----------------------------------------------------------------------------
-
-local function split_lines(str)
-  if not str or str == "" then return {} end
-  local lines = {}
-  local idx = 1
-  while idx <= #str do
-    local next_idx = str:find("\n", idx)
-    if not next_idx then
-      table.insert(lines, str:sub(idx))
-      break
-    end
-    table.insert(lines, str:sub(idx, next_idx - 1))
-    idx = next_idx + 1
-  end
-  return lines
-end
-
-local function human_size(bytes)
-  if not bytes or bytes == 0 then return "0 B" end
-  local units = { "B", "KB", "MB", "GB", "TB" }
-  local magnitude = math.floor(math.log(math.abs(bytes), 1024))
-  local unit = units[magnitude + 1] or "TB"
-  local value = bytes / (1024 ^ magnitude)
-  if magnitude == 0 then
-    return string.format("%d %s", bytes, unit)
-  end
-  return string.format("%.1f %s", value, unit)
-end
-
-local function is_large_body(body)
-  if not body then return false end
-  local cfg = state.config or {}
-  local max_size = cfg.max_body_preview_size or (1024 * 1024)
-  return #body > max_size
-end
-
-local function save_body_to_file(body, content_type, r)
-  local cfg = state.config or {}
-  local preview_lines = tonumber(cfg.body_preview_lines) or 20
-  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
-  vim.fn.mkdir(cache_dir, "p")
-  local tmp_file = string.format("%s/res_%s.txt", cache_dir, vim.fn.strftime("%Y%m%d_%H%M%S_%6N"))
-  local f = io.open(tmp_file, "w")
-  if not f then return nil end
-  f:write(body)
-  f:close()
-  if not r.metadata then r.metadata = {} end
-  r.metadata.file_path = tmp_file
-  r.metadata.file_size = #body
-  r.metadata.file_content_type = content_type
-  local lines = split_lines(body)
-  local truncated = {}
-  local preview_count = math.min(preview_lines, #lines)
-  for i = 1, preview_count do
-    table.insert(truncated, lines[i])
-  end
-  local remaining = #lines - preview_count
-  table.insert(truncated, string.format("...  (%d more lines, %s total)", remaining, human_size(#body)))
-  table.insert(truncated, string.format("  File:        %s", tmp_file))
-  return truncated
-end
-
-local function pretty_body(body, content_type)
-  if not body or body == "" then return "" end
-  if not body:find("\n") and (not content_type or content_type:find("json") or body:sub(1, 1) == "{" or body:sub(1, 1) == "[") then
-    local ok, decoded = pcall(vim.json.decode, body)
-    if ok and decoded then
-      local json_pretty
-      json_pretty = function(value, indent)
-        indent = indent or 0
-        local indent_str = string.rep("  ", indent)
-        local indent_str_inner = string.rep("  ", indent + 1)
-        if type(value) == "table" then
-          local is_array = true
-          local max_idx = 0
-          for k, _ in pairs(value) do
-            if type(k) ~= "number" or k ~= math.floor(k) or k < 1 then
-              is_array = false
-              break
-            end
-            max_idx = math.max(max_idx, k)
-          end
-          is_array = is_array and max_idx == #value
-          if is_array then
-            if #value == 0 then return "[]" end
-            local items = {}
-            for _, v in ipairs(value) do
-              table.insert(items, indent_str_inner .. json_pretty(v, indent + 1))
-            end
-            return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "]"
-          else
-            local keys = {}
-            for k in pairs(value) do table.insert(keys, k) end
-            table.sort(keys)
-            if #keys == 0 then return "{}" end
-            local items = {}
-            for _, k in ipairs(keys) do
-              local v = value[k]
-              table.insert(items, indent_str_inner .. '"' .. k .. '": ' .. json_pretty(v, indent + 1))
-            end
-            return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "}"
-          end
-        elseif type(value) == "string" then
-          return '"' .. value:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t') .. '"'
-        elseif type(value) == "number" then
-          return tostring(value)
-        elseif type(value) == "boolean" then
-          return value and "true" or "false"
-        elseif value == nil or value == vim.NIL then
-          return "null"
-        else
-          return tostring(value)
-        end
-      end
-      return json_pretty(decoded)
-    end
-  end
-  return body
-end
-
-local function format_urlencoded_body(body)
-  if not body or body == "" then return nil end
-  local lines = {}
-  for pair in body:gmatch("[^&]+") do
-    local key, val = pair:match("^([^=]+)=(.*)$")
-    if key and val ~= nil then
-      val = val:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
-      val = val:gsub("+", " ")
-      table.insert(lines, string.format("  %s: %s", key, val))
-    end
-  end
-  if #lines == 0 then return nil end
-  return lines
 end
 
 ---------------------------------------------------------------------------
@@ -368,7 +231,7 @@ function M.format_verbose(r, pending)
           table.insert(lines, "  " .. l)
         end
       elseif ct_lower:find("application/x%-www%-form%-urlencoded") then
-        local form_lines = format_urlencoded_body(verbose_body)
+        local form_lines = fmt_util.format_urlencoded_body(verbose_body)
         if form_lines then
           for _, fl in ipairs(form_lines) do
             table.insert(lines, fl)
@@ -413,15 +276,15 @@ function M.format_verbose(r, pending)
       table.insert(lines, "  Response Body")
       if r.metadata and r.metadata.file_path then
         table.insert(lines, string.format("  Path:         %s", r.metadata.file_path))
-        table.insert(lines, string.format("  Size:         %s  (%s bytes)", human_size(r.metadata.file_size), r.metadata.file_size or "?"))
+        table.insert(lines, string.format("  Size:         %s  (%s bytes)", fmt_util.human_size(r.metadata.file_size), r.metadata.file_size or "?"))
         table.insert(lines, string.format("  Content-Type: %s", r.metadata.file_content_type or r.content_type or "?"))
-      elseif is_large_body(r.body) then
-        local truncated = save_body_to_file(r.body, r.content_type, r)
+      elseif fmt_util.is_large_body(r.body) then
+        local truncated = fmt_util.save_body_to_file(r.body, r.content_type, r)
         for _, tl in ipairs(truncated) do
           table.insert(lines, "  " .. tl)
         end
       else
-        local body = pretty_body(r.body, r.content_type)
+        local body = fmt_util.pretty_body(r.body, r.content_type)
         for l in body:gmatch("[^\r\n]+") do
           table.insert(lines, "  " .. l)
         end
@@ -506,7 +369,7 @@ function M.format_request_payload(r)
     if boundary_val then
       table.insert(lines, string.format("  boundary: %s", boundary_val))
     end
-    local raw_lines = split_lines(body_only)
+    local raw_lines = fmt_util.split_lines(body_only)
     for j = 1, math.min(10, #raw_lines) do
       table.insert(lines, "  " .. raw_lines[j])
     end
@@ -517,7 +380,7 @@ function M.format_request_payload(r)
   end
 
   if ct:lower():find("application/x%-www%-form%-urlencoded") then
-    local form_lines = format_urlencoded_body(body_only)
+    local form_lines = fmt_util.format_urlencoded_body(body_only)
     if form_lines then
       for _, fl in ipairs(form_lines) do
         table.insert(lines, (fl:gsub("^  ", "")))
@@ -529,7 +392,8 @@ function M.format_request_payload(r)
   if ct:find("json") or body_only:sub(1, 1) == "{" or body_only:sub(1, 1) == "[" then
     local ok, decoded = pcall(vim.json.decode, body_only)
     if ok and decoded then
-      for l in pretty_body(body_only, "application/json"):gmatch("[^\r\n]+") do
+      local body = fmt_util.json_pretty(decoded)
+      for l in body:gmatch("[^\r\n]+") do
         table.insert(lines, l)
       end
       return lines
