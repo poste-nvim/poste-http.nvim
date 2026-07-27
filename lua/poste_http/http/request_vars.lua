@@ -1208,6 +1208,14 @@ local function resolve_content_dependencies_impl(buf, file_path, env_name, conte
   local dep_idx = 1
   local function execute_next_dep()
     if dep_idx > #pending_deps then
+      table.sort(_chain_dep_order, function(a, b) return a.depth > b.depth end)
+      M._dep_chain = {}
+      for _, entry in ipairs(_chain_dep_order) do
+        local resp = request_response_cache[entry.name]
+        if resp then
+          table.insert(M._dep_chain, {name = entry.name, response = resp})
+        end
+      end
       on_complete(substitute_and_finish())
       return
     end
