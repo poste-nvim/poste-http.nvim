@@ -14,6 +14,13 @@ local KIND_VARIABLE = 6
 local KIND_REFERENCE = 18
 local KIND_FUNCTION = 3
 
+local function keyword_is_function(kw)
+  local name = kw.name:match("([%w_]+)$")
+  if not name then return false end
+  local verbs = { set = true, get = true, log = true, test = true, assert = true, md5 = true }
+  return verbs[name] == true
+end
+
 --- Build completion items from a list of strings.
 --- @param words table List of word strings
 --- @param kind number LSP CompletionItemKind number
@@ -357,7 +364,7 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
               end
               table.insert(items, {
                 label = full_label,
-                kind = KIND_PROPERTY,
+                kind = has_children and KIND_PROPERTY or (keyword_is_function(kw) and KIND_FUNCTION or KIND_PROPERTY),
                 insertText = next_level,
                 filterText = prefix .. next_level,
                 sortText = (has_children and "1" or "2") .. next_level,
@@ -378,6 +385,18 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
     end
 
     items = M.build_keyword_items(keywords, KIND_PROPERTY)
+    -- Fix up function keywords to use FUNCTION kind for auto-() on accept
+    for _, item in ipairs(items) do
+      local kw_name = item.label:match("^[%w_]+")
+      if kw_name then
+        for _, kw in ipairs(keywords) do
+          if kw.name == item.label and keyword_is_function(kw) then
+            item.kind = KIND_FUNCTION
+            break
+          end
+        end
+      end
+    end
 
     local lua_key_items = M.build_items(data.lua_keywords, KIND_KEYWORD)
     for _, item in ipairs(lua_key_items) do
