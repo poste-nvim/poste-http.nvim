@@ -10,6 +10,8 @@ local M = {}
 local verbose_ns = vim.api.nvim_create_namespace("poste_verbose")
 local json_ns = vim.api.nvim_create_namespace("poste_verbose_json")
 
+local _sep_lines = nil
+
 -- Content-type → filetype mapping
 local content_type_map = {
   ["application/json"] = "json",
@@ -256,6 +258,7 @@ end
 function M.format_verbose(r, pending)
   if r and r._cached_verbose then return r._cached_verbose end
   local lines = {}
+  _sep_lines = {}
 
   local method = ""
   local url = ""
@@ -288,19 +291,24 @@ function M.format_verbose(r, pending)
     elapsed_ms = ((vim.uv or vim.loop).hrtime() - pending.start_hires) / 1e6
   end
 
-  table.insert(lines, "")
+  M._fmt_method = method
+  M._fmt_method_line = #lines
+  if r then
+    r._fmt_method = method
+    r._fmt_method_line = #lines
+  end
   table.insert(lines, "  " .. (url ~= "" and url or "(no URL)"))
+
   local request_name = (r and r.request_name) or ""
   if request_name == "" and pending and pending.name and pending.name ~= "" then
     request_name = pending.name
   end
-  if request_name ~= "" then
-    table.insert(lines, "  " .. request_name)
-  end
-  table.insert(lines, string.rep("─", 60))
+  table.insert(lines, "  ")
+  _sep_lines[#lines] = true
 
-  table.insert(lines, "▸ General")
-  table.insert(lines, "  Request Method: " .. method)
+  if request_name ~= "" then
+    table.insert(lines, "  Name: " .. request_name)
+  end
   if r then
     local st = format_status_text(r)
     table.insert(lines, "  Status Code: " .. st)
@@ -308,7 +316,8 @@ function M.format_verbose(r, pending)
   table.insert(lines, "  Request Time: " .. (timestamp ~= "" and timestamp or "-"))
   table.insert(lines, "  Elapsed: " .. format_elapsed(elapsed_ms))
   table.insert(lines, "  Env: " .. (env ~= "" and env or "-"))
-  table.insert(lines, string.rep("─", 60))
+  table.insert(lines, "  ")
+  _sep_lines[#lines] = true
 
   if request_headers ~= "" then
     table.insert(lines, "▸ Request Headers")
@@ -379,16 +388,19 @@ function M.format_verbose(r, pending)
 
   if r then
     if r.protocol == "error" then
-      table.insert(lines, string.rep("─", 60))
+      table.insert(lines, "  ")
+      _sep_lines[#lines] = true
       if r.body and r.body ~= "" then
         table.insert(lines, "▸ Details")
         table.insert(lines, "  " .. r.body:gsub("\n", "\n  "))
       end
       r._cached_verbose = lines
+      r._sep_lines = _sep_lines
       return lines
     end
 
-    table.insert(lines, string.rep("─", 60))
+    table.insert(lines, "  ")
+    _sep_lines[#lines] = true
 
     if r.headers and #r.headers > 0 then
       table.insert(lines, "▸ Response Headers")
@@ -437,7 +449,10 @@ function M.format_verbose(r, pending)
     end
   end
 
-  if r then r._cached_verbose = lines end
+  if r then
+    r._cached_verbose = lines
+    r._sep_lines = _sep_lines
+  end
   return lines
 end
 
@@ -686,10 +701,20 @@ function M.apply_verbose_highlights(buf, lines, r)
       goto next
     end
 
-    if line:match("^[─—]+$") then
+    local sep_lines = _sep_lines or (r and r._sep_lines)
+    if sep_lines and sep_lines[i] then
+      local width = 80
+      local wins = vim.api.nvim_list_wins()
+      for _, w in ipairs(wins) do
+        if vim.api.nvim_win_get_buf(w) == buf then
+          width = vim.api.nvim_win_get_width(w)
+          break
+        end
+      end
       vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
-        end_row = row, end_col = #line,
-        hl_group = "PosteVerboseSeparator", priority = 100,
+        virt_text = {{string.rep("─", width), "PosteVerboseSeparator"}},
+        virt_text_pos = "overlay",
+        priority = 100,
       })
     elseif line:match("^▸ ") then
       vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
@@ -697,6 +722,22 @@ function M.apply_verbose_highlights(buf, lines, r)
         hl_group = "PosteVerboseSection", priority = 100,
       })
     elseif line:match("^  %w+://") then
+      local fmt_method = M._fmt_method or (r and r._fmt_method)
+      local fmt_method_line = M._fmt_method_line or (r and r._fmt_method_line)
+      if fmt_method and fmt_method ~= "" and row == fmt_method_line then
+        local hl_map = {
+          GET = "PosteMethodGET", POST = "PosteMethodPOST", PUT = "PosteMethodPUT",
+          DELETE = "PosteMethodDELETE", PATCH = "PosteMethodPATCH",
+          HEAD = "PosteMethodHEAD", OPTIONS = "PosteMethodOPTIONS",
+        }
+        local hl = hl_map[fmt_method] or "PosteVerboseValue"
+        vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 2, {
+          virt_text = {{fmt_method .. " ", hl}},
+          virt_text_pos = "inline",
+          priority = 200,
+        })
+        M._fmt_method = nil
+      end
       local qmark = line:find("?", 3)
       if qmark then
         vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, qmark - 1, {
@@ -787,6 +828,7 @@ function M.apply_verbose_highlights(buf, lines, r)
       apply_verbose_json_highlights(buf, lines, req_body_start, req_body_end)
     end
   end
+  _sep_lines = nil
 end
 
 return M

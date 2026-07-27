@@ -73,17 +73,23 @@ local function describe_via_treesitter(content)
         body_start = body_start + 1
       end
       if body_start <= end_line then
-        local body_parts = {}
-        for i = body_start, end_line do
-          table.insert(body_parts, lines[i])
+        local first_line = lines[body_start]
+        if first_line and not current_block._non_body_lines[body_start] then
+          local body_parts = {}
+          for i = body_start, end_line do
+            if not current_block._non_body_lines[i] then
+              table.insert(body_parts, lines[i])
+            end
+          end
+          current_block.body = table.concat(body_parts, "\n")
         end
-        current_block.body = table.concat(body_parts, "\n")
       end
     end
     current_block._line = nil
     current_block._request_line_row = nil
     current_block._last_header_row = nil
     current_block._body_text = nil
+    current_block._non_body_lines = nil
     table.insert(blocks, current_block)
     current_block = nil
   end
@@ -114,6 +120,7 @@ local function describe_via_treesitter(content)
         _request_line_row = nil,
         _last_header_row = nil,
         _body_text = nil,
+        _non_body_lines = {},
       }
     elseif type == "request_line" then
       if current_block then
@@ -146,6 +153,12 @@ local function describe_via_treesitter(content)
       end
     elseif type == "multipart_boundary" or type == "multipart_form_data" then
       if current_block then
+      end
+    elseif type == "external_assertion" or type == "external_script" or type == "file_upload" or type == "comment" or type == "pre_script" or type == "post_script" then
+      if current_block then
+        for l = sr + 1, er + 1 do
+          current_block._non_body_lines[l] = true
+        end
       end
     end
   end

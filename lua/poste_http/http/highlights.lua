@@ -14,8 +14,6 @@ end
 
 --- Define all Poste highlight groups and register autocmds.
 function M.setup()
-  -- Latency uses a distinct purple color
-  vim.api.nvim_set_hl(0, "PosteLatency", { fg = 0xb48ead })
 
   for _, pair in ipairs({
     { "PosteSpinner", "DiagnosticInfo" },
@@ -49,6 +47,7 @@ function M.setup()
   end
 
   local syntax_links = {
+    { "PosteLatency",    "Constant" },
     { "PosteSeparator",    "Delimiter" },
     { "PosteRequestName",  "Title" },
     { "PosteVarDef",       "Identifier" },
@@ -151,30 +150,15 @@ function M.setup()
   define_hl_custom("PosteRunVars", { fg = 0xE5C07B })
 
   -- Request name: bold with a distinct color
-  define_hl_custom("PosteRequestName", { fg = 0x61afef, bold = true }) -- blue bold
+  define_hl_custom("PosteSeparator", { fg = 0x388559, bold = true }) -- blue bold
+  define_hl_custom("PosteRequestName", { fg = 0x388559, bold = true }) -- blue bold
 
   -- Symbol outline highlights
   vim.api.nvim_set_hl(0, "PosteSymbolCurrent", { bg = 0x3e4452, bold = true }) -- highlighted bg
   vim.api.nvim_set_hl(0, "PosteSymbolMethod", { fg = 0x98c379, bold = true })  -- green for [GET] [POST] etc
 
-  
-
-  -- SQL dataset highlight groups
-  vim.api.nvim_set_hl(0, "PosteSqlHeader",       { bold = true })
-  vim.api.nvim_set_hl(0, "PosteSqlNull",         { fg = 0x5c6370, italic = true })  -- gray italic
-  vim.api.nvim_set_hl(0, "PosteSqlMeta",         { fg = 0x5c6370 })                 -- gray
-  vim.api.nvim_set_hl(0, "PosteSqlBorder",       { fg = 0x3e4452 })                 -- dim
-  vim.api.nvim_set_hl(0, "PosteSqlCellSelected", { bg = 0x3e4452, bold = true })    -- visual-like
-  vim.api.nvim_set_hl(0, "PosteSqlModified",     { bg = 0x4a3d00 })                 -- yellow tint
-  vim.api.nvim_set_hl(0, "PosteSqlDeleted",      { bg = 0x3d0000 })                 -- red tint
-  vim.api.nvim_set_hl(0, "PosteSqlAdded",        { bg = 0x003d00 })                 -- green tint
-
-  -- Statement boundary indicator (JetBrains-style box border)
-  vim.api.nvim_set_hl(0, "PosteSqlBoundary", { bg = 0x664400 })
-  vim.api.nvim_set_hl(0, "PosteSqlBoundaryBorder", { fg = 0xff8800, bold = true })
-
   -- HTTP request block boundary (same visual style)
-  vim.api.nvim_set_hl(0, "PosteHttpBoundaryBorder", { fg = 0xff8800, bold = true })
+  vim.api.nvim_set_hl(0, "PosteHttpBoundaryBorder", { fg = 0x246e3b, bold = true })
 
   -- Status code coloring in verbose view
   vim.api.nvim_set_hl(0, "PosteStatus2xx", { fg = 0x98c379, bold = true })          -- green
@@ -228,9 +212,6 @@ function M.setup()
     "PosteJsonBraces", "PosteJsonBrackets", "PosteJsonColon", "PosteJsonComma",
     "PosteJsonEscape",
     "PosteSymbolCurrent", "PosteSymbolMethod",
-    "PosteSqlHeader", "PosteSqlNull", "PosteSqlMeta", "PosteSqlBorder",
-    "PosteSqlCellSelected", "PosteSqlModified", "PosteSqlDeleted", "PosteSqlAdded",
-    "PosteSqlBoundary", "PosteSqlBoundaryBorder",
     "PosteHttpBoundaryBorder",
     "PosteStatus2xx", "PosteStatus3xx", "PosteStatus4xx", "PosteStatus5xx",
     "PosteVerboseSeparator", "PosteVerboseSection", "PosteVerboseSubHeader", "PosteVerboseKey", "PosteVerboseValue",
