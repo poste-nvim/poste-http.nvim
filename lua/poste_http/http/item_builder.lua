@@ -312,7 +312,7 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
   local items = {}
 
   if ctx == "pre_script" or ctx == "post_script" then
-    local line = extra or ""
+    local line = vim.trim(extra or "")
 
     local module_name = line:match("(%w+)%.%w*$")
     if module_name and data.lua_module_members[module_name] then
