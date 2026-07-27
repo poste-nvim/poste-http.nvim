@@ -26,3 +26,4 @@ tree-sitter-poste-json/*.dylib
 tree-sitter-poste-json/Cargo.lock
 parser/node-types.json
 install-parser.sh
+*.so
