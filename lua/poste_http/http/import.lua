@@ -18,6 +18,7 @@ local resolve = require("poste_http.http.resolve")
 local curl_exec = require("poste_http.http.curl_exec")
 local describe = require("poste_http.http.describe")
 local vars = require("poste_http.http.vars")
+local uv = vim.uv or vim.loop
 
 local M = {}
 
@@ -438,6 +439,21 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
   end
 
   local buf_dir = file_path ~= "" and vim.fn.fnamemodify(file_path, ":h") or vim.fn.getcwd()
+
+  local h_parts = {}
+  for _, h in ipairs(resolved_headers) do
+    table.insert(h_parts, h[1] .. ": " .. h[2])
+  end
+  state.set_pending_request({
+    method = method,
+    url = url,
+    headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or "",
+    body = body,
+    name = meta.name or "",
+    env = env_name or state.current_env,
+    timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+    start_hires = uv.hrtime(),
+  })
 
   curl_exec.execute({
     method = method,
@@ -984,6 +1000,7 @@ M._test = {
   resolve_reference = resolve_reference,
   resolve_path_for_export = resolve_path_for_export,
   value_to_http_string = value_to_http_string,
+  execute_import_via_curl = execute_import_via_curl,
 }
 
 return M

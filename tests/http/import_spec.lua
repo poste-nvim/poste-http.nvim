@@ -1,5 +1,6 @@
 --- Tests for the import/run cross-file reference resolution module.
 local import_mod = require("poste_http.http.import")
+local state = require("poste_http.state")
 local _test = import_mod._test
 
 describe("parse_import_line", function()
@@ -370,5 +371,90 @@ POST /test
 
       os.remove(tmpfile)
     end)
+  end)
+end)
+
+describe("execute_import_via_curl", function()
+  local orig_execute
+  local orig_describe
+
+  before_each(function()
+    package.loaded["poste_http.http.import"] = nil
+    package.loaded["poste_http.http.curl_exec"] = nil
+    package.loaded["poste_http.http.describe"] = nil
+    state.pending_request = nil
+    orig_execute = nil
+    orig_describe = nil
+  end)
+
+  after_each(function()
+    state.pending_request = nil
+    if orig_execute then
+      package.loaded["poste_http.http.curl_exec"] = nil
+    end
+    if orig_describe then
+      package.loaded["poste_http.http.describe"] = nil
+    end
+    package.loaded["poste_http.http.import"] = nil
+  end)
+
+  it("sets state.pending_request with Authorization header before curl execution", function()
+    -- Mock describe to return a valid block, avoiding tree-sitter dependency
+    local mock_describe = {
+      describe_content = function()
+        return {
+          {
+            name = "GetUser",
+            line = 1,
+            end_line = 3,
+            method = "GET",
+            path = "/api/users/42",
+            headers = { { "Authorization", "Bearer token123" } },
+            body = "",
+            request_line = "GET /api/users/42",
+          },
+        }, nil
+      end,
+      block_at_line = function(blocks, line)
+        return blocks[1]
+      end,
+      to_req_block = function(meta)
+        return {
+          request_line = meta.request_line or "",
+          headers = meta.headers or {},
+          name = meta.name or "",
+          method = meta.method or "",
+          path = meta.path or "",
+          body = meta.body or "",
+        }
+      end,
+      headers_str = function(meta)
+        local parts = {}
+        for _, h in ipairs(meta.headers or {}) do
+          table.insert(parts, h[1] .. ": " .. (h[2] or ""))
+        end
+        return table.concat(parts, "\n")
+      end,
+    }
+    package.loaded["poste_http.http.describe"] = mock_describe
+
+    -- Mock curl_exec.execute to avoid real curl execution
+    local curl_exec = require("poste_http.http.curl_exec")
+    orig_execute = curl_exec.execute
+    curl_exec.execute = function(opts, callback)
+      callback({ status = 200, body = "ok", headers = {}, metadata = {} })
+    end
+
+    local import_mod = require("poste_http.http.import")
+    local content = [[
+### GetUser
+GET /api/users/42
+Authorization: Bearer token123
+]]
+    import_mod._test.execute_import_via_curl(content, "/tmp/test.http", 1, "default", function(response) end)
+
+    assert.is_not_nil(state.pending_request)
+    assert.is_not_nil(state.pending_request.headers_str)
+    assert.matches("Authorization: Bearer token123", state.pending_request.headers_str)
   end)
 end)
