@@ -193,16 +193,17 @@ local function handle_curl_response(response, ctx)
     response.request_name = current_req_name
     request_vars.cache_response(current_req_name, response)
 
-    if request_vars._dep_chain and #request_vars._dep_chain > 0 then
+    local dep_chain = request_vars.get_dep_chain()
+    if dep_chain and #dep_chain > 0 then
       local chain = {}
-      for _, item in ipairs(request_vars._dep_chain) do
+      for _, item in ipairs(dep_chain) do
         table.insert(chain, {name = item.name, response = item.response})
         history.add_entry(item.name, item.response, nil, nil, file)
       end
       table.insert(chain, {name = current_req_name or "Request", response = response})
       response_buf.reset_multi_response()
       state.set_responses(chain, #chain)
-      request_vars._dep_chain = nil
+      request_vars.clear_dep_chain()
       pcall(response_buf.prepare_multi_responses, chain)
     else
       response_buf.reset_multi_response()

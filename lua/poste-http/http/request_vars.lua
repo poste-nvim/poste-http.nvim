@@ -48,7 +48,13 @@ end
 
 M.find_request_variable_refs = request_deps.find_request_variable_refs
 
-M._dep_chain = request_deps._dep_chain
+function M.get_dep_chain()
+  return request_deps._dep_chain
+end
+
+function M.clear_dep_chain()
+  request_deps._dep_chain = nil
+end
 
 M._handle_prompt_variables_impl = handle_prompt_variables_impl
 M._resolve_request_variables_impl = request_deps._resolve_request_variables_impl
