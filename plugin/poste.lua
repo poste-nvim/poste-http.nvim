@@ -2,14 +2,14 @@
 
 -- Preload our core modules into package.loaded so they are cached before
 -- any other plugin (e.g. poste.nvim) can load their own versions.
-require("poste_http.state")
-require("poste_http.constants")
-require("poste_http.util")
-require("poste_http.event")
-require("poste_http.buffer_setup")
-require("poste_http.help")
-require("poste_http.select")
-require("poste_http.indicators")
+require("poste-http.state")
+require("poste-http.constants")
+require("poste-http.util")
+require("poste-http.event")
+require("poste-http.buffer_setup")
+require("poste-http.help")
+require("poste-http.select")
+require("poste-http.indicators")
 
 -- Ensure the plugin's lua directory is in package.path
 local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h:h")
@@ -24,13 +24,13 @@ if vim.fn.isdirectory(doc_dir) == 1 then
   pcall(vim.cmd.helptags, doc_dir)
 end
 
-require("poste_http").setup()
+require("poste-http").setup()
 
 -- Ensure all Poste* highlight groups are defined (for tree-sitter).
-pcall(require, "poste_http.http.highlights")
+pcall(require, "poste-http.http.highlights")
 
 -- Register filetype autocmd and treesitter for .http/.rest files.
-local buffer_setup = require("poste_http.buffer_setup")
+local buffer_setup = require("poste-http.buffer_setup")
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
   pattern = { "*.http", "*.rest" },
   callback = function()
@@ -41,11 +41,11 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
       group = bg,
       buffer = 0,
       callback = function()
-        require("poste_http.http.boundary_indicator").refresh(0, vim.fn.line("."))
+        require("poste-http.http.boundary_indicator").refresh(0, vim.fn.line("."))
       end,
     })
     pcall(function()
-      require("poste_http.http.treesitter").enable(0)
+      require("poste-http.http.treesitter").enable(0)
     end)
   end,
 })
@@ -54,10 +54,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
   pattern = { "*.http", "*.rest" },
   callback = function()
     local buf = vim.api.nvim_get_current_buf()
-    local env_mod = require("poste_http.http.env")
+    local env_mod = require("poste-http.http.env")
     vim.wo.winbar = env_mod.build_http_winbar()
     if vim.bo.filetype == "poste_http" then
-      require("poste_http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
+      require("poste-http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
     end
   end,
 })
@@ -72,7 +72,7 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       group = bg,
       buffer = buf,
       callback = function()
-        require("poste_http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
+        require("poste-http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
       end,
     })
   end
@@ -85,12 +85,12 @@ pcall(vim.api.nvim_del_user_command, "PosteInfo")
 -- PosteTree: show treesitter parse tree for debugging highlight issues.
 pcall(vim.api.nvim_del_user_command, "PosteTree")
 vim.api.nvim_create_user_command("PosteTree", function()
-  local ok, mod = pcall(require, "poste_http.http.treesitter")
+  local ok, mod = pcall(require, "poste-http.http.treesitter")
   if ok then mod.inspect() end
 end, { desc = "Show tree-sitter parse tree for current buffer" })
 
 vim.api.nvim_create_user_command("PosteInfo", function()
-  local state = require("poste_http.state")
+  local state = require("poste-http.state")
 
   local sep = "─"
   local parts = { sep }
@@ -128,7 +128,7 @@ vim.api.nvim_create_user_command("PosteInfo", function()
     table.insert(parts, "nvim-cmp:   loaded")
   end
 
-  local completion_ok, completion = pcall(require, "poste_http.http.completion")
+  local completion_ok, completion = pcall(require, "poste-http.http.completion")
   if completion_ok then
     table.insert(parts, "poste cmp:  " .. completion.status())
   end
@@ -141,7 +141,7 @@ vim.api.nvim_create_user_command("PosteInfo", function()
 end, { desc = "Show Poste environment info" })
 
 vim.api.nvim_create_user_command("PosteTSStatus", function()
-  local state = require("poste_http.state")
+  local state = require("poste-http.state")
   local ts = state.config.use_treesitter or {}
   local buf = vim.api.nvim_get_current_buf()
   local parser_ok = pcall(vim.treesitter.get_parser, buf, "poste_http")

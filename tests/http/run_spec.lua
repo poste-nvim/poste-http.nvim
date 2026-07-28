@@ -1,15 +1,15 @@
-local state = require("poste_http.state")
+local state = require("poste-http.state")
 
 describe("run._test.make_script_response", function()
   local run
 
   before_each(function()
-    package.loaded["poste_http.http.run"] = nil
-    run = require("poste_http.http.run")
+    package.loaded["poste-http.http.run"] = nil
+    run = require("poste-http.http.run")
   end)
 
   after_each(function()
-    package.loaded["poste_http.http.run"] = nil
+    package.loaded["poste-http.http.run"] = nil
   end)
 
   it("returns a table with protocol = 'script'", function()
@@ -57,12 +57,12 @@ describe("run._test.make_error_response", function()
   local run
 
   before_each(function()
-    package.loaded["poste_http.http.run"] = nil
-    run = require("poste_http.http.run")
+    package.loaded["poste-http.http.run"] = nil
+    run = require("poste-http.http.run")
   end)
 
   after_each(function()
-    package.loaded["poste_http.http.run"] = nil
+    package.loaded["poste-http.http.run"] = nil
   end)
 
   it("returns a table with protocol = 'error'", function()
@@ -101,13 +101,13 @@ describe("run._test.choose_view_tab", function()
   local run
 
   before_each(function()
-    package.loaded["poste_http.http.run"] = nil
-    run = require("poste_http.http.run")
+    package.loaded["poste-http.http.run"] = nil
+    run = require("poste-http.http.run")
     state.config.default_view = nil
   end)
 
   after_each(function()
-    package.loaded["poste_http.http.run"] = nil
+    package.loaded["poste-http.http.run"] = nil
   end)
 
   it("returns 'assertions' when assertion_results has failures", function()
@@ -132,6 +132,11 @@ describe("run._test.choose_view_tab", function()
     assert.equal("body", run._test.choose_view_tab(parsed, nil))
   end)
 
+  it("returns 'verbose' when parsed is nil", function()
+    assert.equal("verbose", run._test.choose_view_tab(nil, nil))
+    assert.equal("verbose", run._test.choose_view_tab(nil, { total = 1, passed = 0, failed = 1 }))
+  end)
+
   it("returns default_view from config when set (overrides 'body')", function()
     state.config.default_view = "headers"
     local parsed = { status = 200 }
@@ -143,12 +148,12 @@ describe("run._test.inject_global_vars", function()
   local run
 
   before_each(function()
-    package.loaded["poste_http.http.run"] = nil
-    run = require("poste_http.http.run")
+    package.loaded["poste-http.http.run"] = nil
+    run = require("poste-http.http.run")
   end)
 
   after_each(function()
-    package.loaded["poste_http.http.run"] = nil
+    package.loaded["poste-http.http.run"] = nil
   end)
 
   it("injects @var = value lines after block_start", function()

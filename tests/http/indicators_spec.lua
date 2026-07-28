@@ -10,13 +10,13 @@ describe("indicators", function()
   before_each(function()
     mock.setup()
     -- Re-require to pick up fresh module state
-    package.loaded["poste_http.indicators"] = nil
-    indicators = require("poste_http.indicators")
+    package.loaded["poste-http.indicators"] = nil
+    indicators = require("poste-http.indicators")
   end)
 
   after_each(function()
     mock.teardown()
-    package.loaded["poste_http.indicators"] = nil
+    package.loaded["poste-http.indicators"] = nil
   end)
 
   -------------------------------------------------------------------------

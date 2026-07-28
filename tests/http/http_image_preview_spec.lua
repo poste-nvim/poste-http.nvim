@@ -1,5 +1,5 @@
 local mock = dofile("./tests/helpers/mock_nvim.lua")
-local state = require("poste_http.state")
+local state = require("poste-http.state")
 
 local function has_call(name)
   for _, call in ipairs(mock.calls) do
@@ -23,16 +23,16 @@ describe("http image preview", function()
     state.last_response = nil
     state.pending_request = nil
     state.current_view = "body"
-    package.loaded["poste_http.http.format"] = nil
-    package.loaded["poste_http.http.view"] = nil
-    format = require("poste_http.http.format")
-    view = require("poste_http.http.view")
+    package.loaded["poste-http.http.format"] = nil
+    package.loaded["poste-http.http.view"] = nil
+    format = require("poste-http.http.format")
+    view = require("poste-http.http.view")
   end)
 
   after_each(function()
     mock.teardown()
-    package.loaded["poste_http.http.format"] = nil
-    package.loaded["poste_http.http.view"] = nil
+    package.loaded["poste-http.http.format"] = nil
+    package.loaded["poste-http.http.view"] = nil
     package.loaded["image"] = nil
     package.preload["image"] = original_image_preload
     package.loaded["snacks"] = nil
@@ -240,7 +240,7 @@ describe("http image preview", function()
       }
     end
     package.loaded["snacks"] = nil
-    format = require("poste_http.http.format")
+    format = require("poste-http.http.format")
 
     assert.is_true(format.has_snacks_image())
   end)
@@ -267,7 +267,7 @@ describe("http image preview", function()
       }
     end
     package.loaded["snacks"] = nil
-    format = require("poste_http.http.format")
+    format = require("poste-http.http.format")
 
     local tmp = vim.fn.tempname()
     local f = assert(io.open(tmp, "wb"))

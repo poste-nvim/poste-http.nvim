@@ -177,7 +177,7 @@ run_request()
 ```
 poste-http.nvim (Lua)
   │
-  ├── lua/poste_http/ (shared infra: state, select, indicators)
+  ├── lua/poste-http/ (shared infra: state, select, indicators)
   │
   └── curl (subprocess for HTTP execution)
 

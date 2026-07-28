@@ -6,7 +6,7 @@
 
 ## Lua Plugin
 
-### Shared (`lua/poste_http/`)
+### Shared (`lua/poste-http/`)
 
 | File | Description |
 |------|-------------|

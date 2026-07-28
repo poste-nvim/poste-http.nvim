@@ -38,7 +38,7 @@ Phase 6: R7 state 封装 setter
 **目标**: 消除两文件间 ~200 行重复代码。
 
 **做法**:
-1. 创建 `lua/poste_http/http/format/util.lua`
+1. 创建 `lua/poste-http/http/format/util.lua`
 2. 移入: `split_lines()`, `human_size()`, `is_large_body()`, `save_body_to_file()`, `json_pretty()`, `format_urlencoded_body()`
 3. `body.lua` 和 `verbose.lua` 改为 `require("format.util")` + 删除本地副本
 4. 运行测试验证
@@ -48,7 +48,7 @@ Phase 6: R7 state 封装 setter
 **目标**: 消除 `setup()` 中 15 个内联命令定义。
 
 **做法**:
-1. 创建 `lua/poste_http/commands.lua` — 用数据表定义所有命令
+1. 创建 `lua/poste-http/commands.lua` — 用数据表定义所有命令
 2. `setup()` 改为循环注册
 3. 移除 `_G.poste_status` 全局污染
 
@@ -82,7 +82,7 @@ Phase 6: R7 state 封装 setter
 **目标**: 将 1316 行的神级模块拆为 4 个专注模块。
 
 ```
-lua/poste_http/http/
+lua/poste-http/http/
 ├── request_vars.lua          ← ~200行: 公共 API + 分发
 ├── form_data.lua             ← 表单数据、multipart、magic vars ({{$uuid}}等)
 ├── prompt_vars.lua           ← <<var 指令处理、异步 UI

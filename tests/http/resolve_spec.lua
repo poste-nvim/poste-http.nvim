@@ -1,4 +1,4 @@
-local resolve = require("poste_http.http.resolve")
+local resolve = require("poste-http.http.resolve")
 
 describe("resolve.resolve", function()
   local original_handlers

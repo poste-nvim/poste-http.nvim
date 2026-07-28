@@ -1,7 +1,7 @@
 --- Phase 2b: HTTP/SQL session lifecycle tests.
 
-local state = require("poste_http.state")
-local http_session = require("poste_http.http.session")
+local state = require("poste-http.state")
+local http_session = require("poste-http.http.session")
 local sql_session = require("poste.sql.session")
 
 describe("http.session", function()
@@ -97,7 +97,7 @@ describe("sql.session", function()
 end)
 
 describe("describe helpers", function()
-  local describe = require("poste_http.http.describe")
+  local describe = require("poste-http.http.describe")
 
   it("block_at_line finds containing block", function()
     local blocks = {

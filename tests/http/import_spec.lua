@@ -1,6 +1,6 @@
 --- Tests for the import/run cross-file reference resolution module.
-local import_mod = require("poste_http.http.import")
-local state = require("poste_http.state")
+local import_mod = require("poste-http.http.import")
+local state = require("poste-http.state")
 local _test = import_mod._test
 
 describe("parse_import_line", function()
@@ -379,9 +379,9 @@ describe("execute_import_via_curl", function()
   local orig_describe
 
   before_each(function()
-    package.loaded["poste_http.http.import"] = nil
-    package.loaded["poste_http.http.curl_exec"] = nil
-    package.loaded["poste_http.http.describe"] = nil
+    package.loaded["poste-http.http.import"] = nil
+    package.loaded["poste-http.http.curl_exec"] = nil
+    package.loaded["poste-http.http.describe"] = nil
     state.pending_request = nil
     orig_execute = nil
     orig_describe = nil
@@ -390,12 +390,12 @@ describe("execute_import_via_curl", function()
   after_each(function()
     state.pending_request = nil
     if orig_execute then
-      package.loaded["poste_http.http.curl_exec"] = nil
+      package.loaded["poste-http.http.curl_exec"] = nil
     end
     if orig_describe then
-      package.loaded["poste_http.http.describe"] = nil
+      package.loaded["poste-http.http.describe"] = nil
     end
-    package.loaded["poste_http.http.import"] = nil
+    package.loaded["poste-http.http.import"] = nil
   end)
 
   it("sets state.pending_request with Authorization header before curl execution", function()
@@ -436,16 +436,16 @@ describe("execute_import_via_curl", function()
         return table.concat(parts, "\n")
       end,
     }
-    package.loaded["poste_http.http.describe"] = mock_describe
+    package.loaded["poste-http.http.describe"] = mock_describe
 
     -- Mock curl_exec.execute to avoid real curl execution
-    local curl_exec = require("poste_http.http.curl_exec")
+    local curl_exec = require("poste-http.http.curl_exec")
     orig_execute = curl_exec.execute
     curl_exec.execute = function(opts, callback)
       callback({ status = 200, body = "ok", headers = {}, metadata = {} })
     end
 
-    local import_mod = require("poste_http.http.import")
+    local import_mod = require("poste-http.http.import")
     local content = [[
 ### GetUser
 GET /api/users/42

@@ -12,7 +12,7 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
 ## Code Conventions
 
 - Lua: `local M = {} ... return M`, `vim.api.*` conventions
-- HTTP code in `lua/poste_http/http/`, shared infra in `lua/poste_http/`
+- HTTP code in `lua/poste-http/http/`, shared infra in `lua/poste-http/`
 - No `require("poste.sql.*")` — SQL is a separate repo
 - **Module name ownership**: `poste-http.nvim` comes before `poste-sql.nvim` in rtp.
   Never create files under `lua/poste/sql/` — they would shadow `poste-sql.nvim`'s
@@ -31,7 +31,7 @@ load the `lua-patterns` skill before writing any `string.match`/`gmatch`/`gsub`.
 
 | Want | Go to |
 |------|-------|
-| **Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)** | `lua/poste_http/` — edit there |
+| **Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)** | `lua/poste-http/` — edit there |
 | File index | `docs/dev/file-index.md` |
 | Architecture | `docs/dev/architecture-overview.md` |
 | Build & test | `docs/dev/testing.md` |

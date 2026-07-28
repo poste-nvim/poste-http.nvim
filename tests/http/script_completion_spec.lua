@@ -1,6 +1,6 @@
 --- Tests for pre/post script keyword completion.
 
-local completion = require("poste_http.http.completion")
+local completion = require("poste-http.http.completion")
 local test = completion._test
 
 describe("detect_script_context", function()

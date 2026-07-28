@@ -5,7 +5,7 @@
 --- - Cookie completion
 --- - HTTP status code completion in assertions
 
-local completion = require("poste_http.http.completion")
+local completion = require("poste-http.http.completion")
 local test = completion._test
 
 describe("expanded HTTP headers", function()

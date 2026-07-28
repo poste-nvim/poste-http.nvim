@@ -1,4 +1,4 @@
-local vars = require("poste_http.http.vars")
+local vars = require("poste-http.http.vars")
 
 describe("collect_var_defs", function()
   local collect = vars._test.collect_var_defs

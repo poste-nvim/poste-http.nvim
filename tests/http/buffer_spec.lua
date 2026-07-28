@@ -5,9 +5,9 @@
 -- buffer entries (required because nvim_buf_set_lines rejects strings with
 -- embedded newlines). It does NOT trim trailing whitespace.
 --
--- Use: require("poste_http.http.buffer")  →  M.sanitize_lines(lines)
+-- Use: require("poste-http.http.buffer")  →  M.sanitize_lines(lines)
 
-local buffer = require("poste_http.http.buffer")
+local buffer = require("poste-http.http.buffer")
 
 describe("sanitize_lines", function()
   ---------------------------------------------------------------------------

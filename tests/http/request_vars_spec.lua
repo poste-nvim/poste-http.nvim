@@ -1,4 +1,4 @@
-local rv = require("poste_http.http.request_vars")
+local rv = require("poste-http.http.request_vars")
 
 describe("find_request_variable_refs", function()
   local find = rv._test.find_request_variable_refs

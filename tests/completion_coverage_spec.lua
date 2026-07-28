@@ -1,7 +1,7 @@
--- Additional coverage tests for poste_http.http.completion
+-- Additional coverage tests for poste-http.http.completion
 -- Covers gaps: status_code, import/run directives, build_keyword_items, M.register, M.status
 
-local completion = require("poste_http.http.completion")
+local completion = require("poste-http.http.completion")
 local test = completion._test
 
 ---------------------------------------------------------------------------
@@ -474,8 +474,8 @@ describe("M.register() and M.status()", function()
 
   it("M.status() returns 'no completion engine registered' when not registered", function()
     -- Reset registration state by requiring fresh module
-    package.loaded["poste_http.http.completion"] = nil
-    local fresh_completion = require("poste_http.http.completion")
+    package.loaded["poste-http.http.completion"] = nil
+    local fresh_completion = require("poste-http.http.completion")
     local status = fresh_completion.status()
     assert.equals("not registered", status)
   end)

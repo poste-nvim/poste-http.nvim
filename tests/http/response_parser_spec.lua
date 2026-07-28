@@ -1,4 +1,4 @@
-local parser = require("poste_http.http.response_parser")
+local parser = require("poste-http.http.response_parser")
 
 describe("parse_headers_file", function()
   local parse = parser._test.parse_headers_file

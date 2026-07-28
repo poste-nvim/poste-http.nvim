@@ -1,6 +1,6 @@
 -- Tests for poste.async.promise
 
-local P = require("poste_http.async.promise")
+local P = require("poste-http.async.promise")
 
 describe("Promise", function()
   -------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 --- of the code, not necessarily the ideal behavior. If the code changes, these
 --- tests document what the code *does* — not what it *should* do.
 
-local cache = require("poste_http.http.cache")
+local cache = require("poste-http.http.cache")
 
 --- Create a scratch buffer with the given lines, return its number.
 --- Cleaned up automatically by the test framework.
