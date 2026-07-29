@@ -274,6 +274,15 @@ function M.format_verbose(r, pending)
 
     if r.body and r.body ~= "" then
       table.insert(lines, "  Response Body")
+
+      -- Content-Disposition: attachment → save body to file before display
+      if not (r.metadata and r.metadata.file_path) and r.headers then
+        if fmt_util.has_attachment_disposition(r.headers) then
+          local fn = fmt_util.attachment_filename(r)
+          fmt_util.save_binary_body(r.body, fn, r.content_type or "application/octet-stream", r)
+        end
+      end
+
       if r.metadata and r.metadata.file_path then
         table.insert(lines, string.format("  Path:         %s", r.metadata.file_path))
         table.insert(lines, string.format("  Size:         %s  (%s bytes)", fmt_util.human_size(r.metadata.file_size), r.metadata.file_size or "?"))

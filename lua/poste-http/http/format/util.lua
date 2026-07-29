@@ -138,4 +138,82 @@ function M.pretty_body(body, content_type)
   return body
 end
 
+local content_type_ext = {
+  ["application/vnd.ms-excel"] = ".xls",
+  ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = ".xlsx",
+  ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = ".docx",
+  ["application/pdf"] = ".pdf",
+  ["application/zip"] = ".zip",
+  ["application/gzip"] = ".gz",
+  ["image/png"] = ".png",
+  ["image/jpeg"] = ".jpg",
+  ["image/gif"] = ".gif",
+  ["image/webp"] = ".webp",
+  ["image/svg+xml"] = ".svg",
+  ["text/csv"] = ".csv",
+  ["text/plain"] = ".txt",
+  ["application/json"] = ".json",
+  ["application/octet-stream"] = ".bin",
+}
+
+function M.content_type_extension(content_type)
+  if not content_type then return ".bin" end
+  local mime = content_type:match("^([^;]+)") or content_type
+  mime = vim.trim(mime):lower()
+  return content_type_ext[mime] or ".bin"
+end
+
+function M.extract_disposition_filename(headers)
+  for _, h in ipairs(headers or {}) do
+    if h[1]:lower() == "content-disposition" then
+      local val = h[2]
+      if val:lower():find("attachment") then
+        local fn = val:match('filename="([^"]*)"')
+        if not fn then
+          fn = val:match("filename=([^;]+)")
+        end
+        if fn then
+          fn = vim.trim(fn)
+          fn = fn:gsub("[/\\]", "_")
+        end
+        return fn
+      end
+    end
+  end
+  return nil
+end
+
+function M.has_attachment_disposition(headers)
+  for _, h in ipairs(headers or {}) do
+    if h[1]:lower() == "content-disposition" then
+      return h[2]:lower():find("attachment") ~= nil
+    end
+  end
+  return false
+end
+
+function M.save_binary_body(body, filename, content_type, r)
+  local cfg = state.config or {}
+  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
+  vim.fn.mkdir(cache_dir, "p")
+  local file_path = cache_dir .. "/" .. filename
+  local f = io.open(file_path, "wb")
+  if not f then return nil end
+  f:write(body)
+  f:close()
+  if not r.metadata then r.metadata = {} end
+  r.metadata.file_path = file_path
+  r.metadata.file_size = #body
+  r.metadata.file_content_type = content_type
+  r.metadata.content_disposition_attachment = true
+  return file_path
+end
+
+function M.attachment_filename(r)
+  local fn = M.extract_disposition_filename(r.headers)
+  if fn and fn ~= "" then return fn end
+  local ext = M.content_type_extension(r.content_type)
+  return "download_" .. os.date("%Y%m%d_%H%M%S") .. ext
+end
+
 return M

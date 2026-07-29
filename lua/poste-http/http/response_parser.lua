@@ -129,7 +129,7 @@ local function extract_cookies(headers)
   return cookies
 end
 
-function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, method, request_url)
+function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, method, request_url, body_file)
   local uv = vim.uv or vim.loop
   local latency_ms = 0
   if start_hires then
@@ -137,7 +137,14 @@ function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, m
   end
 
   local body = ""
-  if stdout_data and #stdout_data > 0 then
+  if body_file then
+    local fd = io.open(body_file, "rb")
+    if fd then
+      body = fd:read("*a")
+      fd:close()
+    end
+  end
+  if body == "" and stdout_data and #stdout_data > 0 then
     body = table.concat(stdout_data, "\n")
   end
 
@@ -209,7 +216,7 @@ function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, m
   return response
 end
 
-function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, method, exit_code)
+function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, method, exit_code, body_file)
   local uv = vim.uv or vim.loop
   local latency_ms = 0
   if start_hires then
@@ -217,7 +224,14 @@ function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, meth
   end
 
   local body = ""
-  if stdout_data and #stdout_data > 0 then
+  if body_file then
+    local fd = io.open(body_file, "rb")
+    if fd then
+      body = fd:read("*a")
+      fd:close()
+    end
+  end
+  if body == "" and stdout_data and #stdout_data > 0 then
     body = table.concat(stdout_data, "\n")
   end
   local stderr = ""

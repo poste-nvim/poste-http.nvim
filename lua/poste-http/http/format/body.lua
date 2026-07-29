@@ -22,12 +22,21 @@ end
 function M.format_body(r)
   if r._cached_body then return r._cached_body end
 
-  -- Binary file response: show file info instead of mangled raw content
+  -- Content-Disposition: attachment → save body to file before display
+  if r.headers and r.body and r.body ~= "" and not (r.metadata and r.metadata.file_path) then
+    if fmt_util.has_attachment_disposition(r.headers) then
+      local fn = fmt_util.attachment_filename(r)
+      fmt_util.save_binary_body(r.body, fn, r.content_type or "application/octet-stream", r)
+    end
+  end
+
+  -- Binary file/download response: show file info instead of mangled raw content
   if r.metadata and r.metadata.file_path and r.metadata.file_content_type
-    and not r.metadata.file_content_type:find("text")
-    and not r.metadata.file_content_type:find("json")
-    and not r.metadata.file_content_type:find("xml")
-    and not r.metadata.file_content_type:find("html") then
+    and (r.metadata.content_disposition_attachment
+      or (not r.metadata.file_content_type:find("text")
+        and not r.metadata.file_content_type:find("json")
+        and not r.metadata.file_content_type:find("xml")
+        and not r.metadata.file_content_type:find("html"))) then
     local lines = {}
     local ct = r.metadata.file_content_type or r.content_type or ""
     local image_mod = require("poste-http.http.format.image")

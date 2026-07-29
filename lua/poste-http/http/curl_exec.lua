@@ -53,11 +53,12 @@ function M.execute(opts, callback)
 
   local tmp_dir = make_temp_dir()
   local headers_file = tmp_dir .. "/headers"
-  local body_file = tmp_dir .. "/body"
+  local req_body_file = tmp_dir .. "/body"
+  local resp_body_file = tmp_dir .. "/resp_body"
   local cookie_file = tmp_dir .. "/cookies"
 
   if expanded_body and expanded_body ~= "" then
-    local fd = io.open(body_file, "w")
+    local fd = io.open(req_body_file, "w")
     if fd then
       fd:write(expanded_body)
       fd:close()
@@ -72,6 +73,7 @@ function M.execute(opts, callback)
     "--globoff",
     "-X", method,
     "-D", headers_file,
+    "-o", resp_body_file,
     "-A", "poste/0.1.0",
   }
 
@@ -82,7 +84,7 @@ function M.execute(opts, callback)
 
   if expanded_body and expanded_body ~= "" then
     table.insert(args, "--data-binary")
-    table.insert(args, "@" .. body_file)
+    table.insert(args, "@" .. req_body_file)
   end
 
   if cookie_jar then
@@ -111,9 +113,9 @@ function M.execute(opts, callback)
   local function on_complete()
     local response
     if #stdout_buf > 0 or #stderr_buf > 0 then
-      response = response_parser.parse_response(headers_file, stdout_buf, stderr_buf, start_hires, method, url)
+      response = response_parser.parse_response(headers_file, stdout_buf, stderr_buf, start_hires, method, url, resp_body_file)
     else
-      response = response_parser.parse_error(headers_file, stdout_buf, stderr_buf, start_hires, method, 1)
+      response = response_parser.parse_error(headers_file, stdout_buf, stderr_buf, start_hires, method, 1, resp_body_file)
     end
     cleanup_temp_dir(tmp_dir)
     callback(response)
@@ -140,7 +142,7 @@ function M.execute(opts, callback)
       vim.schedule(function()
         if exit_code ~= 0 then
           state.log("ERROR", string.format("curl exit code %d", exit_code))
-          local response = response_parser.parse_error(headers_file, stdout_buf, stderr_buf, start_hires, method, exit_code)
+          local response = response_parser.parse_error(headers_file, stdout_buf, stderr_buf, start_hires, method, exit_code, resp_body_file)
           cleanup_temp_dir(tmp_dir)
           callback(response)
           return
