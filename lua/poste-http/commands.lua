@@ -76,9 +76,10 @@ local commands = {
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
       vim.bo[buf].filetype = "poste"
       vim.bo[buf].modifiable = false
+      vim.bo[buf].bufhidden = "wipe"
       local width = 80
       local height = math.min(#lines + 2, 20)
-      local win = vim.api.nvim_open_win(buf, true, {
+      local ok, win = pcall(vim.api.nvim_open_win, buf, true, {
         relative = "editor",
         width = width,
         height = height,
@@ -89,6 +90,10 @@ local commands = {
         title = " Import Resolution Status ",
         title_pos = "center",
       })
+      if not ok then
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        return
+      end
       vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
         { buffer = buf, noremap = true, silent = true })
       vim.api.nvim_buf_attach(buf, false, { on_detach = function() pcall(vim.api.nvim_win_close, win, true) end })

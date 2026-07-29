@@ -80,6 +80,12 @@ function M.setup_buffer_keymaps(buf)
       vim.api.nvim_buf_clear_namespace(buf, indicator_ns, 0, -1)
     end,
   })
+  vim.api.nvim_create_autocmd("BufDelete", {
+    group = group, buffer = buf,
+    callback = function()
+      pcall(vim.api.nvim_del_augroup_by_name, "PosteClearIndicators_" .. buf)
+    end,
+  })
 
   local fileref_ns = vim.api.nvim_create_namespace("poste_fileref_" .. buf)
   local function refresh_fileref_marks()
@@ -102,6 +108,12 @@ function M.setup_buffer_keymaps(buf)
   vim.api.nvim_create_autocmd("TextChanged", {
     group = frg, buffer = buf,
     callback = refresh_fileref_marks,
+  })
+  vim.api.nvim_create_autocmd("BufDelete", {
+    group = frg, buffer = buf,
+    callback = function()
+      pcall(vim.api.nvim_del_augroup_by_name, "PosteFileref_" .. buf)
+    end,
   })
 end
 

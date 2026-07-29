@@ -253,10 +253,10 @@ local function hide()
   if hiding then return end
   hiding = true
   if list_win and vim.api.nvim_win_is_valid(list_win) then
-    vim.api.nvim_win_close(list_win, true)
+    pcall(vim.api.nvim_win_close, list_win, true)
   end
   if detail_win and vim.api.nvim_win_is_valid(detail_win) then
-    vim.api.nvim_win_close(detail_win, true)
+    pcall(vim.api.nvim_win_close, detail_win, true)
   end
   list_buf = nil
   list_win = nil
@@ -434,7 +434,8 @@ function M.show()
   local gap = 1
 
   list_buf = vim.api.nvim_create_buf(false, true)
-  list_win = vim.api.nvim_open_win(list_buf, true, {
+  vim.bo[list_buf].bufhidden = "wipe"
+  local ok, lw = pcall(vim.api.nvim_open_win, list_buf, true, {
     relative = "editor",
     width = list_width,
     height = total_height,
@@ -445,11 +446,18 @@ function M.show()
     title = " Poste HTTP History ",
     title_pos = "center",
   })
+  if not ok then
+    pcall(vim.api.nvim_buf_delete, list_buf, { force = true })
+    list_buf = nil
+    return
+  end
+  list_win = lw
   vim.wo[list_win].cursorline = true
 
   local detail_width = total_width - list_width - gap - 1
   detail_buf = vim.api.nvim_create_buf(false, true)
-  detail_win = vim.api.nvim_open_win(detail_buf, false, {
+  vim.bo[detail_buf].bufhidden = "wipe"
+  local ok2, dw = pcall(vim.api.nvim_open_win, detail_buf, false, {
     relative = "editor",
     width = detail_width,
     height = total_height,
@@ -458,6 +466,15 @@ function M.show()
     style = "minimal",
     border = "single",
   })
+  if not ok2 then
+    pcall(vim.api.nvim_win_close, list_win, true)
+    pcall(vim.api.nvim_buf_delete, detail_buf, { force = true })
+    detail_buf = nil
+    list_buf = nil
+    list_win = nil
+    return
+  end
+  detail_win = dw
 
   current_index = nil
   detail_view = "body"

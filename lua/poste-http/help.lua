@@ -91,13 +91,14 @@ function M.open()
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].filetype = "poste_help"
   local height = math.min(#lines, vim.o.lines - 4)
-  local win = vim.api.nvim_open_win(buf, true, {
+  local ok, win = pcall(vim.api.nvim_open_win, buf, true, {
     relative = "editor",
     row = 2, col = math.floor((vim.o.columns - width) / 2),
     width = width, height = height,
     style = "minimal", border = "rounded",
     title = " Poste Keymaps ", title_pos = "center",
   })
+  if not ok then return end
   vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, nowait = true })
   vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, nowait = true })
   local ns = vim.api.nvim_create_namespace("poste_help")

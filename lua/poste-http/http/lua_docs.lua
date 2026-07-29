@@ -165,6 +165,7 @@ function M.try_lsp_hover(script_lines, line, col, callback)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, script_lines)
 
   if not M._ensure_lsp_attached(buf) then
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
     callback(nil)
     return
   end
@@ -176,6 +177,7 @@ function M.try_lsp_hover(script_lines, line, col, callback)
 
   vim.lsp.buf_request(buf, "textDocument/hover", params, function(err, result)
     if err or not result or not result.contents then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
       callback(nil)
       return
     end
@@ -202,6 +204,7 @@ function M.try_lsp_hover(script_lines, line, col, callback)
         end
       end
     end
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
     callback(#lines > 0 and lines or nil)
   end)
 end
@@ -222,6 +225,7 @@ function M.show_lsp_result(lines)
   vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
   vim.bo[float_buf].modifiable = false
   vim.bo[float_buf].filetype = "markdown"
+  vim.bo[float_buf].bufhidden = "wipe"
 
   local win_opts = {
     relative = "editor",
@@ -238,7 +242,11 @@ function M.show_lsp_result(lines)
   if not ok then
     win_opts.title = nil
     win_opts.title_pos = nil
-    win = vim.api.nvim_open_win(float_buf, true, win_opts)
+    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+    if not ok then
+      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+      return
+    end
   end
 
   vim.keymap.set("n", "q", function()
@@ -267,6 +275,7 @@ function M.show_builtin(sig, desc, title)
   local float_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
   vim.bo[float_buf].modifiable = false
+  vim.bo[float_buf].bufhidden = "wipe"
 
   local win_opts = {
     relative = "editor",
@@ -283,7 +292,11 @@ function M.show_builtin(sig, desc, title)
   if not ok then
     win_opts.title = nil
     win_opts.title_pos = nil
-    win = vim.api.nvim_open_win(float_buf, true, win_opts)
+    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+    if not ok then
+      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+      return
+    end
   end
 
   vim.keymap.set("n", "q", function()

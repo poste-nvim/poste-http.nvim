@@ -36,12 +36,18 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
   callback = function()
     vim.bo.filetype = "poste_http"
     buffer_setup.setup_buffer_keymaps(0)
-    local bg = vim.api.nvim_create_augroup("PosteHttpBoundary_" .. vim.api.nvim_get_current_buf(), { clear = true })
+    local buf = vim.api.nvim_get_current_buf()
+    local bg = vim.api.nvim_create_augroup("PosteHttpBoundary_" .. buf, { clear = true })
     vim.api.nvim_create_autocmd("CursorMoved", {
-      group = bg,
-      buffer = 0,
+      group = bg, buffer = 0,
       callback = function()
         require("poste-http.http.boundary_indicator").refresh(0, vim.fn.line("."))
+      end,
+    })
+    vim.api.nvim_create_autocmd("BufDelete", {
+      group = bg, buffer = 0,
+      callback = function()
+        pcall(vim.api.nvim_del_augroup_by_name, "PosteHttpBoundary_" .. buf)
       end,
     })
     pcall(function()
@@ -69,10 +75,15 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     buffer_setup.setup_buffer_keymaps(buf)
     local bg = vim.api.nvim_create_augroup("PosteHttpBoundary_" .. buf, { clear = true })
     vim.api.nvim_create_autocmd("CursorMoved", {
-      group = bg,
-      buffer = buf,
+      group = bg, buffer = buf,
       callback = function()
         require("poste-http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
+      end,
+    })
+    vim.api.nvim_create_autocmd("BufDelete", {
+      group = bg, buffer = buf,
+      callback = function()
+        pcall(vim.api.nvim_del_augroup_by_name, "PosteHttpBoundary_" .. buf)
       end,
     })
   end

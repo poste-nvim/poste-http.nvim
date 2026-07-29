@@ -64,7 +64,7 @@ local function pick_float(items, prompt, on_select)
   local height = math.min(24, #items + 2)
   local row = math.floor((vim.o.lines - height) / 2)
   local col = math.floor((vim.o.columns - width) / 2)
-  local win = vim.api.nvim_open_win(list_buf, true, {
+  local ok, win = pcall(vim.api.nvim_open_win, list_buf, true, {
     relative = "editor",
     width = width, height = height,
     row = row, col = col,
@@ -73,6 +73,10 @@ local function pick_float(items, prompt, on_select)
     title = prompt,
     title_pos = "center",
   })
+  if not ok then
+    pcall(vim.api.nvim_buf_delete, list_buf, { force = true })
+    return
+  end
   local selected_idx = 1
   local search_text = ""
   local filtered = vim.deepcopy(items)

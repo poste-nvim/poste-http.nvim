@@ -89,6 +89,7 @@ function M.show_script_api_doc()
   local float_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
   vim.bo[float_buf].modifiable = false
+  vim.bo[float_buf].bufhidden = "wipe"
 
   local title = ctx == "pre_script" and "Pre-script API" or "Post-script API"
   local win_opts = {
@@ -101,7 +102,11 @@ function M.show_script_api_doc()
   local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
   if not ok then
     win_opts.title = nil; win_opts.title_pos = nil
-    win = vim.api.nvim_open_win(float_buf, true, win_opts)
+    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+    if not ok then
+      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+      return true
+    end
   end
 
   vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
@@ -206,6 +211,7 @@ function M.show_var_value()
   local float_buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
   vim.bo[float_buf].modifiable = false
+  vim.bo[float_buf].bufhidden = "wipe"
 
   local win_opts = {
     relative = "editor",
@@ -217,7 +223,11 @@ function M.show_var_value()
   local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
   if not ok then
     win_opts.title = nil; win_opts.title_pos = nil
-    win = vim.api.nvim_open_win(float_buf, true, win_opts)
+    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+    if not ok then
+      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+      return
+    end
   end
 
   vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,

@@ -408,7 +408,7 @@ function M.open()
   local col = math.floor((vim.o.columns - width) / 2)
   local row = math.floor((vim.o.lines - height) / 2)
 
-  local out_win = vim.api.nvim_open_win(out_buf, true, {
+  local ok, out_win = pcall(vim.api.nvim_open_win, out_buf, true, {
     style = "minimal",
     relative = "editor",
     width = width,
@@ -419,6 +419,10 @@ function M.open()
     focusable = true,
     zindex = 50,
   })
+  if not ok then
+    pcall(vim.api.nvim_buf_delete, out_buf, { force = true })
+    return
+  end
   vim.wo[out_win].number = false
   vim.wo[out_win].relativenumber = false
   vim.wo[out_win].signcolumn = "no"
