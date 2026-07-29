@@ -68,6 +68,7 @@ M.last_request = nil
 M.pending_request = nil
 M.current_view = "body"
 M._split_override = nil
+M._busy = false
 M._http_session = nil
 M.http_history = {}
 M.http_history_max = 100

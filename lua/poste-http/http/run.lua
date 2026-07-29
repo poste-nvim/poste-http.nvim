@@ -160,6 +160,7 @@ local function handle_curl_response(response, ctx)
       view.show_view("verbose")
       local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
       add_to_history(err_name, state.last_response, file)
+      state._busy = false
       return
     end
 
@@ -171,6 +172,7 @@ local function handle_curl_response(response, ctx)
       view.show_view("verbose")
       local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
       add_to_history(err_name, state.last_response, file)
+      state._busy = false
       return
     end
 
@@ -217,6 +219,7 @@ local function handle_curl_response(response, ctx)
     set_result_indicator(src_buf, req_line, response, assertion_results)
     local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
     add_to_history(hist_name, state.last_response, file)
+    state._busy = false
   end)
 end
 
@@ -335,13 +338,14 @@ local function handle_directive_response(success, response, src_buf, indicator_l
   vim.schedule(function()
     if not (success and response) then
       indicators.set_indicator(src_buf, indicator_line, "error")
+      state._busy = false
       return
     end
 
     -- Batch execution: response is an array of {name, response}
     if type(response) == "table" and response[1] and response[1].response then
       state.set_responses(response, 1)
-      state.last_response = response[#response].response
+      state.set_response(response[#response].response)
     else
       state.set_response(response)
     end
@@ -367,6 +371,7 @@ local function handle_directive_response(success, response, src_buf, indicator_l
     else
       add_to_history(resolved.request_name or "Import", response, resolved.path or file)
     end
+    state._busy = false
   end)
 end
 
@@ -429,6 +434,7 @@ local function prepare_request(ctx, callback)
     if not modified_content then
       indicators.clear_all(src_buf)
       state.set_pending_request(nil)
+      state._busy = false
       return
     end
     ctx.modified_content = modified_content
@@ -469,6 +475,7 @@ local function execute_request(ctx, callback)
       state.set_response(err_resp)
       emit_response(err_resp, nil, file, nil, nil)
       view.show_view("verbose")
+      state._busy = false
       return
     end
     if #pre_result.logs > 0 then
@@ -630,6 +637,11 @@ end
 
 --- Run the HTTP request at the current cursor position.
 function M.run_request()
+  if state._busy then
+    vim.notify("Request already in progress", vim.log.levels.WARN, { title = "Poste" })
+    return
+  end
+  state._busy = true
   local src_buf = vim.api.nvim_get_current_buf()
   local line = vim.fn.line(".")
   local file = vim.api.nvim_buf_get_name(src_buf)
@@ -656,6 +668,7 @@ function M.run_request()
     if resolved.error then
       vim.notify(resolved.error, vim.log.levels.ERROR, { title = "Poste" })
       indicators.set_indicator(src_buf, (resolved.run_line or line) - 1, "error")
+      state._busy = false
       return
     end
 
@@ -710,6 +723,7 @@ function M.run_request()
         set_result_indicator(src_buf, ctx.req_line, script_response, assertion_results)
         local hist_name = (ctx.current_req_name or "") ~= "" and ctx.current_req_name or ("Script #" .. tostring(ctx.req_line + 1))
         add_to_history(hist_name, script_response, file)
+        state._busy = false
         return
       end
 

@@ -350,7 +350,7 @@ setup_keymaps = function(buf)
       vim.api.nvim_set_current_win(win)
       pcall(vim.api.nvim_win_set_cursor, win, { last.line, 0 })
       -- Clear last_response so the UI updates even if the same request returns quickly
-      state.last_response = nil
+      state.set_response(nil)
       require("poste-http").run_request()
     end, opts)
   end
