@@ -10,6 +10,24 @@ local M = {}
 local get_nested_value = nested_access.get_nested_value
 
 local request_response_cache = {}
+
+--- Convert a resolved request-variable value into the text to inject into content.
+--- Strings → as-is, numbers/booleans → tostring, tables → JSON, other → ""
+--- A Lua table (JSON object/array) must be encoded as JSON so it becomes part
+--- of a JSON body instead of a "table: 0x..." string.
+local function value_to_http_string(val)
+  local t = type(val)
+  if t == "string" then
+    return val
+  elseif t == "number" or t == "boolean" then
+    return tostring(val)
+  elseif t == "table" and val ~= vim.NIL then
+    local ok, encoded = pcall(vim.json.encode, val)
+    if ok then return encoded end
+    return tostring(val)
+  end
+  return ""
+end
 local _chain_dep_set = {}
 local _chain_dep_order = {}
 
@@ -252,8 +270,8 @@ local function execute_deps_sequential(buf, file, env_name, dep_order, content, 
   local resolved_dep_block = dep_block_text
   for _, ref in ipairs(dep_refs) do
     local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
-    if value then
-      resolved_dep_block = resolved_dep_block:gsub(vim.pesc(ref.full), tostring(value))
+    if value ~= nil then
+      resolved_dep_block = resolved_dep_block:gsub(vim.pesc(ref.full), value_to_http_string(value))
     end
   end
 
@@ -355,8 +373,8 @@ local function execute_deps_for_block(opts)
     local resolved_block = block_text
     for _, ref in ipairs(refs) do
       local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
-      if value then
-        resolved_block = resolved_block:gsub(vim.pesc(ref.full), tostring(value))
+      if value ~= nil then
+        resolved_block = resolved_block:gsub(vim.pesc(ref.full), value_to_http_string(value))
       else
         state.log("WARN", string.format("Could not resolve variable: %s", ref.full))
       end
