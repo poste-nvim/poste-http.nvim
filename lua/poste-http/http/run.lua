@@ -417,6 +417,7 @@ local function prepare_request(ctx, callback)
   local req_line = cache.find_request_line(src_buf, line)
   if not req_line then
     indicators.clear_all(src_buf)
+    state._busy = false
     return
   end
   indicators.clear_other_requests(src_buf, req_line)
@@ -591,6 +592,7 @@ local function start_curl_exec(ctx)
 
   if not url or url == "" then
     indicators.set_indicator(src_buf, req_line, "error")
+    state._busy = false
     vim.notify("Could not determine request URL", vim.log.levels.ERROR, { title = "Poste" })
     return
   end

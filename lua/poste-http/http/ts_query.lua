@@ -8,6 +8,13 @@ function M.get_parser(buf)
   return parser
 end
 
+--- Whether the poste_http tree-sitter parser can be created for the buffer.
+--- Returns false when the parser is missing or broken (e.g. stale binary or
+--- invalid injection query), so callers can fall back to regex-based logic.
+function M.is_available(buf)
+  return M.get_parser(buf) ~= nil
+end
+
 function M.get_root(buf)
   local parser = M.get_parser(buf)
   if not parser then return nil end

@@ -298,7 +298,13 @@ GET https://api.example.com/step3?token={{Step 2.response.body.token}}
 ### Notes
 
 - Request names are case-sensitive and must match the `###` header exactly
+- File-level `@var` values may reference request responses
+  (`@token = {{Login.response.body.token}}`) — the referenced request is
+  executed and the value resolved automatically
 - If a referenced request hasn't been executed, it will be executed automatically
+- Automatically-executed dependencies run their post-scripts (`> {% %}`), so
+  `client.global.set(...)` from a dependency's post-script populates session
+  variables just like a manual run of that request would
 - Responses are cached for the current Neovim session only
 - If a variable cannot be resolved (e.g., field doesn't exist), the original
   `{{...}}` placeholder is left unchanged

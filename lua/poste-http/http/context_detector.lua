@@ -10,6 +10,14 @@ local function use_ts()
   return state.config.use_treesitter and state.config.use_treesitter.context_detector ~= false
 end
 
+--- Whether tree-sitter should be used for context detection for this buffer.
+--- Falls back to regex-based detection when the parser is unavailable.
+local function use_ts_effective(buf)
+  if not use_ts() then return false end
+  if not buf then return true end
+  return ts_query.is_available(buf)
+end
+
 local function ts_detect_script_context(buf, cursor_line, cursor_col)
   local row = cursor_line - 1
   local col = cursor_col - 1
@@ -71,7 +79,9 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
       or node_type == "method_options" then
       return nil
     end
-    return "method", nil
+    -- Any other node on an existing request line (e.g. cursor past the URL)
+    -- is not a method position, so no completion.
+    return nil
   end
 
   if parent_type == "header" then
@@ -193,7 +203,7 @@ end
 --- Uses cache.lua O(1) line_type lookup instead of buffer scanning.
 --- Returns: "pre_script", "post_script", or nil
 local function detect_script_context(buf, cursor_line, cursor_col)
-  if use_ts() then
+  if use_ts_effective(buf) then
     return ts_detect_script_context(buf, cursor_line, cursor_col)
   end
   local t = require("poste-http.http.cache").get_line_type(buf, cursor_line)
@@ -224,7 +234,7 @@ end
 ---   "post_script"      - inside > {% ... %} block
 ---   nil                - no completion
 local function detect_context(line_before_cursor, buf, cursor_line, cursor_col)
-  if use_ts() then
+  if use_ts_effective(buf) then
     return ts_detect_context(line_before_cursor, buf, cursor_line, cursor_col)
   end
 

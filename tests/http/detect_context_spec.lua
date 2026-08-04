@@ -204,4 +204,60 @@ describe("detect_context", function()
       assert.equals("Accept", extra)
     end)
   end)
+
+  describe("tree-sitter context detection", function()
+    local state = require("poste-http.state")
+    local ts_query = require("poste-http.http.ts_query")
+    local orig_ts_config
+    local orig_is_available
+
+    before_each(function()
+      orig_ts_config = state.config.use_treesitter
+      state.config.use_treesitter = { context_detector = true }
+      orig_is_available = ts_query.is_available
+    end)
+
+    after_each(function()
+      state.config.use_treesitter = orig_ts_config
+      ts_query.is_available = orig_is_available
+    end)
+
+    describe("with working parser", function()
+      it("returns nil for cursor past the URL on a request line, not 'method'", function()
+        local buf = block_buf({ "### ", "POST {{base_url}}/post" })
+        if not ts_query.is_available(buf) then
+          vim.api.nvim_buf_delete(buf, { force = true })
+          return -- parser not installed, skip
+        end
+        local ctx = detect_context("POST {{base_url}}/post", buf, 2, 22)
+        vim.api.nvim_buf_delete(buf, { force = true })
+        assert.is_nil(ctx)
+      end)
+    end)
+
+    describe("with broken parser (falls back to regex)", function()
+      before_each(function()
+        ts_query.is_available = function() return false end
+      end)
+
+      it("returns 'method_or_header' for a header name line", function()
+        local buf = block_buf({
+          "### ",
+          "POST {{base_url}}/post/",
+          "Content-Type: application/json",
+          "A",
+        })
+        local ctx = detect_context("A", buf, 4, 1)
+        vim.api.nvim_buf_delete(buf, { force = true })
+        assert.equals("method_or_header", ctx)
+      end)
+
+      it("returns nil on a request line URL", function()
+        local buf = block_buf({ "### ", "POST {{base_url}}/post/" })
+        local ctx = detect_context("POST {{base_url}}/post/", buf, 2, 23)
+        vim.api.nvim_buf_delete(buf, { force = true })
+        assert.is_nil(ctx)
+      end)
+    end)
+  end)
 end)

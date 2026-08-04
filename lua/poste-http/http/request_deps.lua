@@ -1,6 +1,7 @@
 local state = require("poste-http.state")
 local curl_exec = require("poste-http.http.curl_exec")
 local describe = require("poste-http.http.describe")
+local assertions = require("poste-http.http.assertions")
 local vars = require("poste-http.http.vars")
 local nested_access = require("poste-http.http.nested_access")
 local jq_mapping = require("poste-http.http.jq_mapping")
@@ -32,6 +33,16 @@ local _chain_dep_set = {}
 local _chain_dep_order = {}
 
 local handle_prompt_fn = nil
+
+--- Run a dependency's post-script/assertion blocks against its response so
+--- side effects like `client.global.set(...)` populate globals the same way a
+--- manual run of the dependency would.
+local function run_dep_post_scripts(response, dep_block_text)
+  local _, assertion_code = assertions.extract_assertion_blocks(dep_block_text)
+  if assertion_code then
+    assertions.run_assertions(response, assertion_code)
+  end
+end
 
 function M.set_prompt_handler(fn)
   handle_prompt_fn = fn
@@ -199,6 +210,7 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
     end
     request_response_cache[dep_req.name] = response
     response.request_name = dep_req.name
+    run_dep_post_scripts(response, dep_block_text)
     state.log("INFO", string.format("Cached response for '%s'", dep_req.name))
     on_complete(response)
   end)
@@ -335,6 +347,17 @@ local function execute_deps_for_block(opts)
   local on_complete = opts.on_complete
   local handle_prompt = opts.handle_prompt
 
+  -- File-level @var lines (before the first `###`) may reference request
+  -- responses too. Include their refs so referenced deps execute and the refs
+  -- are substituted inline, making the @var value resolvable by the resolver.
+  local file_var_end = 0
+  for i, l in ipairs(all_lines) do
+    if l:match("^%s*###") then
+      file_var_end = i - 1
+      break
+    end
+  end
+
   local refs = find_request_variable_refs(block_text)
   local dyn_refs = find_dynamic_prompt_refs(block_text)
   for _, dr in ipairs(dyn_refs) do
@@ -347,6 +370,21 @@ local function execute_deps_for_block(opts)
     end
     if not found then
       table.insert(refs, dr)
+    end
+  end
+  if file_var_end > 0 then
+    local file_var_text = table.concat(all_lines, "\n", 1, file_var_end)
+    for _, fr in ipairs(find_request_variable_refs(file_var_text)) do
+      local found = false
+      for _, r in ipairs(refs) do
+        if r.full == fr.full then
+          found = true
+          break
+        end
+      end
+      if not found then
+        table.insert(refs, fr)
+      end
     end
   end
   if #refs == 0 then
@@ -384,6 +422,15 @@ local function execute_deps_for_block(opts)
     for i, l in ipairs(all_lines) do
       if i >= block_start and i <= block_end then
         table.insert(result_lines, resolved_split[i - block_start + 1] or l)
+      elseif i <= file_var_end then
+        local line = l
+        for _, ref in ipairs(refs) do
+          local value = resolve_request_variable(ref.full:sub(3, -3), request_response_cache)
+          if value ~= nil then
+            line = line:gsub(vim.pesc(ref.full), value_to_http_string(value))
+          end
+        end
+        table.insert(result_lines, line)
       else
         table.insert(result_lines, l)
       end
@@ -568,6 +615,7 @@ M._test = {
   find_dynamic_prompt_refs = find_dynamic_prompt_refs,
   collect_requests_from_content = M.collect_requests_from_content,
   execute_dependent_request_async = execute_dependent_request_async,
+  run_dep_post_scripts = run_dep_post_scripts,
 }
 
 M._resolve_request_variables_impl = resolve_request_variables_impl

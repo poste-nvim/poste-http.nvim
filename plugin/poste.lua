@@ -155,7 +155,7 @@ vim.api.nvim_create_user_command("PosteTSStatus", function()
   local state = require("poste-http.state")
   local ts = state.config.use_treesitter or {}
   local buf = vim.api.nvim_get_current_buf()
-  local parser_ok = pcall(vim.treesitter.get_parser, buf, "poste_http")
+  local parser_ok = require("poste-http.http.ts_query").is_available(buf)
   local ft = vim.bo[buf].filetype
 
   local lines = {
