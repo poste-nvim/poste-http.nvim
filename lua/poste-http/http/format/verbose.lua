@@ -582,6 +582,12 @@ function M.apply_verbose_highlights(buf, lines, r)
     local in_req_body_section = req_body_start and i >= req_body_start and i <= req_body_end
 
     if in_body_section or in_req_body_section then
+      if line == "  <empty>" then
+        vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
+          end_row = row, end_col = #line,
+          hl_group = "PosteVerboseValue", priority = 100,
+        })
+      end
       goto next
     end
 
