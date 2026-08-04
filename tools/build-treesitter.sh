@@ -1,20 +1,14 @@
 #!/bin/bash
-# Build the tree-sitter C parser for Poste HTTP (.so shared library)
+# Development: regenerate parser.c from grammar.js and compile.
+# Not needed by end users — parsers are compiled automatically by install.lua.
 set -euo pipefail
 cd "$(dirname "$0")/../tree-sitter-poste-http"
 
-echo "Generating parser..."
+echo "Generating parser from grammar.js..."
 tree-sitter generate
 
-echo "Compiling C parser..."
-SRC="src/parser.c"
-OUT="src/parser.o"
-SHARED="tree-sitter-poste_http.so"
+echo "Compiling..."
+${CC:-cc} -c -Isrc -fPIC -O2 -o src/parser.o src/parser.c
+${CC:-cc} -shared -o src/parser.o src/parser.o
 
-gcc -c -I"src" -fPIC -O2 -o "$OUT" "$SRC"
-gcc -shared -o "$SHARED" "$OUT"
-
-cp $SHARED $HOME/.local/share/kickstart/site/parser/poste_http.so
-
-echo "Done: $SHARED"
-echo "Install: cp $SHARED \$HOME/.local/share/kickstart/site/parser/poste_http.so"
+echo "Done: tree-sitter-poste-http/src/parser.c"

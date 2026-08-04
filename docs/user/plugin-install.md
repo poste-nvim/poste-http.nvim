@@ -2,7 +2,9 @@
 
 A Neovim plugin for executing HTTP requests from `.http` files.
 
-**Standalone** — no external dependencies. Requires `curl` on your system.
+**Standalone** — no external dependencies. Requires `curl` and a C compiler (`cc`/`gcc`) on your system.
+
+Parsers are compiled automatically on first `setup()` call. No build hooks needed.
 
 ## Installation
 
@@ -42,6 +44,8 @@ Then add to your init.vim:
 lua require("poste-http").setup()
 ```
 
+Run `:PosteBuildParsers` to recompile after an update.
+
 ## Usage
 
 ### Commands
@@ -49,6 +53,7 @@ lua require("poste-http").setup()
 - `:PosteRun` - Execute the request at the current cursor position
 - `:PosteEnv` - Show the current environment
 - `:PosteEnv <name>` - Switch to the specified environment
+- `:PosteBuildParsers` - Compile or recompile tree-sitter parsers
 
 ### Keymaps (in .http files)
 
@@ -78,6 +83,7 @@ require("poste-http").setup({
 
 - Neovim 0.10 or later
 - `curl` available in PATH
+- C compiler (`cc` or `gcc`) — for tree-sitter parser compilation
 - [snacks.nvim](https://github.com/folke/snacks.nvim) — used for the prompt/picker UI (variable selectors, environment switching, etc.)
 
 ## License

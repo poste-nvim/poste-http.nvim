@@ -45,6 +45,9 @@ function M.setup(opts)
   end
   vim.g.poste_setup_done = true
 
+  -- Ensure tree-sitter parsers are compiled (fast, one-time)
+  pcall(require("poste-http.install").ensure_parsers)
+
   -- Auto-clean old response cache on startup (deferred)
   vim.defer_fn(function()
     local format = require("poste-http.http.format")

@@ -54,6 +54,9 @@ poste import postman collection.json --out ./http-requests
 }
 ```
 
+Tree-sitter parsers are compiled automatically on first setup (requires a C compiler).
+Run `:PosteBuildParsers` to recompile after an update.
+
 ### Create a request file
 
 `requests/api.http`:

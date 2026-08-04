@@ -109,11 +109,14 @@ vim.api.nvim_create_user_command("PosteInfo", function()
   local curl_ok = vim.fn.executable("curl") == 1
   table.insert(parts, "curl:      " .. (curl_ok and "found" or "not found"))
 
+  local parser_dir = vim.fn.stdpath("data") .. "/site/parser"
   local ts_ok, _ = pcall(vim.treesitter.get_parser, 0, "poste_http")
-  table.insert(parts, "treesitter: " .. (ts_ok and "active" or "unavailable"))
+  local ts_file = (vim.fn.filereadable(parser_dir .. "/poste_http.so") == 1) and "installed" or "missing"
+  table.insert(parts, "treesitter: " .. (ts_ok and "active" or "unavailable") .. " (" .. ts_file .. ")")
 
   local ts_json_ok, _ = pcall(vim.treesitter.get_parser, 0, "poste_json")
-  table.insert(parts, "poste_json:" .. (ts_json_ok and "active" or "unavailable"))
+  local ts_json_file = (vim.fn.filereadable(parser_dir .. "/poste_json.so") == 1) and "installed" or "missing"
+  table.insert(parts, "poste_json:" .. (ts_json_ok and "active" or "unavailable") .. " (" .. ts_json_file .. ")")
 
   table.insert(parts, sep)
 
@@ -150,6 +153,10 @@ vim.api.nvim_create_user_command("PosteInfo", function()
 
   vim.notify(table.concat(parts, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Poste environment info" })
+
+vim.api.nvim_create_user_command("PosteBuildParsers", function()
+  require("poste-http.install").force_build()
+end, { desc = "Compile tree-sitter parsers for poste-http" })
 
 vim.api.nvim_create_user_command("PosteTSStatus", function()
   local state = require("poste-http.state")
