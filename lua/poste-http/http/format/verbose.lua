@@ -182,8 +182,8 @@ function M.format_verbose(r, pending)
   table.insert(lines, "  ")
   _sep_lines[#lines] = true
 
+  table.insert(lines, "  Request Headers")
   if request_headers ~= "" then
-    table.insert(lines, "  Request Headers")
     for l in request_headers:gmatch("[^\r\n]+") do
       local k, v = l:match("^([^:]+):%s*(.+)$")
       if k and v then
@@ -192,14 +192,16 @@ function M.format_verbose(r, pending)
         table.insert(lines, "  " .. l)
       end
     end
+  else
+    table.insert(lines, "  <empty>")
   end
 
   -- Query Parameters section
+  table.insert(lines, "  Query Parameters")
   if url ~= "" then
     local qmark = url:find("?")
     if qmark then
       local query_string = url:sub(qmark + 1)
-      table.insert(lines, "  Query Parameters")
       for pair in query_string:gmatch("[^&]+") do
         local key, val = pair:match("^([^=]+)=(.*)$")
         if key then
@@ -210,15 +212,19 @@ function M.format_verbose(r, pending)
           table.insert(lines, "  " .. pair)
         end
       end
+    else
+      table.insert(lines, "  <empty>")
     end
+  else
+    table.insert(lines, "  <empty>")
   end
 
-  -- Request Body section (only when there's actual body content)
+  -- Request Body section
+  table.insert(lines, "  Request Body")
   if request_body ~= "" then
     local multipart = require("poste-http.http.format.multipart")
     local verbose_body = multipart.strip_request_preamble(request_body, request_headers)
     if verbose_body ~= "" then
-      table.insert(lines, "  Request Body")
       local ct = ""
       for l in request_headers:gmatch("[^\r\n]+") do
         local k, v = l:match("^([^:]+):%s*(.+)$")
@@ -246,7 +252,11 @@ function M.format_verbose(r, pending)
           table.insert(lines, "  " .. l)
         end
       end
+    else
+      table.insert(lines, "  <empty>")
     end
+  else
+    table.insert(lines, "  <empty>")
   end
 
   if r then
