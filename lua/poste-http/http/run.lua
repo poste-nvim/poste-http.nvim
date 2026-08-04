@@ -344,8 +344,10 @@ local function handle_directive_response(success, response, src_buf, indicator_l
 
     -- Batch execution: response is an array of {name, response}
     if type(response) == "table" and response[1] and response[1].response then
-      state.set_responses(response, 1)
-      state.set_response(response[#response].response)
+      response_buf.reset_multi_response()
+      state.set_responses(response, #response)
+      state.last_response = response[#response].response
+      pcall(response_buf.prepare_multi_responses, response)
     else
       state.set_response(response)
     end
