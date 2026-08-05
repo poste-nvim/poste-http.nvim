@@ -89,10 +89,8 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
   end
 end
 
--- PosteInfo: show binary, version, and completion engine status.
--- Defined here rather than in setup() so the latest plugin/poste.lua
--- on rtp always wins, even when lazy.nvim cached an older init.lua.
-pcall(vim.api.nvim_del_user_command, "PosteInfo")
+-- PosteHttpInfo: show binary, version, and completion engine status.
+pcall(vim.api.nvim_del_user_command, "PosteHttpInfo")
 -- PosteTree: show treesitter parse tree for debugging highlight issues.
 pcall(vim.api.nvim_del_user_command, "PosteTree")
 vim.api.nvim_create_user_command("PosteTree", function()
@@ -100,7 +98,7 @@ vim.api.nvim_create_user_command("PosteTree", function()
   if ok then mod.inspect() end
 end, { desc = "Show tree-sitter parse tree for current buffer" })
 
-vim.api.nvim_create_user_command("PosteInfo", function()
+vim.api.nvim_create_user_command("PosteHttpInfo", function()
   local state = require("poste-http.state")
 
   local sep = "─"
@@ -152,7 +150,7 @@ vim.api.nvim_create_user_command("PosteInfo", function()
   table.insert(parts, sep)
 
   vim.notify(table.concat(parts, "\n"), vim.log.levels.INFO)
-end, { desc = "Show Poste environment info" })
+end, { desc = "Show Poste HTTP environment info" })
 
 vim.api.nvim_create_user_command("PosteBuildParsers", function()
   require("poste-http.install").force_build()
