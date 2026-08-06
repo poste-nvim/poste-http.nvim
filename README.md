@@ -8,6 +8,7 @@
 - **Environment variables** — JetBrains-style `env.json` with `{{var}}` substitution
 - **Assertions & scripts** — Inline `> {% ... %}` assertions, pre/post-request scripts
 - **Request chaining** — `{{RequestName.res.body.X}}` to extract values from prior responses
+- **Request orchestration** — `SCRIPT` blocks call imported requests sequentially via `client.run()`: chain tokens, loop, and assert across requests
 - **Prompt variables** — Interactive `<<var` prompts with picker/text input
 - **Completion** — HTTP methods, headers, values, env vars (blink.cmp / nvim-cmp)
 - **jq filtering** — `:PosteJqFilter` for interactive JSON exploration
@@ -26,6 +27,30 @@ Convert API specs to `.http` files. Supports OpenAPI 3.x, Swagger 2.0, and Postm
 :PosteImportSwagger
 :PosteImportPostman
 ```
+
+## Orchestration
+
+Define requests in one file (like Postman), then run them as a flow from a
+`SCRIPT` block. `client.run()` executes an imported request and returns its
+typed response, so you can chain tokens, loop, and assert:
+
+```http
+import ./requests.http as api
+
+### Login then fetch profile
+SCRIPT
+> {%
+  local login = client.run("#api.Login", { username = "alice", password = "secret" })
+  assert(login.status == 200, "login failed")
+  local profile = client.run("#api.GetProfile", { auth_token = login.body.token })
+  assert(profile.status == 200, "get profile failed")
+  client.log("profile: " .. profile.body.username)
+%}
+```
+
+`gd` jumps to the request definition, completion/highlighting work like
+`run #alias.Name`, and every call's response appears in the multi-response
+chain. Full docs: [Scripts](https://github.com/beyondlex/poste-http.nvim/wiki/Scripts).
 
 ## Quick Start
 
