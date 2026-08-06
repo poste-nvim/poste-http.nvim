@@ -36,13 +36,12 @@ import ./variable_resolver_imported.http as imported
 @full_endpoint = {{host}}/anything
 
 # ── Cross-request reference (independent of priority chain) ─────────────────
-@last_uuid = {{01 — Health check|Magic vars|Cross-refs.response.body.uuid}}
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Category 1: File-level @var resolution
 # ═════════════════════════════════════════════════════════════════════════════
 
-### 01 — Health check | Magic vars | Cross-refs
+### 01_healthcheck
 # Tests:
 #   - Basic file-level @var resolution ({{host}})
 #   - Magic var {{$uuid}} in request body
@@ -60,6 +59,7 @@ X-Timestamp: {{$timestamp}}
 %}
 
 ### 02 — File-level @var: simple reference
+@last_status = {{01_healthcheck.response.body.status}}
 # Tests: {{host}} → http://localhost:8888
 GET {{host}}/anything/file-level-simple
 X-Source: file-level-var

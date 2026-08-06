@@ -18,33 +18,41 @@ local function highlight_var_refs(bufnr)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   for l, line in ipairs(lines) do
     local row = l - 1
-    local s = 1
-    while s <= #line do
-      local a, b, dollar, inner = line:find("{{($?)(.-)}}", s)
-      if not a then break end
-      if inner and inner ~= "" and dollar == "$" then
-        vim.api.nvim_buf_set_extmark(bufnr, ns, row, a - 1, {
-          end_row = row, end_col = b,
-          hl_group = "PosteMagicVar",
-          priority = 150,
-        })
-      elseif next(lookup) then
-        local first_comp = inner:match("^%s*([^%.]+)")
-        if first_comp and lookup[first_comp] then
-          local ref_start = a + 1
-          local ref_end = ref_start + #first_comp
+    if not vim.trim(line):match("^#") then
+      local s = 1
+      while s <= #line do
+        local a, b, dollar, inner = line:find("{{($?)(.-)}}", s)
+        if not a then break end
+        if inner and inner ~= "" and dollar == "$" then
           vim.api.nvim_buf_set_extmark(bufnr, ns, row, a - 1, {
-            end_row = row, end_col = ref_start,
-            hl_group = "PosteVarRef",
+            end_row = row, end_col = b,
+            hl_group = "PosteMagicVar",
             priority = 150,
           })
-          vim.api.nvim_buf_set_extmark(bufnr, ns, row, ref_start, {
-            end_row = row, end_col = ref_end,
-            hl_group = "PosteRequestName",
-            priority = 150,
-          })
-          if ref_end < b then
-            vim.api.nvim_buf_set_extmark(bufnr, ns, row, ref_end, {
+        elseif next(lookup) then
+          local first_comp = inner:match("^%s*([^%.]+)")
+          if first_comp and lookup[first_comp] then
+            local ref_start = a + 1
+            local ref_end = ref_start + #first_comp
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, a - 1, {
+              end_row = row, end_col = ref_start,
+              hl_group = "PosteVarRef",
+              priority = 150,
+            })
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, ref_start, {
+              end_row = row, end_col = ref_end,
+              hl_group = "PosteRequestName",
+              priority = 150,
+            })
+            if ref_end < b then
+              vim.api.nvim_buf_set_extmark(bufnr, ns, row, ref_end, {
+                end_row = row, end_col = b,
+                hl_group = "PosteVarRef",
+                priority = 150,
+              })
+            end
+          else
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, a - 1, {
               end_row = row, end_col = b,
               hl_group = "PosteVarRef",
               priority = 150,
@@ -57,14 +65,8 @@ local function highlight_var_refs(bufnr)
             priority = 150,
           })
         end
-      else
-        vim.api.nvim_buf_set_extmark(bufnr, ns, row, a - 1, {
-          end_row = row, end_col = b,
-          hl_group = "PosteVarRef",
-          priority = 150,
-        })
+        s = b + 1
       end
-      s = b + 1
     end
     -- Highlight prompt mapping keys (name:/key:/desc:) inside << [ ... ] lines
     if line:find("^%s*<<") then

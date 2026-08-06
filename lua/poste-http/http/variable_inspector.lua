@@ -1,6 +1,7 @@
 local vars = require("poste-http.http.vars")
 local cache = require("poste-http.http.cache")
 local state = require("poste-http.state")
+local request_deps = require("poste-http.http.request_deps")
 
 local M = {}
 
@@ -69,8 +70,9 @@ local function collect_entries(buf, cursor_line)
     })
   end
 
+  local block_vars = {}
   if block_start and block_end then
-    local block_vars = vars.collect_var_defs_with_lines(buf_lines, block_start, block_end)
+    block_vars = vars.collect_var_defs_with_lines(buf_lines, block_start, block_end)
     for name, info in pairs(block_vars) do
       add_entry(name, info.value, "request_vars", { file = buf_path, line = info.line })
     end
@@ -97,6 +99,44 @@ local function collect_entries(buf, cursor_line)
     local env_json_path = find_env_json_path(buf_path)
     for name, info in pairs(env_vars) do
       add_entry(name, info.value, "env", { file = env_json_path, line = info.line })
+    end
+  end
+
+  local resolver = vars.new()
+  for name, info in pairs(file_vars) do
+    resolver.file_vars[name] = info.value
+  end
+  for name, _ in pairs(resolver.file_vars) do
+    resolver.file_vars[name] = resolver:substitute(resolver.file_vars[name])
+  end
+  for name, info in pairs(block_vars) do
+    resolver.request_vars[name] = info.value
+  end
+  for name, _ in pairs(resolver.request_vars) do
+    resolver.request_vars[name] = resolver:substitute(resolver.request_vars[name])
+  end
+  resolver.session_vars = vim.deepcopy(state.global_vars)
+  resolver.script_vars = vim.deepcopy(state.script_variables)
+  if buf_path and buf_path ~= "" and env_name and env_name ~= "" then
+    resolver.env = vars.load_env_vars(buf_path, env_name)
+  end
+  for _, varents in pairs(entries) do
+    for _, entry in ipairs(varents) do
+      entry.value = resolver:substitute(entry.value)
+    end
+  end
+
+  for _, varents in pairs(entries) do
+    for _, entry in ipairs(varents) do
+      entry.value = entry.value:gsub("{{([^}]+)}}", function(var_name)
+        if var_name:match("%.response%.") or var_name:match("%.request%.") then
+          local resolved = request_deps.resolve_single_ref(var_name)
+          if resolved ~= nil then
+            return resolved
+          end
+        end
+        return "{{" .. var_name .. "}}"
+      end)
     end
   end
 

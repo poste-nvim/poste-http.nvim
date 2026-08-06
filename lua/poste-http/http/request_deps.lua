@@ -308,6 +308,10 @@ function M.is_response_cached(name)
   return request_response_cache[name] ~= nil
 end
 
+function M.resolve_single_ref(pattern)
+  return resolve_request_variable(pattern, request_response_cache)
+end
+
 function M.collect_requests_from_content(content)
   local requests = {}
   local lines = vim.split(content, "\n", { plain = true })
