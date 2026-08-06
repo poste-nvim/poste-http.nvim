@@ -16,6 +16,7 @@ local DESCRIPTIONS = {
     toggle_outline = "Toggle outline window",
     pick_env = "Pick environment",
     show_var_value = "Show variable value / response chain",
+    show_variable_inspector = "Open variable inspector",
     show_history = "Open request history",
     help = "Show this help window",
   },

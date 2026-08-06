@@ -28,6 +28,7 @@ M.config = {
       toggle_outline = "gs",
       pick_env = "<leader>vv",
       show_var_value = "K",
+      show_variable_inspector = "gi",
       show_history = "<leader>l",
       help = "g?",
     },
@@ -75,6 +76,9 @@ M.http_history_max = 100
 M.http_history_id_counter = 0
 M.global_vars = {}
 M.script_variables = {}
+M.global_vars_sources = {}
+M.script_variables_sources = {}
+M._exec_context = nil
 
 M._json = {
   original_lines = nil,
@@ -201,10 +205,16 @@ end
 
 function M.set_global_var(name, value)
   M.global_vars[name] = value
+  if M._exec_context and not M.global_vars_sources[name] then
+    M.global_vars_sources[name] = { file = M._exec_context.file, line = M._exec_context.line }
+  end
 end
 
 function M.set_script_variable(name, value)
   M.script_variables[name] = value
+  if M._exec_context and not M.script_variables_sources[name] then
+    M.script_variables_sources[name] = { file = M._exec_context.file, line = M._exec_context.line }
+  end
 end
 
 function M.set_json_filter(query)

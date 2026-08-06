@@ -7,6 +7,8 @@ local nav_text = require("poste-http.http.nav.text")
 
 local M = {}
 
+local _hover = nil
+
 local function use_ts()
   return state.config.use_treesitter and state.config.use_treesitter.nav ~= false
 end
@@ -166,8 +168,15 @@ function M.show_var_value()
     return
   end
 
-  local resolved = nil
-  local source = nil
+  if _hover and vim.api.nvim_win_is_valid(_hover.win) and _hover.buf == buf and _hover.var_name == var_name then
+    vim.api.nvim_set_current_win(_hover.win)
+    return
+  end
+
+  if _hover and vim.api.nvim_win_is_valid(_hover.win) then
+    pcall(vim.api.nvim_win_close, _hover.win, true)
+    _hover = nil
+  end
 
   local buf_path = vim.api.nvim_buf_get_name(buf)
   local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -183,22 +192,10 @@ function M.show_var_value()
     env_name = state.current_env,
   })
   local value = resolver:resolve(var_name)
-  if value then
-    resolved = value
-    source = "Lua VarResolver"
-  end
-
-  if not resolved then
-    resolved = "(unresolved)"
-    source = "unknown"
-  end
+  local resolved = value or "(unresolved)"
 
   local title = "{{" .. var_name .. "}}"
   local lines = { resolved }
-  if source then
-    table.insert(lines, "")
-    table.insert(lines, "— " .. source)
-  end
 
   local max_width = math.min(math.floor(vim.o.columns * 0.7), 80)
   local width = 0
@@ -214,26 +211,40 @@ function M.show_var_value()
   vim.bo[float_buf].bufhidden = "wipe"
 
   local win_opts = {
-    relative = "editor",
-    row = math.floor((vim.o.lines - height) / 2),
-    col = math.floor((vim.o.columns - width) / 2),
+    relative = "cursor",
+    row = 1,
+    col = 0,
     width = width, height = height, style = "minimal",
     border = "rounded", title = title, title_pos = "left",
+    focusable = false,
   }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+  local ok, win = pcall(vim.api.nvim_open_win, float_buf, false, win_opts)
   if not ok then
     win_opts.title = nil; win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
+    ok, win = pcall(vim.api.nvim_open_win, float_buf, false, win_opts)
     if not ok then
       pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
       return
     end
   end
 
-  vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
-    { buffer = float_buf, noremap = true, silent = true })
-  vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, win, true) end,
-    { buffer = float_buf, noremap = true, silent = true })
+  _hover = { win = win, buf = buf, var_name = var_name }
+
+  local hover_group = vim.api.nvim_create_augroup("PosteHoverWin_" .. win, { clear = true })
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = hover_group,
+    pattern = tostring(win),
+    callback = function() _hover = nil end,
+  })
+
+  vim.keymap.set("n", "q", function()
+    pcall(vim.api.nvim_win_close, win, true)
+    _hover = nil
+  end, { buffer = float_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "<Esc>", function()
+    pcall(vim.api.nvim_win_close, win, true)
+    _hover = nil
+  end, { buffer = float_buf, noremap = true, silent = true })
 end
 
 function M.goto_definition()

@@ -24,6 +24,7 @@ M.pick_env = env_mod.pick_env
 M.jump_next = nav.jump_next
 M.jump_prev = nav.jump_prev
 M.show_var_value = nav.show_var_value
+M.show_variable_inspector = require("poste-http.http.variable_inspector").show_inspector
 M.goto_definition = nav.goto_definition
 M.goto_references = nav.goto_references
 M.run_request = run.run_request

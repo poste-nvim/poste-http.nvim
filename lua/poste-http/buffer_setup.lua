@@ -34,6 +34,12 @@ function M.setup_buffer_keymaps(buf)
     if k and nav.goto_references then vim.keymap.set("n", k, nav.goto_references, keymap_opts) end
     k = km("http_source", "show_var_value", "K")
     if k and nav.show_var_value then vim.keymap.set("n", k, nav.show_var_value, keymap_opts) end
+    k = km("http_source", "show_variable_inspector", "gi")
+    if k then
+      vim.keymap.set("n", k, function()
+        require("poste-http.http.variable_inspector").show_inspector()
+      end, keymap_opts)
+    end
   end
 
   local k = km("http_source", "quickfix_next", "]q")

@@ -150,6 +150,11 @@ function M.run_assertions(response_data, code, script_vars)
     variables = {
       set = function(name, value)
         state.script_variables[name] = tostring(value)
+        local ctx = state._exec_context
+        local line = ctx and ctx.set_lines and ctx.set_lines[name] or (ctx and ctx.line)
+        if line then
+          state.script_variables_sources[name] = { file = ctx.file, line = line }
+        end
         state.log("INFO", string.format("Post-script: request.variables.set('%s', '%s')", name, tostring(value)))
       end,
       get = function(name)
@@ -158,11 +163,15 @@ function M.run_assertions(response_data, code, script_vars)
     },
   }
 
-  -- Build client object
   local client = {
     global = {
       set = function(name, value)
-        state.global_vars[name] = tostring(value)
+        local ctx = state._exec_context
+        local line = ctx and ctx.set_lines and ctx.set_lines[name] or (ctx and ctx.line)
+        state.set_global_var(name, tostring(value))
+        if line then
+          state.global_vars_sources[name] = { file = ctx.file, line = line }
+        end
         state.log("INFO", string.format("Post-script: client.global.set('%s', '%s')", name, tostring(value)))
       end,
       get = function(name)

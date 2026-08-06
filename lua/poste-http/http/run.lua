@@ -20,6 +20,29 @@ local uv = vim.uv or vim.loop
 
 local M = {}
 
+local function scan_script_set_calls(buf_lines, block_start, block_end)
+  local map = {}
+  for i = block_start or 1, block_end or #buf_lines do
+    local line = buf_lines[i]
+    if line then
+      local name = line:match('client%.global%.set%s*%(%s*"([^"]+)"')
+      if not name then
+        name = line:match("client%.global%.set%s*%(%s*'([^']+)'")
+      end
+      if not name then
+        name = line:match('request%.variables%.set%s*%(%s*"([^"]+)"')
+      end
+      if not name then
+        name = line:match("request%.variables%.set%s*%(%s*'([^']+)'")
+      end
+      if name then
+        map[name] = i
+      end
+    end
+  end
+  return map
+end
+
 ---------------------------------------------------------------------------
 -- Pipeline helpers
 ---------------------------------------------------------------------------
@@ -213,7 +236,10 @@ local function handle_curl_response(response, ctx)
 
     emit_response(response, current_req_name, file, nil, nil)
 
+    local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
+    state._exec_context = { file = file, line = req_line + 1, set_lines = scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
     local assertion_results = run_and_store_assertions(response, assertion_code, script_vars)
+    state._exec_context = nil
     local view_name = choose_view_tab(response, assertion_results)
     view.show_view(view_name)
     set_result_indicator(src_buf, req_line, response, assertion_results)
@@ -468,9 +494,11 @@ local function execute_request(ctx, callback)
     script_vars = scripts.collect_script_variables(buf_content, block_start, block_end)
   end
 
-  -- Run pre-request script if present
   if pre_script_code then
+    local set_lines = scan_script_set_calls(vim.split(buf_content, "\n", { plain = true }), block_start, block_end)
+    state._exec_context = { file = file, line = block_start, set_lines = set_lines }
     local pre_result = scripts.run_pre_script(pre_script_code, script_vars)
+    state._exec_context = nil
     if pre_result.error then
       state.log("ERROR", pre_result.error)
       indicators.set_indicator(src_buf, req_line, "error")
@@ -491,7 +519,7 @@ local function execute_request(ctx, callback)
       block_end = block_end + injected_count
       line = line + injected_count
       for name, value in pairs(pre_result.variables) do
-        state.script_variables[name] = value
+        state.set_script_variable(name, value)
       end
     end
   end

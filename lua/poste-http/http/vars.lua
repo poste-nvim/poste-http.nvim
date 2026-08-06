@@ -81,7 +81,6 @@ function M.collect_var_defs(lines, start_idx, end_idx)
         name, value = trimmed:match("^@(%S+)%s+(.+)")
       end
       if name and value then
-        -- Multi-line variable: @var=>>> ... <<<
         if value:match("^>>>%s*$") then
           local multiline = {}
           i = i + 1
@@ -99,6 +98,45 @@ function M.collect_var_defs(lines, start_idx, end_idx)
           value = value:match("^'(.-)'$") or value:match('^"(.-)"$') or value
         end
         vars[name] = value
+      end
+    end
+    i = i + 1
+  end
+  return vars
+end
+
+function M.collect_var_defs_with_lines(lines, start_idx, end_idx)
+  local vars = {}
+  end_idx = end_idx or #lines
+  local i = start_idx or 1
+  while i <= end_idx do
+    local line = lines[i]
+    if not line then break end
+    local line_num = i
+    local trimmed = vim.trim(line)
+    if trimmed:sub(1, 1) == "@" then
+      local name, value = trimmed:match("^@(%S+)%s*=%s*(.+)")
+      if not name then
+        name, value = trimmed:match("^@(%S+)%s+(.+)")
+      end
+      if name and value then
+        if value:match("^>>>%s*$") then
+          local multiline = {}
+          i = i + 1
+          while i <= end_idx do
+            local ml = lines[i]
+            if not ml then break end
+            if vim.trim(ml):match("^<<<%s*$") then
+              break
+            end
+            table.insert(multiline, ml)
+            i = i + 1
+          end
+          value = table.concat(multiline, "\n")
+        else
+          value = value:match("^'(.-)'$") or value:match('^"(.-)"$') or value
+        end
+        vars[name] = { value = value, line = line_num }
       end
     end
     i = i + 1
@@ -148,6 +186,61 @@ function M.load_env_vars(file_path, env_name)
     dir = parent
   end
   return {}
+end
+
+function M.load_env_vars_with_lines(file_path, env_name)
+  local result = {}
+  if not file_path or file_path == "" then return result end
+  if not env_name or env_name == "" then return result end
+  local dir = vim.fn.fnamemodify(file_path, ":h")
+  local seen = {}
+  local env_path = nil
+  while true do
+    local candidate = dir .. "/env.json"
+    if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
+      env_path = candidate
+      break
+    end
+    local parent = vim.fn.fnamemodify(dir, ":h")
+    if parent == dir then break end
+    dir = parent
+  end
+  if not env_path then return result end
+
+  local lines = {}
+  local f = io.open(env_path, "r")
+  if not f then return result end
+  for line in f:lines() do
+    table.insert(lines, line)
+  end
+  f:close()
+
+  local in_section = false
+  local brace_depth = 0
+  for i, line in ipairs(lines) do
+    local trimmed = vim.trim(line)
+    if not in_section then
+      if trimmed:match('^"' .. vim.pesc(env_name) .. '"%s*:') then
+        in_section = true
+        brace_depth = brace_depth + trimmed:gsub("[^{]", ""):len() - trimmed:gsub("[^}]", ""):len()
+      end
+    else
+      local key = trimmed:match('^"([^"]+)"%s*:')
+      if key then
+        local value = trimmed:match('^"[^"]+"%s*:%s*(.+)')
+        if value then
+          value = value:gsub(",%s*$", "")
+          value = value:match("^%s*'(.-)'%s*$") or value:match('^%s*"(.-)"%s*$') or value:match("^%s*(%S.-)%s*$") or value
+          result[key] = { value = value, line = i }
+        end
+      end
+      brace_depth = brace_depth + trimmed:gsub("[^{]", ""):len() - trimmed:gsub("[^}]", ""):len()
+      if brace_depth <= 0 then
+        break
+      end
+    end
+  end
+  return result
 end
 
 function M.build_resolver_from_state(opts)
@@ -201,6 +294,8 @@ end
 
 M._test = {
   collect_var_defs = M.collect_var_defs,
+  collect_var_defs_with_lines = M.collect_var_defs_with_lines,
+  load_env_vars_with_lines = M.load_env_vars_with_lines,
 }
 
 return M
