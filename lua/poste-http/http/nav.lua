@@ -194,36 +194,23 @@ function M.show_var_value()
   local value = resolver:resolve(var_name)
   local resolved = value or "(unresolved)"
 
-  local title = "{{" .. var_name .. "}}"
+  local title = " " .. var_name .. " "
   local lines = { resolved }
 
-  local max_width = math.min(math.floor(vim.o.columns * 0.7), 80)
-  local width = 0
-  for _, l in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(l))
-  end
-  width = math.min(width + 4, max_width)
-
-  local height = math.min(#lines + 2, math.floor(vim.o.lines * 0.4))
-  local float_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
-  vim.bo[float_buf].modifiable = false
-  vim.bo[float_buf].bufhidden = "wipe"
-
-  local win_opts = {
-    relative = "cursor",
-    row = 1,
-    col = 0,
-    width = width, height = height, style = "minimal",
-    border = "rounded", title = title, title_pos = "left",
+  local float_buf, win
+  local ok
+  ok, float_buf, win = pcall(vim.lsp.util.open_floating_preview, lines, "text", {
+    border = "single",
+    title = title,
+    title_pos = "left",
     focusable = false,
-  }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, false, win_opts)
-  if not ok then
-    win_opts.title = nil; win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, false, win_opts)
-    if not ok then
-      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+  })
+  if not ok or not float_buf then
+    ok, float_buf, win = pcall(vim.lsp.util.open_floating_preview, lines, "text", {
+      border = "single",
+      focusable = false,
+    })
+    if not ok or not float_buf then
       return
     end
   end
