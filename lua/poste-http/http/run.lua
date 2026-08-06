@@ -224,8 +224,8 @@ local function handle_curl_response(response, ctx)
 end
 
 --- Build pending request info for the Verbose tab.
---- Variable resolution via `poste resolve`; method/path/headers via `poste run --describe`
---- (single parse authority — no Lua re-parse of request blocks).
+--- Variable resolution via the Lua resolver; method/path/headers via
+--- tree-sitter describe (single parse authority — no Lua re-parse of request blocks).
 local function build_pending_request(src_buf, buf_content, req_block, block_start, block_end, file)
   -- Fallback headers from req_block (Lua indicators extract, used only if describe fails)
   local fallback_headers_str = describe.headers_str(req_block and { headers = req_block.headers } or nil)

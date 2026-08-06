@@ -356,19 +356,11 @@ env.key                                   -- Read current env.json value
 
 ## How Resolution Works
 
-### CLI-based Resolution
+### Resolution in the plugin
 
-All variable resolution goes through a single resolver in the Rust CLI.
+All variable resolution goes through a single Lua resolver.
 When you press `K` on a `{{variable}}`, copy as curl, or view the Verbose
-preview, Poste calls:
-
-```
-poste resolve --file request.http --block 42 --var session_id \
-  --session-vars '{"session_id":"sess-123"}' \
-  --env dev
-```
-
-The resolver checks each layer in priority order and returns the first match.
+preview, Poste resolves the variable in-memory using the same priority chain.
 
 ### Unified Priority Chain
 
@@ -391,49 +383,14 @@ resolved independently by looking up the cached response of the named request.
 
 ---
 
-## CLI Usage
+## Keymaps for Variables
 
-The `poste resolve` command provides the same resolution logic used internally:
+There is no standalone CLI — variable inspection and formatting are available
+from the plugin keymaps:
 
-```bash
-# Resolve a single variable (like K key)
-poste resolve --file request.http --block 42 --var session_id \
-  --session-vars '{"session_id":"sess-123"}' \
-  --env dev
-
-# Resolve and format as curl (like <leader>rc)
-poste resolve --file request.http --block 42 --format curl \
-  --session-vars '{"session_id":"sess-123"}' \
-  --env dev
-
-# Resolve full request content (like Verbose preview)
-poste resolve --file request.http --block 42 --format content \
-  --session-vars '{"session_id":"sess-123"}' \
-  --env dev
-
-# With import parameters (highest priority)
-poste resolve --file request.http --block 12 --var timeout \
-  --import-params '{"timeout":"30"}' \
-  --env dev
-
-# Pipe buffer content (for unsaved buffers)
-echo '@host = http://localhost:8888
-GET {{host}}/health' | poste resolve --stdin --file /tmp/test.http --block 2 --var host
-```
-
-### Options
-
-| Option | Description |
-|--------|-------------|
-| `--file <PATH>` | `.http` file path |
-| `--block <LINE>` | Block line number |
-| `--var <NAME>` | Resolve a single variable |
-| `--format <FORMAT>` | Output: `value`, `content`, `verbose`, `curl` |
-| `--import-params <JSON>` | Import parameters `{"key":"val"}` |
-| `--session-vars <JSON>` | Session/global variables |
-| `--script-vars <JSON>` | Script variables |
-| `--env <NAME>` | Environment name (default: `dev`) |
-| `--stdin` | Read content from stdin |
-
----
+| Action | Keymap | Description |
+|--------|--------|-------------|
+| Inspect a variable | `K` | Show the resolved value of `{{var}}` under cursor |
+| Copy as curl | `<leader>rc` | Copy the resolved request as a curl command |
+| Verbose preview | see [keymaps](./keymaps.md) | Show resolved request headers/body |
 

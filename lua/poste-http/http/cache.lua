@@ -1,8 +1,8 @@
 --- Cache management for HTTP completion.
 ---
 --- UI-level indexing only (line types, block bounds, var names, imports).
---- HTTP semantics (method / path / headers / body) come from the single parse
---- authority: `poste run --describe` via `poste.http.describe` — see Phase 2a.
+--- HTTP semantics (method / path / headers / body) come from the single
+--- tree-sitter parse authority via `poste.http.describe`.
 
 local M = {}
 
@@ -492,12 +492,12 @@ function M.collect_import_index(buf)
 end
 
 ---------------------------------------------------------------------------
--- Semantic block metadata (Phase 2a — single parse authority)
--- method / path / headers come from `poste run --describe`, not Lua scanning.
----------------------------------------------------------------------------
+-- Semantic block metadata (single parse authority)
+-- method / path / headers come from tree-sitter describe, not Lua scanning.
+--------------------------------------------------------------------------
 
---- Get structured block metadata for a buffer via the CLI describe command.
---- Cached by changedtick. Returns empty table if binary is unavailable.
+--- Get structured block metadata for a buffer via tree-sitter describe.
+--- Cached by changedtick. Returns empty table if the parser is unavailable.
 ---
 --- @param buf number|nil
 --- @return table  array of BlockMeta { name, line, end_line, method, path, headers, body, request_line }

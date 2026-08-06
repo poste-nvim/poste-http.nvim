@@ -1,6 +1,6 @@
 # Poste Documentation
 
-> **Poste** — File-driven, keyboard-first HTTP request executor (Rust CLI + Neovim plugin)
+> **Poste** — File-driven, keyboard-first HTTP request executor (Lua + tree-sitter + curl)
 >
 > `.http` → execute → results in editable Vim buffers
 
@@ -22,7 +22,7 @@ See the [project README](../README.md) for features, installation, quick start, 
 |------|----------|-------------|
 | General | [Architecture](./dev/architecture-overview.md) | Layered architecture, protocol isolation, data flow |
 | General | [File Index](./dev/file-index.md) | Key files quick reference |
-| General | [Testing Guide](./dev/testing.md) | Rust + Lua testing workflows |
+| General | [Testing Guide](./dev/testing.md) | Lua + tree-sitter grammar testing workflows |
 | **HTTP** | [Dev Docs](./dev/http/README.md) | TDD guide, formatter design, JSON UX, history |
 
 ---

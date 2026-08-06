@@ -1,6 +1,6 @@
 # Poste HTTP Formatter Design
 
-> **Status**: ✅ Implemented — `poste fmt` is available as a CLI subcommand (see `crates/poste-core/src/formatter.rs` and `crates/poste-cli/src/fmt.rs`)
+> **Status**: ✅ Implemented — now a pure-Lua formatter (`lua/poste-http/http/format_file.lua`, `:PosteFormatHttp`). This Rust-oriented design doc is kept for historical reference only.
 
 ## 1. Background
 
@@ -8,9 +8,12 @@
 
 Syntax specification is in [user syntax doc](../../user/http/syntax.md).
 
-## 2. Architecture Decision: Rust `poste fmt`
+## 2. Architecture Decision: Rust `poste fmt` (superseded)
 
-**Not using a Lua implementation.**
+> The Rust `poste fmt` approach in this section was later replaced. Formatting is
+> now done in pure Lua via `lua/poste-http/http/format_file.lua` (see the
+> [Rust Retirement Plan](../rust-retirement-plan.md), Phase 4). The sections below
+> are kept for historical reference.
 
 ### Rationale
 
@@ -199,48 +202,7 @@ client.assert(response.status == 200);
 %}
 ```
 
-## 4. CLI Integration
-
-```
-USAGE:
-    poste fmt [OPTIONS] [FILE]...
-
-ARGS:
-    <FILE>...    Files to format (default: stdin)
-
-OPTIONS:
-    --check          Check formatting without modifying (exit 1 if unformatted)
-    --stdin          Read from stdin (default if no file args)
-    -i, --in-place   Modify files in-place (default)
-    -h, --help       Print help
-```
-
-### conform.nvim Integration
-
-```lua
-require("conform").formatters.poste_http = {
-  command = "poste",
-  args = { "fmt", "--stdin" },
-  stdin = true,
-}
-
-require("conform").formatters_by_ft["poste_http"] = { "poste_http" }
-```
-
-### CI / pre-commit Integration
-
-```yaml
-# .pre-commit-config.yaml
-- repo: local
-  hooks:
-    - id: poste-http-fmt
-      name: Format .http files
-      entry: poste fmt --check
-      language: system
-      files: \.(http|rest)$
-```
-
-## 5. Future
+## 4. Future
 
 - [ ] `kulala-fmt` compatibility adaptation
 

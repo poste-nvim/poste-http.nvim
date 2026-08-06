@@ -10,7 +10,7 @@
 |----------|-------------|
 | [Architecture Overview](./architecture-overview.md) | Layered architecture, protocol isolation, data flow |
 | [File Index](./file-index.md) | Key files quick reference |
-| [Testing Guide](./testing.md) | Rust + Lua + Docker SQL testing |
+| [Testing Guide](./testing.md) | Lua + tree-sitter grammar testing |
 | [Refactoring Plan](./refactoring-plan.md) | F1–F8 architecture debt, phased remediation plan |
 | [Protocol Split Design](./protocol-split-design.md) | HTTP ↔ SQL repo split proposal |
 | [Archived Docs](./archived/README.md) | Outdated design documents |
@@ -20,7 +20,7 @@
 | Document | Description |
 |----------|-------------|
 | [TDD Guide](./http/tdd-guide.md) | HTTP TDD workflow and test patterns |
-| [Formatter Design](./http/format-design.md) | `poste fmt` architecture (✅ implemented) |
+| [Formatter Design](./http/format-design.md) | tree-sitter formatter (✅ implemented) |
 | [JSON Response UX](./http/json-response-ux.md) | JSON folding and jq exploration |
 | [OpenAPI/Swagger/Postman Import](./http/openapi-import-plan.md) | TDD import feature plan (18 steps) |
 | [HTTP History Design](./http/http-history.md) | Request history UI design |
@@ -33,16 +33,7 @@ SQL docs moved to [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) 
 ## Build
 
 ```bash
-cargo build          # Build CLI
-cargo test           # Run Rust tests
 tests/run.sh         # Run Lua tests
-```
-
-### SQL Integration Tests
-
-```bash
-cd tests/sql && docker compose up -d   # PG 16 + MySQL 8.0
-cargo run -- run tests/sql/queries/postgres.sql --line 4 --env dev
 ```
 
 ---

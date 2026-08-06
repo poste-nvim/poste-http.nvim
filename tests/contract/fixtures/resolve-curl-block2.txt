@@ -1,4 +1,0 @@
-curl -X POST 'http://example.com/api/users' -H 'Content-Type: application/json' -d '{
-"name": "Ada",
-"email": "ada@test.com"
-}'

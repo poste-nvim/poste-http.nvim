@@ -95,7 +95,7 @@ end
 ---------------------------------------------------------------------------
 
 --- Run assertion code in a sandboxed environment.
---- @param response_data table  Parsed response from Rust CLI
+--- @param response_data table  Parsed response data
 --- @param code string  Assertion code to execute
 --- @param script_vars table|nil  { variables = { name = value }, env = { key = value } }
 --- Returns: { tests = [...], logs = [...], total = N, passed = N, failed = N }

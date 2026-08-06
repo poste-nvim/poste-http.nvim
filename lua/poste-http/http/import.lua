@@ -553,7 +553,7 @@ end
 --- Process target block's post-script: extract and run assertion code.
 --- This enables client.global.set() calls from the target block to persist
 --- (e.g., setting a token) for subsequent requests in the calling file.
---- @param response table  Parsed response from Rust CLI
+--- @param response table  Parsed response data
 --- @param content string  Target file content (original, before pre-script injection)
 --- @param block_start number  ### marker line (1-indexed)
 --- @param block_end number  End line

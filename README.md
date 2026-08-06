@@ -27,14 +27,6 @@ Convert API specs to `.http` files. Supports OpenAPI 3.x, Swagger 2.0, and Postm
 :PosteImportPostman
 ```
 
-### CLI
-
-```bash
-poste import openapi spec.json --out ./http-requests
-poste import swagger petstore.yaml --out ./http-requests
-poste import postman collection.json --out ./http-requests
-```
-
 ## Quick Start
 
 ### Install
@@ -196,15 +188,11 @@ Prompt variables allow interactive input when running a request.
 
 ## CLI
 
-```bash
-# Run a request
-poste run requests/api.http --line 4 --env dev
+There is no standalone CLI. Requests run directly from Neovim:
 
-# Import API specs
-poste import openapi spec.json --out ./http-requests
-poste import swagger spec.yaml --out ./http-requests
-poste import postman collection.json --out ./http-requests
-```
+- `:PosteRun` (or the `run` keymap) to run the request under the cursor
+- `:PosteCopyAsCurl` to copy the request as a curl command
+- `:PosteImportOpenAPI` / `:PosteImportSwagger` / `:PosteImportPostman` to import specs
 
 ## License
 

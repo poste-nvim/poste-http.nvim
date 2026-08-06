@@ -1,3 +1,0 @@
-### Get Users
-GET http://example.com:8080/api/users
-Accept: application/json
