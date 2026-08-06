@@ -1,4 +1,5 @@
 local state = require("poste-http.state")
+local block_boundary = require("poste-http.http.block_boundary")
 
 local M = {}
 
@@ -52,14 +53,13 @@ local function describe_via_treesitter(content)
 
   local function finalize_block()
     if not current_block then return end
-    local end_line = line_count
-    for i = current_block._line + 1, line_count do
-      if lines[i] and lines[i]:match("^###") then
-        end_line = i - 1
-        break
-      end
-    end
+    local end_line, last_content = block_boundary.compute_block_range(lines, current_block._line)
     current_block.end_line = end_line
+
+    -- Mirror cache.lua's last_content_line so trailing comments / separators
+    -- after a request body are not part of the block range.
+    current_block.last_content_line = last_content
+
     current_block.body = ""
     if current_block._body_text then
       current_block.body = current_block._body_text
@@ -188,20 +188,17 @@ end
 
 function M.block_at_line(blocks, line)
   if not blocks or not line then return nil end
+  -- A line belongs to a block only within its content range (up to
+  -- last_content_line). Trailing comments / separator lines after a request
+  -- body belong to no block — same rule as cache.get_block_at_line.
   for _, b in ipairs(blocks) do
     local start_l = b.line or 0
-    local end_l = b.end_line or start_l
+    local end_l = b.last_content_line or (b.end_line or start_l)
     if line >= start_l and line <= end_l then
       return b
     end
   end
-  local best = nil
-  for _, b in ipairs(blocks) do
-    if (b.line or 0) <= line then
-      best = b
-    end
-  end
-  return best
+  return nil
 end
 
 function M.to_req_block(meta)

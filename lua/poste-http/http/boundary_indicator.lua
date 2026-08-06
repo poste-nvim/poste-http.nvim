@@ -56,7 +56,7 @@ local function find_block(buf, cursor)
   local cache = require("poste-http.http.cache")
   local block = cache.get_semantic_block_at_line(buf, cursor)
   if block and block.line and block.end_line then
-    return block.line, block.end_line
+    return block.line, block.last_content_line or block.end_line
   end
   block = cache.get_block_at_line(buf, cursor)
   if not block then return nil, nil end

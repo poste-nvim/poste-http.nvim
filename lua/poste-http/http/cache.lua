@@ -6,6 +6,8 @@
 
 local M = {}
 
+local block_boundary = require("poste-http.http.block_boundary")
+
 -- Buffer-level caches (invalidated on text change via changedtick)
 local buffer_caches = {}     -- bufnr → { changedtick, file_vars, req_names, import_index }
 local semantic_caches = {}   -- bufnr → { changedtick, blocks }  -- from CLI describe
@@ -65,7 +67,7 @@ function M.get_buffer_cache(buf)
     local t
 
     if not past_first_block then
-      if line:match("^%s*###") then
+      if block_boundary.is_separator(line) then
         past_first_block = true
         request_found_in_block = false
         body_started = false
@@ -141,7 +143,7 @@ function M.get_buffer_cache(buf)
         end
       end
     else
-      if line:match("^%s*###") then
+      if block_boundary.is_separator(line) then
         if current_block then
           current_block.end_line = i - 1
           if not current_block.last_content_line then
@@ -242,7 +244,7 @@ function M.get_buffer_cache(buf)
         t = "body"
       end
 
-      if current_block and trimmed ~= "" and not trimmed:match("^#") and not trimmed:match("^%-%-") then
+      if current_block and block_boundary.is_content(line) then
         current_block.last_content_line = i
       end
     end
@@ -614,7 +616,7 @@ function M.find_request_line(buf, start_line)
     elseif trimmed:match("^<%s*%.?%.") and trimmed:match("%.lua%s*$") then
     elseif trimmed:match("^@%S+%s*[= ]") then
     elseif trimmed:match("^<<") then
-    elseif trimmed == "" or trimmed:match("^#") or trimmed:match("^%-%-") then
+    elseif trimmed == "" or block_boundary.is_comment(text) then
     else
       return i - 1
     end
