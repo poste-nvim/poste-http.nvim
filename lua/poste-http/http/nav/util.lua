@@ -97,4 +97,41 @@ function M.find_var_in_pre_script(buf, var_name, cursor_line)
   return nil
 end
 
+--- Jump to the definition of a client.run("#target", ...) reference inside a
+--- SCRIPT block. Resolves the target through the buffer's imports and opens
+--- the imported file at the request block.
+--- @param buf number
+--- @param line_num number  1-based cursor line
+--- @param col number       0-based cursor column
+--- @return boolean  true when the line contains a client.run call (handled or
+---                  failed); false when this is not a client.run reference
+function M.goto_client_run_definition(buf, line_num, col)
+  local line_text = vim.api.nvim_buf_get_lines(buf, line_num - 1, line_num, false)[1] or ""
+  local pos = col + 1
+
+  local call_s, call_e = line_text:find("client%.run%s*%(")
+  if not call_s then return false end
+
+  -- First quoted "#target" after the call: "#alias.Name" or "#Name"
+  local qs, qe, target = line_text:find('["\']#([^"\']+)["\']', call_e + 1)
+  if not qs then return false end
+
+  -- Only handle when the cursor is on the quoted reference
+  if pos < qs or pos > qe then return false end
+
+  local import_mod = require("poste-http.http.import")
+  local resolved, err = import_mod.resolve_request_reference(target, buf)
+  if not resolved then
+    vim.notify(err or ("Cannot resolve request '%s'"):format(target), vim.log.levels.WARN)
+    return true
+  end
+
+  vim.cmd("normal! m'")
+  vim.cmd("edit " .. vim.fn.fnameescape(resolved.path))
+  local target_text = (vim.api.nvim_buf_get_lines(0, resolved.line - 1, resolved.line, false) or {})[1] or ""
+  local name_col = (target_text:find(vim.pesc(resolved.request_name)) or 2) - 1
+  vim.api.nvim_win_set_cursor(0, { resolved.line, name_col })
+  return true
+end
+
 return M

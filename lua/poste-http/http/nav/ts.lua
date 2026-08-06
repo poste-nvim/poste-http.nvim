@@ -252,6 +252,11 @@ function M.goto_definition()
   end
 
   if node_type == "post_script" or node_type == "pre_script" or node_type == "script_block" then
+    -- client.run("#alias.Name", ...) → jump to the imported request definition
+    if nav_util.goto_client_run_definition(buf, cursor[1], col) then
+      return
+    end
+
     local ok_lua, lua_parser = pcall(vim.treesitter.get_parser, buf, "lua")
     local var_name = nil
     if ok_lua and lua_parser then

@@ -16,6 +16,10 @@ function M.goto_definition()
   local line_text = vim.api.nvim_buf_get_lines(buf, line_num - 1, line_num, false)[1] or ""
 
   local trimmed = vim.trim(line_text)
+  -- client.run("#alias.Name", ...) inside SCRIPT blocks
+  if nav_util.goto_client_run_definition(buf, line_num, col) then
+    return
+  end
   if trimmed:match("^run%s+#") then
     local cword = vim.fn.expand("<cword>")
     local ref = trimmed:match("^run%s+#(.+)$")
