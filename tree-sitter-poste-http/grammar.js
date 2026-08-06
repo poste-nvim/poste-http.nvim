@@ -50,12 +50,19 @@ module.exports = grammar({
     request_name: $ => /[^\n]*/,
 
     // ─── Request Line ───────────────────────────────
-    request_line: $ => seq(
-      $.method,
-      WS,
-      $.url,
-      optional(seq(WS, $.http_version)),
-      NL,
+    request_line: $ => choice(
+      seq(
+        $.method,
+        WS,
+        $.url,
+        optional(seq(WS, $.http_version)),
+        NL,
+      ),
+      // Bare SCRIPT method (script-only block, no URL)
+      seq(
+        $.method_script,
+        NL,
+      ),
     ),
 
     method: $ => choice(

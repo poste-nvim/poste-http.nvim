@@ -17,7 +17,10 @@ http/
 │   ├── test_server.http        Comprehensive endpoint test (50+ requests)
 │   ├── variable_resolver_test.http
 │   ├── variable_resolver_imported.http
-│   └── lua_import_demo.http    Lua import feature demo (see data/lua_vars.lua)
+│   ├── lua_import_demo.http    Lua import feature demo (see data/lua_vars.lua)
+│   ├── orchestration_requests.http     Request library for client.run demos
+│   ├── orchestration_demo.http          client.run orchestration demo
+│   └── orchestration_run_directive.http import/run single-step demo
 │
 └── data/                       ← Test data files
     ├── simple.txt
@@ -38,6 +41,9 @@ curl -sf http://localhost:8888/health
 
 # Run a test scenario
 cargo run -- run --line 6 scenarios/test_server.http
+
+# In Neovim: open a scenario file, put the cursor on a request/run/SCRIPT line,
+# and press <CR> (or :PosteRun).
 
 # Stop the server
 docker compose -f server/docker-compose.yml down
@@ -74,3 +80,16 @@ Content-Type: application/json
 ```
 
 See `scenarios/lua_import_demo.http` for a full demo.
+
+## Request Orchestration (client.run)
+
+`orchestration_demo.http` runs a whole flow from a single `SCRIPT` block:
+login → profile → register 3 users in a loop → verify. The requests it calls
+live in `orchestration_requests.http` and can also be executed one at a time
+from `orchestration_run_directive.http` with the `run` directive.
+
+The demo depends on the stateful demo API added to `server/server.py`
+(`POST /api/login`, `GET /api/profile`, `POST /api/users`,
+`GET /api/users`, `GET /api/users/{id}`). Login issues an in-memory token;
+password `wrong` returns 401 so the failure-path demo in
+`orchestration_demo.http` can show script abort + error rendering.

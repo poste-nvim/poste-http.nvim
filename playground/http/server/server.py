@@ -69,6 +69,12 @@ Endpoints:
   GET /response-headers?k=v       Set custom response headers
   GET /cached/{etag}              Return 304 if matching ETag sent
 
+  POST /api/login                 Issue auth token (password "wrong" → 401)
+  GET  /api/profile               Require Bearer token, return profile
+  POST /api/users                 Create a user (in-memory)
+  GET  /api/users                 List all users
+  GET  /api/users/{id}            Get one user
+
 Usage:
   Start:    docker compose up -d
   Logs:     docker compose logs -f
@@ -1528,6 +1534,127 @@ async def drip_endpoint(numbytes: int = 100, duration: float = 2.0, code: int = 
             "X-Drip-Duration": str(duration),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Catch-all 404
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Stateful demo API (orchestration scenarios)
+#
+# A tiny in-memory auth + user API used by the request-orchestration demos:
+#   POST /api/login                 → 200 {token, username, expires_in} | 401
+#   GET  /api/profile               → 200 {username, email, role} | 401
+#   POST /api/users                 → 201 {id, name, age, created_at} | 400
+#   GET  /api/users/{user_id}       → 200 user | 404
+#   GET  /api/users                 → 200 {users, count}
+#
+# Login accepts any username/password except password == "wrong" (→ 401), so
+# orchestration scripts can exercise both success and failure paths.
+# ---------------------------------------------------------------------------
+
+_tokens: dict[str, dict[str, Any]] = {}
+_users: dict[int, dict[str, Any]] = {}
+_user_seq = 0
+_auth_store_lock = asyncio.Lock()
+
+
+@app.post("/api/login")
+async def api_login(request: Request):
+    body = await request.body()
+    try:
+        data = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    username = str(data.get("username", ""))
+    password = str(data.get("password", ""))
+    if password == "wrong":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = uuid_mod.uuid4().hex
+    async with _auth_store_lock:
+        _tokens[token] = {
+            "username": username,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    return JSONResponse(
+        {
+            "token": token,
+            "username": username,
+            "expires_in": 3600,
+        }
+    )
+
+
+@app.get("/api/profile")
+async def api_profile(request: Request):
+    auth = request.headers.get("authorization", "")
+    token = auth[7:] if auth.startswith("Bearer ") else ""
+
+    async with _auth_store_lock:
+        entry = _tokens.get(token)
+    if not entry:
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+
+    username = entry["username"]
+    return JSONResponse(
+        {
+            "username": username,
+            "email": f"{username}@example.com",
+            "role": "admin" if username == "alice" else "user",
+            "token_created_at": entry["created_at"],
+        }
+    )
+
+
+@app.post("/api/users")
+async def api_create_user(request: Request):
+    body = await request.body()
+    try:
+        data = json.loads(body) if body else {}
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    name = str(data.get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    try:
+        age = int(data.get("age", 0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="age must be an integer")
+
+    global _user_seq
+    async with _auth_store_lock:
+        _user_seq += 1
+        user = {
+            "id": _user_seq,
+            "name": name,
+            "age": age,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        _users[_user_seq] = user
+
+    return JSONResponse(user, status_code=201)
+
+
+@app.get("/api/users")
+async def api_list_users():
+    async with _auth_store_lock:
+        users = [dict(u) for _, u in sorted(_users.items())]
+    return JSONResponse({"users": users, "count": len(users)})
+
+
+@app.get("/api/users/{user_id}")
+async def api_get_user(user_id: int):
+    async with _auth_store_lock:
+        user = _users.get(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return JSONResponse(user)
 
 
 # ---------------------------------------------------------------------------

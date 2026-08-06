@@ -1,0 +1,64 @@
+# =============================================================================
+# Orchestration Request Library
+# =============================================================================
+#
+# A "request library" file: each request is meant to be tested manually (like
+# Postman) or called from an orchestration SCRIPT block via client.run():
+#
+#   import ./orchestration_requests.http as api
+#   ...
+#   local login = client.run("#api.Login", { username = "alice", password = "secret" })
+#
+# Request arguments are passed as @var overrides and referenced with {{name}}
+# below (username, password, auth_token, name, age, user_id).
+#
+# Server: playground/http/server/server.py (POSTE_TEST_PORT default 8888)
+# =============================================================================
+
+@host = http://localhost:8888
+
+### Login
+# Issues a token. Post-script stores it as a global (auth_token) so later
+# manual runs / run directives can reuse it via {{auth_token}}.
+#   Manual:   run #api.Login (@username=alice, @password=secret)
+#   Script:   client.run("#api.Login", { username = "alice", password = "secret" })
+POST {{host}}/api/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+> {%
+  client.global.set('auth_token', response.body.token)
+%}
+
+### GetProfile
+# Requires a valid Bearer token.
+#   Manual:   run #api.GetProfile (@auth_token=...)
+#   Script:   client.run("#api.GetProfile", { auth_token = login.body.token })
+GET {{host}}/api/profile
+Authorization: Bearer {{auth_token}}
+
+### RegisterUser
+# Creates a user and returns 201 {id, name, age, created_at}.
+#   Manual:   run #api.RegisterUser (@name=lex, @age=28)
+#   Script:   client.run("#api.RegisterUser", { name = name, age = age })
+POST {{host}}/api/users
+Content-Type: application/json
+
+{
+  "name": "{{name}}",
+  "age": {{age}}
+}
+
+### GetUser
+# Fetch one user by id.
+#   Manual:   run #api.GetUser (@user_id=1)
+#   Script:   client.run("#api.GetUser", { user_id = uid })
+GET {{host}}/api/users/{{user_id}}
+
+### ListUsers
+# List every user created in this server process (for loop verification).
+GET {{host}}/api/users

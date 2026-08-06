@@ -15,6 +15,7 @@ local session = require("poste-http.http.session")
 local describe = require("poste-http.http.describe")
 local curl_exec = require("poste-http.http.curl_exec")
 local vars = require("poste-http.http.vars")
+local orchestration = require("poste-http.http.orchestration")
 
 local uv = vim.uv or vim.loop
 
@@ -403,6 +404,72 @@ local function handle_directive_response(success, response, src_buf, indicator_l
   end)
 end
 
+--- Render the result of an orchestration script (SCRIPT block with > {% %}).
+--- Reuses the multi-response chain view for client.run calls and the
+--- Assertions tab for script errors; logs go to the Script Logs tab.
+--- Runs on the main loop via vim.schedule (see handle_orchestration_result).
+local function render_orchestration_result(result, ctx)
+  local src_buf = ctx.src_buf
+  local req_line = ctx.req_line
+  local current_req_name = ctx.current_req_name
+  local file = ctx.file
+
+  local summary = make_script_response(ctx.req_text, ctx.req_block)
+  if result.error then
+    summary.status = 0
+    summary.status_text = "Script error"
+    summary.body = result.error
+  end
+
+  local assertion_results = {
+    total = 1,
+    passed = result.error and 0 or 1,
+    failed = result.error and 1 or 0,
+    error = result.error,
+    tests = {},
+    logs = result.logs or {},
+  }
+
+  -- set_assertion_results appends its logs into last_script_logs, so set it
+  -- BEFORE set_script_logs to avoid self-appending the same table.
+  state.set_assertion_results(assertion_results)
+  state.clear_json_state()
+  if result.logs and #result.logs > 0 then
+    state.set_script_logs(result.logs)
+  end
+
+  if result.calls and #result.calls > 0 then
+    response_buf.reset_multi_response()
+    state.set_responses(result.calls, #result.calls)
+    state.last_response = result.calls[#result.calls].response
+    pcall(response_buf.prepare_multi_responses, result.calls)
+  else
+    state.set_response(summary)
+  end
+
+  emit_response(summary, current_req_name, file, assertion_results, result.logs)
+
+  local view_name = result.error and "assertions"
+    or (result.calls and #result.calls > 0 and "body")
+    or (result.logs and #result.logs > 0 and "script_logs")
+    or "verbose"
+  view.show_view(view_name)
+  set_result_indicator(src_buf, req_line, summary, assertion_results)
+
+  for _, call in ipairs(result.calls or {}) do
+    add_to_history(call.name, call.response, file)
+  end
+  local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Script #" .. tostring(req_line + 1))
+  add_to_history(hist_name, summary, file)
+  state._busy = false
+end
+
+local function handle_orchestration_result(result, ctx)
+  vim.schedule(function()
+    render_orchestration_result(result, ctx)
+  end)
+end
+
 --- Inject global variables into buf_content after the block start line.
 local function inject_global_vars(buf_content, block_start, global_vars)
   if not block_start or not global_vars or not next(global_vars) then
@@ -737,6 +804,21 @@ function M.run_request()
   prepare_request(ctx, function(ctx)
     execute_request(ctx, function(ctx)
       if ctx.req_text and vim.trim(ctx.req_text):upper() == "SCRIPT" then
+        -- A SCRIPT block with a > {% %} body runs as an orchestration script:
+        -- client.run() executes imported requests and returns typed responses.
+        if ctx.assertion_code then
+          orchestration.run_script(ctx.assertion_code, {
+            buf = src_buf,
+            variables = ctx.script_vars and ctx.script_vars.variables,
+            env = ctx.script_vars and ctx.script_vars.env,
+            response = make_script_response(ctx.req_text, ctx.req_block),
+          }, function(result)
+            handle_orchestration_result(result, ctx)
+          end)
+          return
+        end
+
+        -- SCRIPT block without an orchestration body: keep the legacy behavior.
         local script_response = make_script_response(ctx.req_text, ctx.req_block)
         state.set_response(script_response)
         state.clear_json_state()
@@ -769,6 +851,7 @@ M._test = {
   make_error_response = make_error_response,
   choose_view_tab = choose_view_tab,
   inject_global_vars = inject_global_vars,
+  render_orchestration_result = render_orchestration_result,
 }
 
 return M

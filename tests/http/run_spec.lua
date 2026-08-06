@@ -97,6 +97,73 @@ describe("run._test.make_error_response", function()
   end)
 end)
 
+describe("run._test.render_orchestration_result", function()
+  local run
+
+  before_each(function()
+    package.loaded["poste-http.http.run"] = nil
+    state.last_script_logs = nil
+    state.last_response = nil
+    state.last_responses = nil
+    state.last_assertion_results = nil
+    state._busy = true
+
+    -- Stub UI/IO modules so the renderer is testable in isolation
+    require("poste-http.http.view").show_view = function() end
+    require("poste-http.http.buffer").reset_multi_response = function() end
+    require("poste-http.http.buffer").prepare_multi_responses = function() end
+    require("poste-http.http.history").add_entry = function() end
+    require("poste-http.indicators").set_indicator = function() end
+    require("poste-http.event").emit = function() end
+
+    run = require("poste-http.http.run")
+  end)
+
+  after_each(function()
+    package.loaded["poste-http.http.run"] = nil
+  end)
+
+  local function ctx()
+    return {
+      src_buf = 1,
+      req_line = 0,
+      current_req_name = "flow",
+      file = "/tmp/orchestration.http",
+      req_text = "SCRIPT",
+      req_block = nil,
+    }
+  end
+
+  it("stores script logs exactly once and clears _busy", function()
+    run._test.render_orchestration_result({ logs = { "a", "b" }, calls = {}, error = nil }, ctx())
+    assert.same({ "a", "b" }, state.last_script_logs)
+    assert.are_equal(1, state.last_assertion_results.total)
+    assert.are_equal(0, state.last_assertion_results.failed)
+    assert.is_false(state._busy)
+  end)
+
+  it("surfaces script errors as failed assertion results", function()
+    run._test.render_orchestration_result({ logs = {}, calls = {}, error = "boom" }, ctx())
+    assert.are_equal(1, state.last_assertion_results.failed)
+    assert.are_equal("boom", state.last_assertion_results.error)
+    assert.are_equal(0, state.last_response.status)
+    assert.is_false(state._busy)
+  end)
+
+  it("stores the raw response chain for client.run calls", function()
+    local chain = {
+      { name = "Login", response = { status = 200, body = "{}" } },
+      { name = "GetProfile", response = { status = 200, body = "{}" } },
+    }
+    run._test.render_orchestration_result({ logs = {}, calls = chain, error = nil }, ctx())
+    assert.are_equal(2, #state.last_responses)
+    assert.are_equal("Login", state.last_responses[1].name)
+    assert.are_equal("GetProfile", state.last_responses[2].name)
+    assert.are_equal(200, state.last_response.status)
+    assert.is_false(state._busy)
+  end)
+end)
+
 describe("run._test.choose_view_tab", function()
   local run
 

@@ -142,6 +142,25 @@ local function read_file(path)
   return content, nil
 end
 
+--- Convert a Lua value to an HTTP string representation.
+--- Numbers → tostring, strings → as-is, tables → JSON, booleans → tostring, nil → ""
+--- @param val any
+--- @return string
+local function value_to_http_string(val)
+  local t = type(val)
+  if t == "string" then
+    return val
+  elseif t == "number" or t == "boolean" then
+    return tostring(val)
+  elseif t == "table" then
+    local ok, encoded = pcall(vim.json.encode, val)
+    if ok then return encoded end
+    return ""
+  else
+    return ""
+  end
+end
+
 --- Collect all imports and run directives from a buffer's content.
 --- Imports are collected from anywhere in the file (top-level or between blocks).
 --- @param buf_content string  Full buffer content
@@ -354,6 +373,71 @@ function M.resolve_run_at_cursor(buf, cursor_line)
     run_line = run_line,
     warnings = index.warnings,
   }
+end
+
+--- Resolve a request reference ("#Name" or "#alias.Name") against the
+--- imports declared in a buffer. Used by the client.run() orchestration
+--- primitive and by tests.
+--- @param target string  "#Name" or "#alias.Name"
+--- @param buf number|nil  Buffer whose imports define the reference
+--- @return table|nil  { action = "execute", path = string, line = number,
+---                      request_name = string, vars = table }
+--- @return string|nil  Error message when unresolvable
+function M.resolve_request_reference(target, buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+
+  local buf_name = vim.api.nvim_buf_get_name(buf)
+  local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local full_content = table.concat(lines, "\n")
+
+  local directives = M.collect_directives(full_content)
+  local index = M.build_import_index(directives.imports, buf_dir)
+  if #index.errors > 0 then
+    return nil, table.concat(index.errors, "\n")
+  end
+
+  local reference = target:match("^#(.+)$") or target
+  local resolved = resolve_reference(reference, index)
+  if not resolved then
+    return nil, string.format("Request '%s' not found in imports", reference)
+  end
+
+  return {
+    action = "execute",
+    path = resolved.path,
+    line = resolved.line,
+    vars = {},
+    request_name = resolved.request.name,
+  }
+end
+
+--- Execute a request by reference with typed arguments (client.run primitive).
+--- Args are Lua values converted to HTTP strings: strings as-is, numbers and
+--- booleans via tostring, tables as JSON, nil as empty string.
+--- @param target string  "#Name" or "#alias.Name"
+--- @param args table|nil  { name = value, ... }
+--- @param opts table|nil  { buf = number } buffer whose imports resolve the reference
+--- @param callback function|nil  (ok: boolean, response: table|nil, request_name: string|nil, error: string|nil)
+function M.execute_request_reference(target, args, opts, callback)
+  opts = opts or {}
+  local resolved, err = M.resolve_request_reference(target, opts.buf)
+  if not resolved then
+    if callback then callback(false, nil, nil, err) end
+    return
+  end
+
+  local vars = {}
+  if args then
+    for name, value in pairs(args) do
+      vars[name] = value_to_http_string(value)
+    end
+  end
+  resolved.vars = vars
+
+  M.execute_run_directive(resolved, function(ok, response)
+    if callback then callback(ok, response, resolved.request_name) end
+  end)
 end
 
 --- Find the end line of a request block in content.
@@ -861,25 +945,6 @@ local function resolve_path_for_export(exports, keypath)
   end
 
   return current
-end
-
---- Convert a Lua value to an HTTP string representation.
---- Numbers → tostring, strings → as-is, tables → JSON, booleans → tostring, nil → ""
---- @param val any
---- @return string
-local function value_to_http_string(val)
-  local t = type(val)
-  if t == "string" then
-    return val
-  elseif t == "number" or t == "boolean" then
-    return tostring(val)
-  elseif t == "table" then
-    local ok, encoded = pcall(vim.json.encode, val)
-    if ok then return encoded end
-    return ""
-  else
-    return ""
-  end
 end
 
 -- Cache for loaded Lua modules: resolved_path → exports table

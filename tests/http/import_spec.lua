@@ -458,3 +458,116 @@ Authorization: Bearer token123
     assert.matches("Authorization: Bearer token123", state.pending_request.headers_str)
   end)
 end)
+
+describe("resolve_request_reference", function()
+  local req_file
+  local buf
+
+  before_each(function()
+    package.loaded["poste-http.http.import"] = nil
+    req_file = os.tmpname() .. ".http"
+    local f = io.open(req_file, "w")
+    f:write("### login\nPOST /login\n\n### get_profile\nGET /profile\n")
+    f:close()
+    buf = vim.api.nvim_create_buf(true, true)
+  end)
+
+  after_each(function()
+    os.remove(req_file)
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    package.loaded["poste-http.http.import"] = nil
+  end)
+
+  local function set_buffer_content(lines)
+    vim.api.nvim_buf_set_name(buf, os.tmpname() .. ".http")
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  end
+
+  it("resolves an aliased reference from the buffer's imports", function()
+    set_buffer_content({ "import " .. req_file .. " as alias" })
+    local import_mod = require("poste-http.http.import")
+    local r = import_mod.resolve_request_reference("#alias.login", buf)
+    assert.are_equal("execute", r.action)
+    assert.are_equal(req_file, r.path)
+    assert.are_equal("login", r.request_name)
+  end)
+
+  it("resolves a bare reference", function()
+    set_buffer_content({ "import " .. req_file })
+    local import_mod = require("poste-http.http.import")
+    local r = import_mod.resolve_request_reference("#get_profile", buf)
+    assert.are_equal(req_file, r.path)
+    assert.are_equal("get_profile", r.request_name)
+  end)
+
+  it("returns nil and an error for an unknown reference", function()
+    set_buffer_content({ "import " .. req_file .. " as alias" })
+    local import_mod = require("poste-http.http.import")
+    local r, err = import_mod.resolve_request_reference("#nope", buf)
+    assert.is_nil(r)
+    assert.matches("not found", err)
+  end)
+end)
+
+describe("execute_request_reference", function()
+  local import_mod
+  local orig_resolve
+  local orig_execute
+
+  before_each(function()
+    package.loaded["poste-http.http.import"] = nil
+    import_mod = require("poste-http.http.import")
+    orig_resolve = import_mod.resolve_request_reference
+    orig_execute = import_mod.execute_run_directive
+  end)
+
+  after_each(function()
+    import_mod.resolve_request_reference = orig_resolve
+    import_mod.execute_run_directive = orig_execute
+    package.loaded["poste-http.http.import"] = nil
+  end)
+
+  it("stringifies Lua arg values into run variable overrides", function()
+    import_mod.resolve_request_reference = function()
+      return { action = "execute", path = "/tmp/a.http", line = 1, request_name = "login", vars = {} }
+    end
+    local captured
+    import_mod.execute_run_directive = function(opts, callback)
+      captured = opts
+      callback(true, { status = 200, body = "{}" })
+    end
+
+    local ok, response, name = false
+    import_mod.execute_request_reference("#alias.login", { token = 42, flag = true, obj = { a = 1 } }, nil, function(a, b, c)
+      ok, response, name = a, b, c
+    end)
+
+    assert.is_true(ok)
+    assert.are_equal(200, response.status)
+    assert.are_equal("login", name)
+    assert.are_equal("42", captured.vars.token)
+    assert.are_equal("true", captured.vars.flag)
+    assert.are_equal(vim.json.encode({ a = 1 }), captured.vars.obj)
+  end)
+
+  it("reports an unresolvable reference without executing", function()
+    import_mod.resolve_request_reference = function()
+      return nil, "Request 'nope' not found in imports"
+    end
+    local executed = false
+    import_mod.execute_run_directive = function()
+      executed = true
+    end
+
+    local ok, response, name, err
+    import_mod.execute_request_reference("#nope", {}, nil, function(a, b, c, d)
+      ok, response, name, err = a, b, c, d
+    end)
+
+    assert.is_false(ok)
+    assert.is_nil(response)
+    assert.is_nil(name)
+    assert.matches("not found", err)
+    assert.is_false(executed)
+  end)
+end)

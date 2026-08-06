@@ -512,3 +512,24 @@ GET https://api.example.com/search?q=&debug
             (query_key))
           (query_param
             (query_key)))))))
+
+================================================================================
+Script request line (no URL)
+================================================================================
+
+### Run login flow
+SCRIPT
+> {%
+  local r = client.run("#api.Login", {})
+%}
+
+--------------------------------------------------------------------------------
+
+(document
+  (request_block
+    (separator)
+    (request_name))
+  (request_line
+    (method_script))
+  (post_script
+    (script_block)))

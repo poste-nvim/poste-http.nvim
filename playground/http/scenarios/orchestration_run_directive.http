@@ -1,0 +1,28 @@
+# =============================================================================
+# Import / run directive demo (single-step orchestration)
+# =============================================================================
+#
+# The simpler precursor to client.run: run one imported request at a time.
+# Place the cursor on a `run` line and press <CR>.
+#
+# Flow:
+#   1. run #api.Login        — sets the auth_token global via its post-script
+#   2. run #api.GetProfile   — picks up {{auth_token}} from the global set above
+#   3. run #api.RegisterUser — creates a user with inline @var overrides
+#
+# Server: playground/http/server/server.py — needs to be running on :8888
+# =============================================================================
+
+import ./orchestration_requests.http as api
+
+### Step 1 — Login (stores auth_token globally)
+run #api.Login (@username=carol, @password=secret)
+
+### Step 2 — GetProfile (auth_token comes from step 1's post-script)
+run #api.GetProfile
+
+### Step 3 — Register a user
+run #api.RegisterUser (@name=carol_run, @age=28)
+
+### Step 4 — Fetch the user created in step 3
+run #api.GetUser (@user_id=1)

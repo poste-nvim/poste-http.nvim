@@ -1,0 +1,62 @@
+# =============================================================================
+# Request Orchestration Demo (client.run)
+# =============================================================================
+#
+# Run the request library as a sequence of function-like calls. Place the
+# cursor on the SCRIPT request line and press <CR> (or :PosteRun).
+#
+# What this demo covers:
+#   1. login → use response.body.token in the next call (typed response)
+#   2. assert on status / body fields; client.log output
+#   3. loop: register 3 users, collect ids, verify via GetUser/ListUsers
+#   4. failure path: wrong password → 401 → assert aborts the script
+#
+# Server: playground/http/server/server.py — needs to be running on :8888
+# =============================================================================
+
+import ./orchestration_requests.http as api
+
+### Orchestration: login → profile → register 3 users
+SCRIPT
+> {%
+  -- 1. Login and grab the token from the response body
+  local login = client.run("#api.Login", { username = "alice", password = "secret" })
+  assert(login.status == 200, "login failed: " .. login.status)
+  local token = login.body.token
+  client.log("login ok, token: " .. token)
+
+  -- 2. Profile call using the token from step 1
+  local profile = client.run("#api.GetProfile", { auth_token = token })
+  assert(profile.status == 200, "get profile failed: " .. profile.status)
+  assert(profile.body.username == "alice", "profile username mismatch")
+  client.log("profile ok, role: " .. profile.body.role)
+
+  -- 3. Loop: register 3 users, keep the ids
+  local ids = {}
+  for i = 1, 3 do
+    local user = client.run("#api.RegisterUser", {
+      name = "user_" .. math.random(1000, 9999),
+      age = math.random(18, 60),
+    })
+    assert(user.status == 201, "register failed: " .. user.status)
+    ids[#ids + 1] = user.body.id
+  end
+  client.log("registered ids: " .. table.concat(ids, ", "))
+
+  -- 4. Verify the first user exists and list everyone
+  local first = client.run("#api.GetUser", { user_id = ids[1] })
+  assert(first.status == 200 and first.body.id == ids[1], "get user failed")
+  local all = client.run("#api.ListUsers", {})
+  assert(all.status == 200 and all.body.count >= 3, "list users failed")
+  client.log("total users now: " .. all.body.count)
+%}
+
+### Orchestration: expected failure (wrong password)
+# This block fails on purpose: /api/login returns 401 for password "wrong",
+# so the assert aborts the script and the error is shown in the Assertions tab.
+SCRIPT
+> {%
+  local login = client.run("#api.Login", { username = "bob", password = "wrong" })
+  client.log("login status (expected 401): " .. login.status)
+  assert(login.status == 200, "login should not have succeeded")
+%}

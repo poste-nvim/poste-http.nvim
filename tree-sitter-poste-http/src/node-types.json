@@ -457,6 +457,10 @@
           "named": true
         },
         {
+          "type": "method_script",
+          "named": true
+        },
+        {
           "type": "url",
           "named": true
         }

@@ -53,6 +53,11 @@ curl -X POST http://localhost:8888/post -H "Content-Type: application/json" -d '
 | GET | `/response-headers?k=v` | Custom response headers |
 | GET | `/drip?numbytes=N&duration=S` | Drip data over time |
 | GET | `/image/{format}` | Sample image (png/jpeg/webp/svg) |
+| POST | `/api/login` | Issue in-memory auth token (password `wrong` → 401) |
+| GET | `/api/profile` | Profile for the Bearer token |
+| POST | `/api/users` | Create an in-memory user → 201 `{id, name, age}` |
+| GET | `/api/users` | List all users created in this process |
+| GET | `/api/users/{id}` | Fetch one user |
 
 ## Example: Using from Poste .http files
 

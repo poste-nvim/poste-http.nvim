@@ -3,6 +3,32 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-08-07: http/orchestration — SCRIPT blocks (`> {% %}` body) now run as
+  orchestration scripts via a coroutine scheduler (`orchestration.run_script`):
+  `client.run(target, args)` resolves `#Name`/`#alias.Name` through
+  `import.execute_request_reference` and yields until the curl callback resumes
+  it, so scripts read sequentially. Pitfalls: (1) the `calls` chain stores raw
+  curl responses for the multi-response view, while the script receives the
+  typed wrapper — don't mix them; (2) synthesized assertion results for script
+  errors must include `tests = {}` and `logs = {}` or
+  `assertions.format_assertions` crashes. See `lua/poste/http/orchestration.lua`,
+  `lua/poste/http/run.lua` (handle_orchestration_result).
+- 2026-08-07: http/script-grammar — Bare `SCRIPT` request lines (no URL) were
+  invalid in the tree-sitter grammar (`request_line` required `method WS url`),
+  so describe produced a block with empty `method`/`request_line` and the
+  SCRIPT orchestration path silently fell through to the normal request path
+  ("Could not determine request URL"). Fix: `request_line` is now a choice that
+  also accepts bare `method_script` + NL (reuses the `request_line` node, so
+  describe/queries unchanged); added corpus test "Script request line (no URL)".
+  See `tree-sitter-poste-http/grammar.js`.
+- 2026-08-07: http/orchestration-render — `render_orchestration_result` called
+  `state.set_script_logs(logs)` then `state.set_assertion_results(results)` with
+  the same `logs` table; `set_assertion_results` appends its `logs` into
+  `last_script_logs`, so it inserted into the table it was iterating → LuaJIT
+  "table overflow" in the scheduled callback → `state._busy` stayed true forever.
+  Fix: set assertion results BEFORE script logs; split the renderer out of the
+  `vim.schedule` wrapper and unit-test it directly. See `lua/poste/http/run.lua`.
+
 - 2026-08-04: http/dep-post-scripts — Auto-executed dependencies ran through `curl_exec` directly, so their post-scripts (`> {% client.global.set(...) %}`) never ran; a target that referenced `{{recolor.response...}}` stayed literal for globals the dep was supposed to set until the user manually re-ran the dep. Fix: `request_deps.execute_dependent_request_async` now calls `run_dep_post_scripts` (extract + `assertions.run_assertions`) after caching the dep response. See `lua/poste/http/request_deps.lua`.
 - 2026-08-04: http/busy-wedge — `prepare_request` early-returned on `find_request_line == nil` (cursor on a separator/blank/file-head line) WITHOUT resetting `state._busy`, permanently wedging the plugin: every later `run_request` silently no-oped ("Request already in progress"), looking like "only one request takes effect" + stale buffers. Same leak in `start_curl_exec` when URL resolves empty. Fix: reset `_busy = false` in both early-returns. See `lua/poste/http/run.lua`.
 - 2026-08-04: http/file-level-@var-refs — File-level `@var = {{req.response...}}` (before first `###`) never resolved: `execute_deps_for_block` only scanned block text, so the refs never triggered dep execution or inline substitution, and the Lua `VarResolver` can't resolve `{{req.response...}}`. Fix: `execute_deps_for_block` now also scans the file-level region (lines before first `###`), merges those refs into the dep set, and substitutes them inline in the file-level lines — so deps referenced only by file-level vars execute and the @var value resolves via the normal resolver. See `lua/poste/http/request_deps.lua`.

@@ -376,6 +376,62 @@ run ./batch.http
 
 **Implementation status**: All not yet implemented
 
+### 2.14 Request Orchestration (SCRIPT blocks + `client.run`)
+
+A request block whose request line is `SCRIPT` runs as a script-only block. When
+the block also contains a post-script (`> {% ... %}`), its Lua body executes as
+an **orchestration script**: `client.run()` calls imported requests like
+functions, and the returned response can be inspected and chained into later
+calls.
+
+**Syntax**:
+
+```
+import ./requests.http as alias
+
+### Login then fetch profile
+SCRIPT
+> {%
+  local login = client.run("#alias.login", { username = "u", password = "p" })
+  assert(login.status == 200, "login failed")
+
+  local profile = client.run("#alias.get_profile", { Authorization = login.body.token })
+  assert(profile.status == 200, "get profile failed")
+  client.log("profile: " .. profile.body.username)
+%}
+```
+
+**Rules**:
+
+- `client.run(target, args)` executes an imported request. `target` is
+  `#Name` or `#alias.Name`, resolved through the file's `import` directives.
+- `args` is a Lua table of named values. Values are converted to HTTP strings:
+  strings as-is, numbers/booleans via `tostring`, tables as JSON. They are
+  injected as `@var` overrides — the target request references them with
+  `{{name}}` (or in headers/body).
+- The returned value is a typed response object:
+  - `status`, `status_text`, `url`, `latency_ms`, `content_type`, `cookies`,
+    `metadata`, `protocol`
+  - `headers` — case-insensitive access (`r.headers["Content-Type"]`)
+  - `body` — lazily JSON-decoded (a table when the body is JSON, otherwise the
+    raw string)
+- Execution is sequential: the script suspends until each `client.run` request
+  finishes. Each call's response is also rendered in the multi-response chain.
+- `client.log(msg)` / `print(...)` output goes to the Script Logs tab.
+- `assert` / `client.assert(cond, msg)` abort the script on failure; the error
+  is shown in the Assertions tab.
+- `client.test(name, fn)` works like in assertion blocks; a failed test aborts
+  the orchestration with the test name and error.
+- `response` is available for compatibility and is the synthetic SCRIPT
+  response; `variables` and `env` expose `@var` definitions and the active
+  environment, same as pre/post scripts.
+- A request failure (unresolved target, curl error, etc.) raises inside
+  `client.run` and aborts the script with the request name in the message.
+
+**Implementation status**: `client.run`, sequential execution, typed responses,
+logs and error rendering are implemented. `client.run` for `./path` batch
+targets and parallel execution are not yet implemented.
+
 ## 3. Variable Resolution Order
 
 See [Variable Resolution](./variables.md) for the complete documentation. Key highlights:
