@@ -450,6 +450,7 @@ M.post_script_keywords = {
   -- Assertion API
   { name = "client.test",            desc = "Define named test block" },
   { name = "client.assert",          desc = "Assert condition (throws on false)" },
+  { name = "client.run",             desc = "Execute an imported request (#Name / #alias.Name) and return its typed response" },
   { name = "assert",                 desc = "Top-level assert shorthand" },
   -- Response object
   { name = "response.status",        desc = "HTTP status code" },
@@ -786,6 +787,10 @@ M.script_api_docs = {
     ["client.log"] = {
       sig = "client.log(msg)",
       desc = "Log a message. Output appears in the Script Logs tab of the response buffer.",
+    },
+    ["client.run"] = {
+      sig = "client.run(target, args)",
+      desc = "Execute an imported request. target is \"#Name\" or \"#alias.Name\", resolved through the file's imports. args is a table of @var overrides. Returns a typed response (status, headers, body).",
     },
     ["client.global"] = {
       sig = "client.global",

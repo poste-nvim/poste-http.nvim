@@ -219,6 +219,25 @@ describe("get_items_for_context script completion", function()
     assert.truthy(has_response, "Should contain response.status")
   end)
 
+  it("includes client.run in post-script namespace completion", function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "GET /api/users",
+      "> {%",
+      "  client.",
+      "%}",
+    })
+    local items = test.get_items_for_context("  client.", buf, 3, 10)
+
+    local found = false
+    for _, item in ipairs(items) do
+      if item.label == "client.run" then
+        found = true
+        break
+      end
+    end
+    assert.truthy(found, "client.run should appear after client.")
+  end)
+
   it("pre-request keywords do not include assertion-specific items", function()
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
       "< {%",
@@ -295,6 +314,17 @@ describe("script keyword data", function()
     assert.truthy(found)
   end)
 
+  it("post_script_keywords contains client.run", function()
+    local found = false
+    for _, kw in ipairs(test.post_script_keywords) do
+      if kw.name == "client.run" then
+        found = true
+        break
+      end
+    end
+    assert.truthy(found)
+  end)
+
   it("post_script_keywords contains response object properties", function()
     local response_props = {
       "response.status",
@@ -315,6 +345,16 @@ describe("script keyword data", function()
       end
       assert.truthy(found, "Missing: " .. prop)
     end
+  end)
+end)
+
+describe("script API docs", function()
+  it("documents client.run for the K hover", function()
+    local data = require("poste-http.http.data")
+    local entry = data.script_api_docs.post["client.run"]
+    assert.is_not_nil(entry)
+    assert.truthy(entry.sig:match("client%.run"))
+    assert.truthy(#entry.desc > 0)
   end)
 end)
 

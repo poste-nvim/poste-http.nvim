@@ -48,6 +48,7 @@ local function method_hl(method)
   elseif m == "DELETE" then return "PosteMethodDELETE"
   elseif m == "PATCH" then return "PosteMethodPATCH"
   elseif m == "HEAD" then return "PosteMethodHEAD"
+  elseif m == "SCRIPT" then return "PosteMethodScript"
   else return "PosteMethodOther" end
 end
 
@@ -88,6 +89,10 @@ local function collect_requests(bufnr)
 
         if not skip then
           method = next_line:match("^%s*(%u+)%s")
+          if not method then
+            -- Script-only block: bare SCRIPT request line (no URL)
+            method = next_line:match("^%s*(%u+)$")
+          end
           if not method then
             local run_target = next_line:match("^%s*run%s+(%S+)")
             if run_target then
@@ -195,5 +200,9 @@ function M.show_symbols()
 
   show_snacks_picker(requests)
 end
+
+M._test = {
+  collect_requests = collect_requests,
+}
 
 return M
