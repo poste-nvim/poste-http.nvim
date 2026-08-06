@@ -6,7 +6,7 @@ local M = {}
 
 local list_buf = nil
 local list_win = nil
-local list_width = 36
+local list_width = 46
 local detail_buf = nil
 local detail_win = nil
 local current_index = nil
@@ -16,6 +16,23 @@ local hiding = false
 local list_ns = vim.api.nvim_create_namespace("poste_history_list")
 
 local MAX_BODY_SAVE = 100 * 1024
+
+local METHOD_HL = {
+  GET = "PosteMethodGET",
+  POST = "PosteMethodPOST",
+  PUT = "PosteMethodPUT",
+  DELETE = "PosteMethodDELETE",
+  PATCH = "PosteMethodPATCH",
+  HEAD = "PosteMethodHEAD",
+  OPTIONS = "PosteMethodOPTIONS",
+  SCRIPT = "PosteMethodScript",
+}
+
+local METHOD_WIDTH = 8
+local STATUS_WIDTH = 3
+-- Method (8) + status (3) + gap (1) + max elapsed "123.00 ms" (9)
+-- + 2-space gap + timestamp (5).
+local FIXED_WIDTH = METHOD_WIDTH + STATUS_WIDTH + 17
 
 local function truncate_response(response)
   if not response or type(response) ~= "table" then return response end
@@ -55,6 +72,74 @@ end
 local function format_timestamp(time)
   if not time then return "" end
   return os.date("%H:%M", time)
+end
+
+local function entry_method(entry)
+  if not entry then return "" end
+  local m = entry.method
+  if (m == nil or m == "") and entry.response and entry.response.metadata then
+    m = entry.response.metadata.method
+  end
+  if type(m) ~= "string" then return "" end
+  return vim.trim(m):upper()
+end
+
+local function format_elapsed(ms)
+  if type(ms) ~= "number" then return "-" end
+  if ms >= 1000 then
+    return string.format("%.2f s", ms / 1000)
+  end
+  return string.format("%.2f ms", ms)
+end
+
+local function status_hl(status)
+  local sc = tonumber(status) or 0
+  if sc > 0 then
+    if sc < 300 then return "PosteStatus2xx"
+    elseif sc < 400 then return "PosteStatus3xx"
+    elseif sc < 500 then return "PosteStatus4xx"
+    else return "PosteStatus5xx"
+    end
+  end
+  return "Comment"
+end
+
+--- Build the display line for one history entry.
+--- Returns the line text plus column metadata used for extmark highlighting.
+local function format_list_line(entry, name_width)
+  local method = entry_method(entry)
+  if #method > METHOD_WIDTH then
+    method = method:sub(1, METHOD_WIDTH)
+  end
+  if method == "" then method = "-" end
+
+  local name = entry.name or ""
+  if #name > name_width then
+    name = name:sub(1, name_width - 3) .. "..."
+  end
+
+  local status = entry.response and entry.response.status
+  local status_text = (tonumber(status) or 0) > 0 and tostring(status) or "-"
+  local elapsed = format_elapsed(entry.response and entry.response.latency_ms)
+  local ts = format_timestamp(entry.time)
+  local line = string.format(
+    "%-" .. METHOD_WIDTH .. "s%-" .. name_width .. "s%-" .. STATUS_WIDTH .. "s %s  %s",
+    method, name, status_text, elapsed, ts
+  )
+
+  return line, {
+    method = method,
+    method_hl = METHOD_HL[method] or "PosteMethodOther",
+    method_col = 0,
+    method_end = #method,
+    status = status_text,
+    status_hl = status_hl(status),
+    status_col = METHOD_WIDTH + name_width,
+    status_end = METHOD_WIDTH + name_width + #status_text,
+    elapsed_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1,
+    elapsed_end = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + #elapsed,
+    ts_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + #elapsed + 2,
+  }
 end
 
 local function get_active_tabs()
@@ -205,38 +290,50 @@ end
 local function render_list()
   if not list_buf or not vim.api.nvim_buf_is_valid(list_buf) then return end
   local lines = {}
-  local name_width = list_width - 6
+  local name_width = list_width - FIXED_WIDTH
 
   vim.api.nvim_buf_clear_namespace(list_buf, list_ns, 0, -1)
 
   if #state.http_history == 0 then
     lines = { "(no history)" }
   else
+    local line_info = {}
     for _, entry in ipairs(state.http_history) do
-      local name = entry.name
-      if #name > name_width then
-        name = name:sub(1, name_width - 3) .. "..."
-      end
-      local ts = format_timestamp(entry.time)
-      local line = string.format("%-" .. name_width .. "s %s", name, ts)
+      local line, info = format_list_line(entry, name_width)
       table.insert(lines, line)
+      table.insert(line_info, info)
     end
-  end
 
-  vim.api.nvim_set_option_value("modifiable", true, { buf = list_buf })
-  vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
-  vim.api.nvim_set_option_value("modifiable", false, { buf = list_buf })
-  vim.bo[list_buf].filetype = "poste_history_list"
+    vim.api.nvim_set_option_value("modifiable", true, { buf = list_buf })
+    vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
+    vim.api.nvim_set_option_value("modifiable", false, { buf = list_buf })
+    vim.bo[list_buf].filetype = "poste_history_list"
 
-  -- Gray timestamp via extmarks
-  for i, line in ipairs(lines) do
-    local ts_start = line:match("^.*() %d%d:%d%d$")
-    if ts_start then
-      vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, ts_start , {
-        end_col = #line,
-        hl_group = "Comment",
+    -- Colored method, elapsed, and gray timestamp via extmarks
+    for i, line in ipairs(lines) do
+      local info = line_info[i]
+      vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, info.method_col, {
+        end_col = info.method_end,
+        hl_group = info.method_hl,
         priority = 100,
       })
+      vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, info.status_col, {
+        end_col = info.status_end,
+        hl_group = info.status_hl,
+        priority = 100,
+      })
+      vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, info.elapsed_col, {
+        end_col = info.elapsed_end,
+        hl_group = "PosteLatency",
+        priority = 100,
+      })
+      if info.ts_col <= #line then
+        vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, info.ts_col, {
+          end_col = #line,
+          hl_group = "Comment",
+          priority = 100,
+        })
+      end
     end
   end
 
@@ -430,7 +527,7 @@ function M.show()
   local total_height = math.floor(editor_height * 0.88)
   local top = math.floor((editor_height - total_height) / 2)
   local left = math.floor((editor_width - total_width) / 2)
-  list_width = 36
+  list_width = 46
   local gap = 1
 
   list_buf = vim.api.nvim_create_buf(false, true)
@@ -487,5 +584,12 @@ function M.show()
 
   pcall(vim.api.nvim_set_current_win, list_win)
 end
+
+M._test = {
+  format_list_line = format_list_line,
+  entry_method = entry_method,
+  format_elapsed = format_elapsed,
+  status_hl = status_hl,
+}
 
 return M

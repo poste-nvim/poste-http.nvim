@@ -38,18 +38,29 @@ Each entry's `response.body` is truncated at 100KB when serialized.
 
 ```
 ┌─────────────── " Poste HTTP History " ──────────────────────┐
-│ ┌─ Left List (30-40 col) ─┐ ┌─ Right Detail (remaining) ──┐ │
-│ │ Get Profile   23:32     │ │ [Body[H] | Rqst[R] | Verb[L]│ │
-│ │─────────────────────────│ │  | Asserts[A]]  (winbar)     │ │
-│ │ Request 3     23:30     │ │──────────────────────────────│ │
-│ │ Request 2     22:45     │ │  (rendered via format.lua)   │ │
-│ │ Request 1     21:34     │ │                              │ │
-│ │ Login         20:33     │ │                              │ │
-│ └─────────────────────────┘ └──────────────────────────────┘ │
+│ ┌─ Left List (46 col) ─────────┐ ┌─ Right Detail (rest) ──┐ │
+│ │ POST    RegisterUser 200 12ms│ │ [Body[H] | Rqst[R] | L │ │
+│ │ GET     GetUser      200 9ms │ │  | Asserts[A]] (winbar)│ │
+│ │ GET     GetProfile  404 123ms│ │────────────────────────│ │
+│ │ POST    Login       201 32ms │ │ (rendered via format)  │ │
+│ └──────────────────────────────┘ └────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ### Left List Buffer
+
+Each row is `METHOD  Name  Status  Elapsed  HH:MM`:
+
+- `METHOD` — HTTP method (or `-` for failed requests), colored via the same
+  `PosteMethodGET`/`PosteMethodPOST`/... highlight groups as the source buffer
+- `Status` — `response.status` (or `-` for failed requests), colored via the
+  same `PosteStatus2xx`/`PosteStatus3xx`/`PosteStatus4xx`/`PosteStatus5xx`
+  groups as the verbose view
+- `Elapsed` — `response.latency_ms` rendered as `12.00 ms` (or `1.20 s` above
+  one second), highlighted with `PosteLatency`
+- `HH:MM` — request time, gray (`Comment`)
+
+Other behavior:
 
 - `j`/`k` navigation, real-time right detail update
 - `<CR>`: Jump cursor to right detail buffer
