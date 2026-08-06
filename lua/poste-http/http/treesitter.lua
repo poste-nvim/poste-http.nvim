@@ -19,6 +19,37 @@ local function highlight_var_refs(bufnr)
   for l, line in ipairs(lines) do
     local row = l - 1
     if not vim.trim(line):match("^#") then
+      -- Highlight client.run("#alias.Name", ...) request targets inside scripts
+      local cr_s, cr_e = line:find('client%.run%s*%(')
+      if cr_s then
+        local qs, qe = line:find('["\']#([^"\']+)["\']', cr_e + 1)
+        if qs and qe then
+          local target_start = qs + 1 -- 1-based position of "#"
+          local target_end = qe - 1   -- 1-based position of last target char
+          local inner = line:sub(target_start, target_end)
+          local dot = inner:find("%.")
+          if dot then
+            -- "#api." → PosteRunTarget, "Login" → PosteRequestName
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, target_start - 1, {
+              end_row = row, end_col = target_start + dot - 1,
+              hl_group = "PosteRunTarget",
+              priority = 150,
+            })
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, target_start + dot - 1, {
+              end_row = row, end_col = target_end,
+              hl_group = "PosteRequestName",
+              priority = 150,
+            })
+          else
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, target_start - 1, {
+              end_row = row, end_col = target_end,
+              hl_group = "PosteRequestName",
+              priority = 150,
+            })
+          end
+        end
+      end
+
       local s = 1
       while s <= #line do
         local a, b, dollar, inner = line:find("{{($?)(.-)}}", s)
@@ -131,6 +162,11 @@ function M.disable(bufnr)
     diagnostics.disable(bufnr)
   end
 end
+
+M._test = {
+  ns = ns,
+  highlight_var_refs = highlight_var_refs,
+}
 
 --- Inspect the treesitter parse tree for the current buffer.
 --- Displays as a notification for debugging highlight issues.

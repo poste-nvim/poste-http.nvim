@@ -18,6 +18,31 @@ local function use_ts_effective(buf)
   return ts_query.is_available(buf)
 end
 
+--- Detect completion context for client.run("#target", ...) inside SCRIPT
+--- blocks. Mirrors the run-directive contexts so the existing request-name
+--- providers are reused.
+--- @param line_before_cursor string
+--- @return string|nil, table|nil
+local function detect_client_run_target(line_before_cursor)
+  local after_open = line_before_cursor:match('client%.run%s*%(%s*["\'](.*)$')
+  if not after_open then return nil end
+
+  local partial = after_open:match('^([^"\']*)')
+  if partial == "" then
+    -- Right after the opening quote: offer "#" / "./" prefixes
+    return "run_target", nil
+  end
+  if partial:sub(1, 1) == "#" then
+    local rest = partial:sub(2)
+    if rest:find("%.") then
+      local alias, p = rest:match("^([^%.]+)%.(.*)$")
+      return "run_target_alias", { alias = alias, partial = p or "" }
+    end
+    return "run_target_hash", rest or ""
+  end
+  return nil
+end
+
 local function ts_detect_script_context(buf, cursor_line, cursor_col)
   local row = cursor_line - 1
   local col = cursor_col - 1
@@ -36,6 +61,11 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
   if buf and cursor_line and cursor_col then
     local script_ctx = ts_detect_script_context(buf, cursor_line, cursor_col)
     if script_ctx then
+      -- client.run("#alias.Name", ...) request-target completion
+      local run_ctx, run_extra = detect_client_run_target(line_before_cursor)
+      if run_ctx then
+        return run_ctx, run_extra
+      end
       if script_ctx == "post_script" then
         local status_pat = "response%.status%s*[=!~<>]=?%s*"
         if line_before_cursor:match(status_pat) then
@@ -242,6 +272,11 @@ local function detect_context(line_before_cursor, buf, cursor_line, cursor_col)
   if buf and cursor_line and cursor_col then
     local script_ctx = detect_script_context(buf, cursor_line, cursor_col)
     if script_ctx then
+      -- client.run("#alias.Name", ...) request-target completion
+      local run_ctx, run_extra = detect_client_run_target(line_before_cursor)
+      if run_ctx then
+        return run_ctx, run_extra
+      end
       -- Inside a script block: check for status code comparison pattern
       if script_ctx == "post_script" then
         local status_pat = "response%.status%s*[=!~<>]=?%s*"

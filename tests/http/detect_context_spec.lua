@@ -261,3 +261,58 @@ describe("detect_context", function()
     end)
   end)
 end)
+
+describe("detect_context: client.run target inside SCRIPT blocks", function()
+  local function script_buf(target_line)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "### Orchestration",
+      "SCRIPT",
+      "> {%",
+      target_line,
+      "%}",
+    })
+    return buf
+  end
+
+  it("returns run_target_alias with alias and partial", function()
+    local buf = script_buf('  local login = client.run("#api.')
+    local ctx, extra = detect_context('  local login = client.run("#api.', buf, 4, 35)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert.equals("run_target_alias", ctx)
+    assert.equals("api", extra.alias)
+    assert.equals("", extra.partial)
+  end)
+
+  it("returns run_target_alias with a typed partial", function()
+    local buf = script_buf('  local login = client.run("#api.Log')
+    local ctx, extra = detect_context('  local login = client.run("#api.Log', buf, 4, 38)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert.equals("run_target_alias", ctx)
+    assert.equals("api", extra.alias)
+    assert.equals("Log", extra.partial)
+  end)
+
+  it("returns run_target_hash after the # without a dot", function()
+    local buf = script_buf('  local r = client.run("#')
+    local ctx, extra = detect_context('  local r = client.run("#', buf, 4, 28)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert.equals("run_target_hash", ctx)
+    assert.equals("", extra)
+  end)
+
+  it("returns run_target right after the opening quote", function()
+    local buf = script_buf('  local r = client.run("')
+    local ctx, extra = detect_context('  local r = client.run("', buf, 4, 27)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert.equals("run_target", ctx)
+    assert.is_nil(extra)
+  end)
+
+  it("keeps script context for other script lines", function()
+    local buf = script_buf('  client.log("hi")')
+    local ctx = detect_context('  client.log("hi")', buf, 4, 10)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    assert.equals("post_script", ctx)
+  end)
+end)
