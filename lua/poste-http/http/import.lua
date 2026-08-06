@@ -528,14 +528,17 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
   for _, h in ipairs(resolved_headers) do
     table.insert(h_parts, h[1] .. ": " .. h[2])
   end
+  local headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or ""
+  local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+  local req_env = env_name or state.current_env
   state.set_pending_request({
     method = method,
     url = url,
-    headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or "",
+    headers_str = headers_str,
     body = body,
     name = meta.name or "",
-    env = env_name or state.current_env,
-    timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+    env = req_env,
+    timestamp = timestamp,
     start_hires = uv.hrtime(),
   })
 
@@ -552,6 +555,21 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
         if callback then callback(nil) end
       end)
       return
+    end
+    -- Attach the resolved request details to the response so views render
+    -- request name/headers/body even when there is no pending_request context
+    -- (multi-response chains, orchestration client.run calls).
+    if response then
+      response.metadata = response.metadata or {}
+      local md = response.metadata
+      if not md.method or md.method == "" then md.method = method end
+      if not md.request_headers then md.request_headers = headers_str end
+      if not md.request_body then md.request_body = body end
+      if not md.timestamp then md.timestamp = timestamp end
+      if not md.env then md.env = req_env end
+      if not response.request_name or response.request_name == "" then
+        response.request_name = meta.name or ""
+      end
     end
     if callback then callback(response) end
   end)

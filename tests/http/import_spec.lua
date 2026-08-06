@@ -457,6 +457,76 @@ Authorization: Bearer token123
     assert.is_not_nil(state.pending_request.headers_str)
     assert.matches("Authorization: Bearer token123", state.pending_request.headers_str)
   end)
+
+  it("enriches the response with request metadata and name", function()
+    local mock_describe = {
+      describe_content = function()
+        return {
+          {
+            name = "Login",
+            line = 1,
+            end_line = 4,
+            method = "POST",
+            path = "/api/login",
+            headers = {
+              { "Content-Type", "application/json" },
+              { "Authorization", "Bearer token123" },
+            },
+            body = '{"username": "alice"}',
+            request_line = "POST /api/login",
+          },
+        }, nil
+      end,
+      block_at_line = function(blocks, _)
+        return blocks[1]
+      end,
+      to_req_block = function(meta)
+        return {
+          request_line = meta.request_line or "",
+          headers = meta.headers or {},
+          name = meta.name or "",
+          method = meta.method or "",
+          path = meta.path or "",
+          body = meta.body or "",
+        }
+      end,
+      headers_str = function(meta)
+        local parts = {}
+        for _, h in ipairs(meta.headers or {}) do
+          table.insert(parts, h[1] .. ": " .. (h[2] or ""))
+        end
+        return table.concat(parts, "\n")
+      end,
+    }
+    package.loaded["poste-http.http.describe"] = mock_describe
+
+    local curl_exec = require("poste-http.http.curl_exec")
+    orig_execute = curl_exec.execute
+    curl_exec.execute = function(_, callback)
+      callback({ status = 200, body = '{"token":"abc"}', headers = {}, metadata = {} })
+    end
+
+    local import_mod = require("poste-http.http.import")
+    local got
+    import_mod._test.execute_import_via_curl([[
+### Login
+POST /api/login
+Content-Type: application/json
+
+{"username": "alice"}
+]], "/tmp/test.http", 1, "default", function(response)
+      got = response
+    end)
+
+    assert.is_not_nil(got)
+    assert.are_equal("POST", got.metadata.method)
+    assert.matches("Content%-Type: application/json", got.metadata.request_headers)
+    assert.matches("Authorization: Bearer token123", got.metadata.request_headers)
+    assert.are_equal('{"username": "alice"}', got.metadata.request_body)
+    assert.are_equal("Login", got.request_name)
+    assert.are_equal("default", got.metadata.env)
+    assert.is_not_nil(got.metadata.timestamp)
+  end)
 end)
 
 describe("resolve_request_reference", function()

@@ -28,6 +28,14 @@ pitfall, log it here. Check this file before starting any task.
   "table overflow" in the scheduled callback → `state._busy` stayed true forever.
   Fix: set assertion results BEFORE script logs; split the renderer out of the
   `vim.schedule` wrapper and unit-test it directly. See `lua/poste/http/run.lua`.
+- 2026-08-07: http/import-response-meta — Responses from
+  `execute_import_via_curl` (import/run directives AND orchestration client.run
+  calls) never carried request metadata, so the verbose view showed empty
+  request name/headers/body: `prepare_multi_responses` renders each response
+  standalone (no `pending_request` fallback), and only `handle_curl_response`
+  enriched `metadata` from `state.pending_request`. Fix: attach resolved
+  method/headers/body/timestamp/env + `request_name` onto the response in
+  `execute_import_via_curl` before the callback. See `lua/poste/http/import.lua`.
 
 - 2026-08-04: http/dep-post-scripts — Auto-executed dependencies ran through `curl_exec` directly, so their post-scripts (`> {% client.global.set(...) %}`) never ran; a target that referenced `{{recolor.response...}}` stayed literal for globals the dep was supposed to set until the user manually re-ran the dep. Fix: `request_deps.execute_dependent_request_async` now calls `run_dep_post_scripts` (extract + `assertions.run_assertions`) after caching the dep response. See `lua/poste/http/request_deps.lua`.
 - 2026-08-04: http/busy-wedge — `prepare_request` early-returned on `find_request_line == nil` (cursor on a separator/blank/file-head line) WITHOUT resetting `state._busy`, permanently wedging the plugin: every later `run_request` silently no-oped ("Request already in progress"), looking like "only one request takes effect" + stale buffers. Same leak in `start_curl_exec` when URL resolves empty. Fix: reset `_busy = false` in both early-returns. See `lua/poste/http/run.lua`.
