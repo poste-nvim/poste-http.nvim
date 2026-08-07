@@ -38,6 +38,7 @@ M.config = {
       view_request = "R",
       view_verbose = "E",
       view_assertions = "A",
+      view_errors = "X",
       view_script_logs = "S",
       next_tab = "<Tab>",
       prev_tab = "<S-Tab>",
@@ -64,6 +65,7 @@ M.last_response = nil
 M.last_responses = nil
 M.response_index = nil
 M.last_assertion_results = nil
+M.last_errors = nil
 M.last_script_logs = nil
 M.last_request = nil
 M.pending_request = nil
@@ -170,6 +172,15 @@ function M.set_responses(chain, idx)
   M.response_index = idx or (#chain or 1)
 end
 
+function M.set_errors(errors)
+  M.last_errors = errors
+end
+
+function M.add_error(err)
+  M.last_errors = M.last_errors or {}
+  table.insert(M.last_errors, err)
+end
+
 function M.set_assertion_results(results)
   M.last_assertion_results = results
   if results and results.logs and #results.logs > 0 then
@@ -232,6 +243,7 @@ function M.clear_request_scoped()
   M.last_responses = nil
   M.response_index = nil
   M.last_assertion_results = nil
+  M.last_errors = nil
   M.last_script_logs = nil
   M.last_request = nil
   M.pending_request = nil

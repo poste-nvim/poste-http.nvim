@@ -17,6 +17,7 @@ Content-Type: application/json
   "timeout": {{timeout}}
 }
 
+
 ### Variable priority test
 @host = request-level.com
 GET https://{{host}}/anything

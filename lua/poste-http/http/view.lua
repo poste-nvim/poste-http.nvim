@@ -49,6 +49,9 @@ local function render_view(view, lines, filetype)
   if buf then
     format.apply_view_highlights(buf, view, lines, state.last_response)
   end
+  if view == "errors" and buf then
+    require("poste-http.http.errors").setup_jump_keymap(buf)
+  end
 end
 
 function M.show_view(view)
@@ -70,7 +73,16 @@ function M.show_view(view)
     return
   end
 
-  if not state.last_response then return end
+  -- Errors view without a response (e.g. pre-request blocking)
+  if not state.last_response and not state.pending_request then
+    if view == "errors" and state.last_errors and #state.last_errors > 0 then
+      local err = require("poste-http.http.errors")
+      local lines = err.format_errors(state.last_errors)
+      render_view(view, lines, "poste_errors")
+      return
+    end
+    return
+  end
 
   -- Response available
   stop_verbose_timer()
@@ -88,6 +100,7 @@ function M.show_view(view)
   local opts = {
     assertion_results = state.last_assertion_results,
     script_logs = state.last_script_logs,
+    errors = state.last_errors,
     pending_request = state.pending_request,
   }
   local lines, filetype = format.format_view(view, state.last_response, opts)

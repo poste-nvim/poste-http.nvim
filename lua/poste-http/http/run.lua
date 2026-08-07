@@ -16,6 +16,7 @@ local describe = require("poste-http.http.describe")
 local curl_exec = require("poste-http.http.curl_exec")
 local vars = require("poste-http.http.vars")
 local orchestration = require("poste-http.http.orchestration")
+local errors = require("poste-http.http.errors")
 
 local uv = vim.uv or vim.loop
 
@@ -102,17 +103,59 @@ local function emit_response(response_data, request_name, file_path, assertion_r
   })
 end
 
+--- Find the first line (1-indexed) of `> {%` assertion block in the source buffer.
+--- @param src_buf number
+--- @param block_start number  1-indexed block start
+--- @param block_end number    1-indexed block end
+--- @return number|nil
+local function find_assertion_line(src_buf, block_start, block_end)
+  if not src_buf or not block_start or not block_end then return nil end
+  local lines = vim.api.nvim_buf_get_lines(src_buf, block_start - 1, block_end, false)
+  for i, l in ipairs(lines) do
+    local t = vim.trim(l)
+    if t:match("^>%s*{%%") or t:match("^>%s*%.%.?/") then
+      return block_start + i - 1
+    end
+  end
+  return nil
+end
+
+--- Map a Lua error line inside an assertion block to the source file line.
+--- The error message is like `[string "assertions"]:N: ...`. For a multi-line
+--- `> {%` block the first code line is the line after the `> {%` marker.
+--- @param assertion_line number  1-indexed `> {%` line (or nil)
+--- @param err_msg string
+--- @return number|nil
+local function assertion_error_line(assertion_line, err_msg)
+  if not assertion_line or not err_msg then return nil end
+  local lua_line = tostring(err_msg):match('%[string "assertions"%]:%s*(%d+)')
+  if not lua_line then return assertion_line end
+  return assertion_line + tonumber(lua_line)
+end
+
 --- Run assertions and update state.
-local function run_and_store_assertions(parsed, assertion_code, script_vars)
+--- @param parsed table|nil
+--- @param assertion_code string|nil
+--- @param script_vars table|nil
+--- @param file string|nil  Source file for error source
+--- @param line number|nil  Assertion block line for error source
+local function run_and_store_assertions(parsed, assertion_code, script_vars, file, line)
   if not assertion_code then return nil end
   local results = assertions.run_assertions(parsed, assertion_code, script_vars)
   state.set_assertion_results(results)
+  if results and results.error then
+    local src_line = line and assertion_error_line(line, results.error) or line
+    state.add_error(errors.post_request("post_script", tostring(results.error), { file = file, line = src_line }))
+  end
   state.log("INFO", string.format("Assertions: %d passed, %d failed", results.passed, results.failed))
   return results
 end
 
 --- Choose the appropriate view tab based on status and assertion results.
 local function choose_view_tab(parsed, assertion_results)
+  if state.last_errors and #state.last_errors > 0 then
+    return "errors"
+  end
   if not parsed then
     return "verbose"
   end
@@ -239,7 +282,8 @@ local function handle_curl_response(response, ctx)
 
     local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
     state._exec_context = { file = file, line = req_line + 1, set_lines = scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
-    local assertion_results = run_and_store_assertions(response, assertion_code, script_vars)
+    local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
+    local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
     state._exec_context = nil
     local view_name = choose_view_tab(response, assertion_results)
     view.show_view(view_name)
@@ -382,7 +426,8 @@ local function handle_directive_response(success, response, src_buf, indicator_l
     emit_response(state.last_response, resolved.request_name, resolved.path or file, nil, nil)
 
     if assertion_code then
-      run_and_store_assertions(state.last_response, assertion_code, script_vars)
+      local ass_line = find_assertion_line(src_buf, indicator_line + 1, indicator_line + 50)
+      run_and_store_assertions(state.last_response, assertion_code, script_vars, resolved.path or file, ass_line)
       local view_name = choose_view_tab(state.last_response, state.last_assertion_results)
       view.show_view(view_name)
       set_result_indicator(src_buf, indicator_line, state.last_response, state.last_assertion_results)
@@ -419,6 +464,7 @@ local function render_orchestration_result(result, ctx)
     summary.status = 0
     summary.status_text = "Script error"
     summary.body = result.error
+    state.add_error(errors.post_request("post_script", tostring(result.error), { file = ctx.file }))
   end
 
   local assertion_results = {
@@ -569,10 +615,10 @@ local function execute_request(ctx, callback)
     if pre_result.error then
       state.log("ERROR", pre_result.error)
       indicators.set_indicator(src_buf, req_line, "error")
-      local err_resp = make_error_response("", nil, pre_result.error, "Pre-script error", 1)
-      state.set_response(err_resp)
-      emit_response(err_resp, nil, file, nil, nil)
-      view.show_view("verbose")
+      state.set_errors({ errors.pre_request("pre_script", tostring(pre_result.error), { line = block_start, file = file }) })
+      state.set_response(nil)
+      state.set_pending_request(nil)
+      view.show_view("errors")
       state._busy = false
       return
     end
@@ -694,8 +740,30 @@ local function start_curl_exec(ctx)
     return
   end
 
-  if url:find("{{") then
-    state.log("WARN", "URL has unresolved variables: " .. url)
+  -- Pre-request validation: block if any variable remains unresolved in the
+  -- URL, body, or headers. Sending a request with literal {{var}} in it is
+  -- almost certainly a mistake, so fail fast instead of hitting the network.
+  local parts = { url, body }
+  for _, h in ipairs(headers) do
+    table.insert(parts, h[2] or "")
+  end
+  local unresolved = errors.find_unresolved_vars(parts)
+  if #unresolved > 0 then
+    indicators.set_indicator(src_buf, req_line, "error")
+    local src_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
+    local errs = {}
+    for _, name in ipairs(unresolved) do
+      local real_line = errors.find_var_line(src_lines, name)
+      table.insert(errs, errors.pre_request("variable_resolution",
+        string.format("Cannot resolve variable '{{%s}}' in request", name),
+        { var = name, line = real_line, file = file }))
+    end
+    state.set_errors(errs)
+    state.set_response(nil)
+    state.set_pending_request(nil)
+    view.show_view("errors")
+    state._busy = false
+    return
   end
 
   state.log("INFO", string.format("curl: %s %s (%d headers)", method, url, #headers))
@@ -824,7 +892,8 @@ function M.run_request()
         state.clear_json_state()
         emit_response(script_response, ctx.current_req_name, file, nil, nil)
 
-        local assertion_results = run_and_store_assertions(script_response, ctx.assertion_code, ctx.script_vars)
+        local ass_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
+        local assertion_results = run_and_store_assertions(script_response, ctx.assertion_code, ctx.script_vars, file, ass_line)
 
         if assertion_results and assertion_results.total > 0 then
           view.show_view("assertions")

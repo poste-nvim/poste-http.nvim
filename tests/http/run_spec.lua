@@ -121,6 +121,7 @@ describe("run._test.render_orchestration_result", function()
 
   after_each(function()
     package.loaded["poste-http.http.run"] = nil
+    state.last_errors = nil
   end)
 
   local function ctx()
@@ -171,6 +172,7 @@ describe("run._test.choose_view_tab", function()
     package.loaded["poste-http.http.run"] = nil
     run = require("poste-http.http.run")
     state.config.default_view = nil
+    state.last_errors = nil
   end)
 
   after_each(function()

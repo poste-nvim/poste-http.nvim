@@ -10,6 +10,20 @@ local M = {}
 
 local get_nested_value = nested_access.get_nested_value
 
+--- Recursively convert decoded JSON to pure Lua tables, avoiding userdata/cdata.
+local function json_to_table(v)
+  if v == vim.NIL then return nil end
+  local t = type(v)
+  if t == "table" then
+    local r = {}
+    for k, v2 in pairs(v) do
+      r[k] = json_to_table(v2)
+    end
+    return r
+  end
+  return v
+end
+
 local request_response_cache = {}
 
 --- Convert a resolved request-variable value into the text to inject into content.
@@ -73,7 +87,7 @@ local function resolve_request_variable(pattern, cached_responses)
         state.log("WARN", string.format("Cannot parse response body as JSON for '%s'", req_name))
         return nil
       end
-      return get_nested_value(parsed, path)
+      return get_nested_value(json_to_table(parsed), path)
     elseif target == "headers" then
       if not response.headers then return nil end
       for _, h in ipairs(response.headers) do
@@ -87,7 +101,7 @@ local function resolve_request_variable(pattern, cached_responses)
       local body = response.metadata and response.metadata.request_body
       if not body or body == "" or path == "" then return body end
       local ok, parsed = pcall(vim.json.decode, body)
-      if ok then return get_nested_value(parsed, path) end
+      if ok then return get_nested_value(json_to_table(parsed), path) end
     elseif target == "headers" then
       local headers_str = response.metadata and response.metadata.request_headers
       if not headers_str then return nil end

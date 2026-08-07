@@ -73,6 +73,7 @@
 | `scripts.lua` | Pre-request script execution (`< {% %}`) |
 | `assertions.lua` | Post-request assertion execution (`> {% %}`) |
 | `orchestration.lua` | SCRIPT-block orchestration: `client.run()` coroutine scheduler + typed responses |
+| `errors.lua` | Structured pre/post-request error collection + Error tab formatting/highlights |
 | `lua_docs.lua` | Lua API documentation helpers |
 | `md5.lua` | MD5 helper |
 | `script_snippet.lua` | Script snippet insertion |

@@ -20,6 +20,12 @@ Content-Type: application/json
   "version": 1.0
 }
 
+> {%
+
+  local c = response.body.xx.c
+  client.log(c)
+%}
+
 ### 04 — PUT with body
 PUT {{host}}/put
 Content-Type: application/json

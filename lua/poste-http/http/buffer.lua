@@ -22,6 +22,7 @@ local TAB_META = {
   verbose     = { name = "Verb",     section = "http_response", action = "view_verbose" },
   assertions  = { name = "Asserts",  section = "http_response", action = "view_assertions" },
   script_logs = { name = "Script",   section = "http_response", action = "view_script_logs" },
+  errors      = { name = "Error",    section = "http_response", action = "view_errors" },
 }
 
 --- Build a tab label with key hint, e.g. "Body [B]" or "Verb [Tab]".
@@ -54,8 +55,18 @@ local function get_active_tabs()
     table.insert(tabs, { id = "request", label = tab_label("request") })
   end
   table.insert(tabs, { id = "verbose", label = tab_label("verbose") })
-  -- Only show Asserts tab when assertions were run
-  if state.last_assertion_results then
+  -- Show Error tab when errors were collected. When the request never sent
+  -- (pre-request error), there is no response to inspect, so show only the
+  -- Error tab to avoid a dead Body/Verb tab.
+  if state.last_errors and #state.last_errors > 0 then
+    if not state.last_response then
+      return { { id = "errors", label = tab_label("errors") } }
+    end
+    table.insert(tabs, { id = "errors", label = tab_label("errors") })
+  end
+  -- Only show Asserts tab when assertions were actually run
+  if state.last_assertion_results and state.last_assertion_results.tests
+      and #state.last_assertion_results.tests > 0 then
     table.insert(tabs, { id = "assertions", label = tab_label("assertions") })
   end
   -- Show Script tab when pre/post scripts produced output
@@ -315,6 +326,10 @@ setup_keymaps = function(buf)
   k = state.get_keymap("http_response", "view_assertions", "A")
   if k then
     vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("assertions") end end, opts)
+  end
+  k = state.get_keymap("http_response", "view_errors", "X")
+  if k then
+    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("errors") end end, opts)
   end
   k = state.get_keymap("http_response", "view_script_logs", "S")
   if k then

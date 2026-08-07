@@ -5,6 +5,20 @@ local M = {}
 
 local md5 = require("poste-http.http.md5").md5
 
+--- Recursively convert decoded JSON to pure Lua tables, avoiding userdata/cdata.
+local function json_to_table(v)
+  if v == vim.NIL then return nil end
+  local t = type(v)
+  if t == "table" then
+    local r = {}
+    for k, v2 in pairs(v) do
+      r[k] = json_to_table(v2)
+    end
+    return r
+  end
+  return v
+end
+
 ---------------------------------------------------------------------------
 -- Extract assertion blocks from request content
 ---------------------------------------------------------------------------
@@ -134,7 +148,7 @@ function M.run_assertions(response_data, code, script_vars)
         if decoded_body == nil then
           local ok, parsed = pcall(vim.json.decode, raw_body)
           if ok and parsed then
-            decoded_body = parsed
+            decoded_body = json_to_table(parsed)
           else
             decoded_body = raw_body
           end

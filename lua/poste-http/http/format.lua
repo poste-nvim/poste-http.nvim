@@ -204,6 +204,9 @@ function M.format_view(view, r, opts)
   elseif view == "script_logs" then
     local scr = require("poste-http.http.scripts")
     return scr.format_script_logs(opts.script_logs), "markdown"
+  elseif view == "errors" then
+    local err = require("poste-http.http.errors")
+    return err.format_errors(opts.errors), "poste_errors"
   elseif view == "request" then
     local lines = M.format_request_payload(r)
     local ct = M.get_request_content_type(r)
@@ -242,6 +245,12 @@ function M.apply_view_highlights(buf, view, lines, r)
     pcall(vim.treesitter.stop, buf)
     local ass = require("poste-http.http.assertions")
     ass.apply_highlights(buf, lines)
+  end
+
+  if view == "errors" then
+    pcall(vim.treesitter.stop, buf)
+    local err = require("poste-http.http.errors")
+    err.apply_highlights(buf, lines, state.last_errors)
   end
 end
 
