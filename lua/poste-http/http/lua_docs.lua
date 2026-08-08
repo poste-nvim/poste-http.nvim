@@ -2,37 +2,48 @@
 --- Tries lua-language-server (LSP) via a per-request hidden Lua buffer first.
 --- Falls back to built-in Lua 5.1 standard library docs if LSP unavailable.
 
+local util = require("poste-http.util")
+
 local M = {}
 
 ---------------------------------------------------------------------------
 -- LSP server lifecycle
 ---------------------------------------------------------------------------
 
+local poste_lua_name = "poste_lua"
+
 function M.setup()
   M._ensure_lua_ls_running()
 end
 
---- Start lua-language-server in background (if not already running).
---- Called during setup for preload; also used by ensure_lsp_attached.
+--- Start POSTE's own lua-language-server with diagnostics disabled, so it
+--- doesn't push Lua errors into .http buffers. Uses a dedicated client name
+--- ("poste_lua") to avoid interfering with the user's own lua_ls (which
+--- keeps its own settings and diagnostics).
 function M._ensure_lua_ls_running()
-  if M._start_attempted then return end
-  M._start_attempted = true
-
   for _, client in ipairs(vim.lsp.get_clients()) do
-    if client.name == "lua_ls" then return end
+    if client.name == poste_lua_name then return end
   end
 
   if vim.fn.executable("lua-language-server") ~= 1 then return false end
 
   pcall(vim.lsp.start, {
-    name = "lua_ls",
+    name = poste_lua_name,
     cmd = { "lua-language-server" },
+    filetypes = { "lua" },
     root_dir = vim.fn.getcwd(),
+    settings = {
+      Lua = {
+        diagnostics = { enable = false },
+        hover = { enable = true },
+      },
+    },
   })
 end
 
 --- Create a fresh temp buffer with lua filetype for LSP queries.
 --- Each call creates a new buffer so concurrent hover requests don't collide.
+--- Gives the buffer a temp file name so lua-language-server can resolve symbols.
 --- @return number|nil buffer id, or nil on failure
 function M._create_lsp_buffer()
   local ok, buf = pcall(vim.api.nvim_create_buf, false, true)
@@ -40,6 +51,7 @@ function M._create_lsp_buffer()
   vim.bo[buf].swapfile = false
   vim.bo[buf].filetype = "lua"
   vim.bo[buf].bufhidden = "wipe"
+  pcall(vim.api.nvim_buf_set_name, buf, os.tmpname() .. ".lua")
   return buf
 end
 
@@ -130,23 +142,26 @@ end
 -- LSP hover via hidden Lua buffer
 ---------------------------------------------------------------------------
 
---- Attach a lua-language-server client to the given buffer.
---- The client is pre-started during setup; if it didn't start, tries again.
+--- Attach the lua-language-server client to the given buffer.
+--- Starts the client if not already running. Retries to wait for async start.
 --- Returns true if a client is attached (or was already attached).
 --- @param buf number  Buffer to attach to
 function M._ensure_lsp_attached(buf)
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return false end
 
-  local bufc = vim.lsp.buf_get_clients(buf)
+  local bufc = vim.lsp.get_clients({ bufnr = buf })
   if bufc and next(bufc) then return true end
 
   M._ensure_lua_ls_running()
 
-  for _, client in ipairs(vim.lsp.get_clients()) do
-    if client.name == "lua_ls" then
-      local ok, _ = pcall(vim.lsp.buf_attach_client, buf, client.id)
-      if ok then return true end
+  for _ = 1, 5 do
+    for _, client in ipairs(vim.lsp.get_clients()) do
+      if client.name == poste_lua_name then
+        local ok, _ = pcall(vim.lsp.buf_attach_client, buf, client.id)
+        if ok then return true end
+      end
     end
+    vim.wait(200, function() return false end)
   end
 
   return false
@@ -155,6 +170,8 @@ end
 --- Try LSP hover and call callback with formatted lines or nil.
 --- Creates a fresh temp buffer per call to avoid stale state from concurrent
 --- hover requests (two .http files open, rapid K presses, etc.).
+--- Retries up to 3 times with 80ms delay to give lua-language-server time
+--- to index the newly created buffer.
 function M.try_lsp_hover(script_lines, line, col, callback)
   local buf = M._create_lsp_buffer()
   if not buf then
@@ -175,136 +192,82 @@ function M.try_lsp_hover(script_lines, line, col, callback)
     position = { line = line - 1, character = math.max(col - 1, 0) },
   }
 
-  vim.lsp.buf_request(buf, "textDocument/hover", params, function(err, result)
+  local function process_result(err, result, lines)
     if err or not result or not result.contents then
-      pcall(vim.api.nvim_buf_delete, buf, { force = true })
-      callback(nil)
-      return
+      return false
     end
-    local lines = {}
-    local function add(v)
-      if v then
-        for _, l in ipairs(vim.split(tostring(v), "\n", { plain = true })) do
-          table.insert(lines, l)
-        end
-      end
-    end
+    local raw = nil
     if type(result.contents) == "string" then
-      add(result.contents)
+      raw = result.contents
     elseif type(result.contents) == "table" then
-      if result.contents.kind and result.contents.value then
-        add(result.contents.value)
-      else
+      if result.contents.kind == "markdown" and result.contents.value then
+        raw = result.contents.value
+      elseif result.contents[1] then
         for _, item in ipairs(result.contents) do
           if type(item) == "string" then
-            add(item)
-          elseif type(item) == "table" then
-            add(item.value)
+            raw = (raw or "") .. item
+          elseif type(item) == "table" and item.value then
+            raw = (raw or "") .. item.value
           end
         end
+      elseif result.contents.value then
+        raw = result.contents.value
       end
     end
-    pcall(vim.api.nvim_buf_delete, buf, { force = true })
-    callback(#lines > 0 and lines or nil)
-  end)
+    if not raw then return false end
+    -- Filter out lua-language-server's "Workspace loading" placeholder.
+    -- Real docs are multi-line markdown with code blocks or tables;
+    -- the loading message is a single short line without markdown formatting.
+    if not raw:find("```") and not raw:find("\n") and #raw < 60 then
+      return false
+    end
+    for _, l in ipairs(vim.split(raw, "\n", { plain = true })) do
+      table.insert(lines, l)
+    end
+    return #lines > 0
+  end
+
+  local delays = { 200, 400, 600, 800, 1000 }
+  local done = false
+  local function request_hover(idx)
+    local lines = {}
+    vim.lsp.buf_request(buf, "textDocument/hover", params, function(err, result)
+      if done then return end
+      if process_result(err, result, lines) then
+        done = true
+        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+        callback(lines)
+        return
+      end
+      if idx <= #delays then
+        vim.defer_fn(function()
+          if not done then request_hover(idx + 1) end
+        end, delays[idx])
+        return
+      end
+      done = true
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+      callback(nil)
+    end)
+  end
+  request_hover(1)
 end
 
 --- Render LSP result in a floating window.
 function M.show_lsp_result(lines)
   if not lines or #lines == 0 then return end
-
-  local max_width = math.min(math.floor(vim.o.columns * 0.7), 80)
-  local width = 2
-  for _, l in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(l))
-  end
-  width = math.min(width + 4, max_width)
-  local height = math.min(#lines + 2, math.floor(vim.o.lines * 0.4))
-
-  local float_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
-  vim.bo[float_buf].modifiable = false
-  vim.bo[float_buf].filetype = "markdown"
-  vim.bo[float_buf].bufhidden = "wipe"
-
-  local win_opts = {
-    relative = "editor",
-    row = math.floor((vim.o.lines - height) / 2),
-    col = math.floor((vim.o.columns - width) / 2),
-    width = width,
-    height = height,
-    style = "minimal",
-    border = "rounded",
-    title = " Lua API ",
-    title_pos = "left",
-  }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-  if not ok then
-    win_opts.title = nil
-    win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-    if not ok then
-      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
-      return
-    end
-  end
-
-  vim.keymap.set("n", "q", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = float_buf, noremap = true, silent = true })
-  vim.keymap.set("n", "<Esc>", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = float_buf, noremap = true, silent = true })
+  util.open_doc_preview(lines, { title = " Lua API " })
 end
 
 --- Show built-in documentation in a floating window.
 function M.show_builtin(sig, desc, title)
   local lines = {}
+  table.insert(lines, "```lua")
   table.insert(lines, sig)
+  table.insert(lines, "```")
   table.insert(lines, "")
   table.insert(lines, desc)
-
-  local max_width = math.min(math.floor(vim.o.columns * 0.7), 80)
-  local width = 2
-  for _, l in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(l))
-  end
-  width = math.min(width + 4, max_width)
-  local height = math.min(#lines + 2, math.floor(vim.o.lines * 0.4))
-
-  local float_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
-  vim.bo[float_buf].modifiable = false
-  vim.bo[float_buf].bufhidden = "wipe"
-
-  local win_opts = {
-    relative = "editor",
-    row = math.floor((vim.o.lines - height) / 2),
-    col = math.floor((vim.o.columns - width) / 2),
-    width = width,
-    height = height,
-    style = "minimal",
-    border = "rounded",
-    title = " " .. (title or "Lua API") .. " ",
-    title_pos = "left",
-  }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-  if not ok then
-    win_opts.title = nil
-    win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-    if not ok then
-      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
-      return
-    end
-  end
-
-  vim.keymap.set("n", "q", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = float_buf, noremap = true, silent = true })
-  vim.keymap.set("n", "<Esc>", function()
-    pcall(vim.api.nvim_win_close, win, true)
-  end, { buffer = float_buf, noremap = true, silent = true })
+  util.open_doc_preview(lines, { title = " " .. (title or "Lua API") .. " " })
 end
 
 ---------------------------------------------------------------------------

@@ -4,10 +4,9 @@ local data = require("poste-http.http.data")
 local lua_docs = require("poste-http.http.lua_docs")
 local nav_ts = require("poste-http.http.nav.ts")
 local nav_text = require("poste-http.http.nav.text")
+local util = require("poste-http.util")
 
 local M = {}
-
-local _hover = nil
 
 local function use_ts()
   return state.config.use_treesitter and state.config.use_treesitter.nav ~= false
@@ -76,45 +75,18 @@ function M.show_script_api_doc()
   end
 
   local lines = {}
+  table.insert(lines, "```lua")
   table.insert(lines, entry.sig)
+  table.insert(lines, "```")
   table.insert(lines, "")
   table.insert(lines, entry.desc)
 
-  local max_width = math.min(math.floor(vim.o.columns * 0.7), 80)
-  local width = 0
-  for _, l in ipairs(lines) do
-    width = math.max(width, vim.fn.strdisplaywidth(l))
-  end
-  width = math.min(width + 4, max_width)
-
-  local height = math.min(#lines + 2, math.floor(vim.o.lines * 0.4))
-  local float_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
-  vim.bo[float_buf].modifiable = false
-  vim.bo[float_buf].bufhidden = "wipe"
-
-  local title = ctx == "pre_script" and "Pre-script API" or "Post-script API"
-  local win_opts = {
-    relative = "editor",
-    row = math.floor((vim.o.lines - height) / 2),
-    col = math.floor((vim.o.columns - width) / 2),
-    width = width, height = height, style = "minimal",
-    border = "rounded", title = title, title_pos = "left",
-  }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-  if not ok then
-    win_opts.title = nil; win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-    if not ok then
-      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
-      return true
-    end
-  end
-
-  vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
-    { buffer = float_buf, noremap = true, silent = true })
-  vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, win, true) end,
-    { buffer = float_buf, noremap = true, silent = true })
+  local title = ctx == "pre_script" and " Pre-script API " or " Post-script API "
+  local _, _, reused = util.open_doc_preview(lines, {
+    title = title,
+    track_key = "api:" .. identifier,
+  })
+  if reused then return true end
 
   return true
 end
@@ -168,16 +140,6 @@ function M.show_var_value()
     return
   end
 
-  if _hover and vim.api.nvim_win_is_valid(_hover.win) and _hover.buf == buf and _hover.var_name == var_name then
-    vim.api.nvim_set_current_win(_hover.win)
-    return
-  end
-
-  if _hover and vim.api.nvim_win_is_valid(_hover.win) then
-    pcall(vim.api.nvim_win_close, _hover.win, true)
-    _hover = nil
-  end
-
   local buf_path = vim.api.nvim_buf_get_name(buf)
   local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local cache = require("poste-http.http.cache")
@@ -195,43 +157,20 @@ function M.show_var_value()
   local resolved = value or "(unresolved)"
 
   local title = " " .. var_name .. " "
-  local lines = { resolved }
-
-  local float_buf, win
-  local ok
-  ok, float_buf, win = pcall(vim.lsp.util.open_floating_preview, lines, "text", {
-    border = "single",
-    title = title,
-    title_pos = "left",
-    focusable = false,
-  })
-  if not ok or not float_buf then
-    ok, float_buf, win = pcall(vim.lsp.util.open_floating_preview, lines, "text", {
-      border = "single",
-      focusable = false,
-    })
-    if not ok or not float_buf then
-      return
-    end
+  local lines = {}
+  if resolved:find("\n") or resolved:find("`") then
+    table.insert(lines, "```")
+    table.insert(lines, resolved)
+    table.insert(lines, "```")
+  else
+    table.insert(lines, "`" .. resolved .. "`")
   end
 
-  _hover = { win = win, buf = buf, var_name = var_name }
-
-  local hover_group = vim.api.nvim_create_augroup("PosteHoverWin_" .. win, { clear = true })
-  vim.api.nvim_create_autocmd("WinClosed", {
-    group = hover_group,
-    pattern = tostring(win),
-    callback = function() _hover = nil end,
+  local _, _, reused = util.open_doc_preview(lines, {
+    title = title,
+    track_key = tostring(buf) .. ":" .. var_name,
   })
-
-  vim.keymap.set("n", "q", function()
-    pcall(vim.api.nvim_win_close, win, true)
-    _hover = nil
-  end, { buffer = float_buf, noremap = true, silent = true })
-  vim.keymap.set("n", "<Esc>", function()
-    pcall(vim.api.nvim_win_close, win, true)
-    _hover = nil
-  end, { buffer = float_buf, noremap = true, silent = true })
+  if reused then return end
 end
 
 function M.goto_definition()
