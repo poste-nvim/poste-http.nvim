@@ -195,20 +195,27 @@ local function ts_collect_items(buf)
 end
 
 local function collect_items(buf)
+  local items
   if use_ts() then
-    return ts_collect_items(buf)
+    items = ts_collect_items(buf)
+  else
+    items = collect_file_scope_vars(buf)
+    local requests = request_vars.collect_requests(buf)
+    local total = vim.api.nvim_buf_line_count(buf)
+    for _, req in ipairs(requests) do
+      local method, url_path = extract_method_url(buf, req.start_line, total)
+      table.insert(items, {
+        name = req.name,
+        line = req.start_line,
+        method = method,
+        url_path = url_path,
+      })
+    end
   end
-  local items = collect_file_scope_vars(buf)
-  local requests = request_vars.collect_requests(buf)
-  local total = vim.api.nvim_buf_line_count(buf)
-  for _, req in ipairs(requests) do
-    local method, url_path = extract_method_url(buf, req.start_line, total)
-    table.insert(items, {
-      name = req.name,
-      line = req.start_line,
-      method = method,
-      url_path = url_path,
-    })
+  for _, item in ipairs(items) do
+    if item.method and item.method:lower() == "run" then
+      item.method = "run"
+    end
   end
   return items
 end
