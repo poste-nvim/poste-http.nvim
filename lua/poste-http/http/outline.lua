@@ -148,38 +148,36 @@ local function ts_collect_items(buf)
       local block_node = ts_query.parent_of_type(name_node, "request_block")
       if block_node then
         local br, _, _, _ = block_node:range()
-        local line_nodes = ts_query.query_nodes_in_range(buf, [[
-          (request_line) @line
-        ]], br, br + 20)
 
-        for _, ln in ipairs(line_nodes) do
-          local line_node = ln.captures[1].node
-          local method_node = line_node:named_child(0)
-          if method_node then
-            method = ts_query.node_text(method_node):upper()
-            local url_node = line_node:named_child(1)
-            if url_node then
-              local url = ts_query.node_text(url_node)
-              url_path = url:match("://[^/]*(.*)")
-                or url:match("}}(.*)")
-                or url:match("^(/.*)")
-                or nil
-              if url_path then url_path = url_path:gsub("%?.*", "") end
+        local run_nodes = ts_query.query_nodes_in_range(buf, [[
+          (run_directive) @run
+        ]], br, br + 3)
+        if #run_nodes > 0 then
+          local run_node = run_nodes[1].captures[1].node
+          local target_child = run_node:child_by_field_name("target")
+          local target = target_child and ts_query.node_text(target_child) or ""
+          method = "run"
+          url_path = target
+        else
+          local line_nodes = ts_query.query_nodes_in_range(buf, [[
+            (request_line) @line
+          ]], br, br + 20)
+          for _, ln in ipairs(line_nodes) do
+            local line_node = ln.captures[1].node
+            local method_node = line_node:named_child(0)
+            if method_node then
+              method = ts_query.node_text(method_node):upper()
+              local url_node = line_node:named_child(1)
+              if url_node then
+                local url = ts_query.node_text(url_node)
+                url_path = url:match("://[^/]*(.*)")
+                  or url:match("}}(.*)")
+                  or url:match("^(/.*)")
+                  or nil
+                if url_path then url_path = url_path:gsub("%?.*", "") end
+              end
             end
-          end
-          break
-        end
-
-        if method == "--" then
-          local run_nodes = ts_query.query_nodes_in_range(buf, [[
-            (run_directive) @run
-          ]], br, br + 3)
-          if #run_nodes > 0 then
-            local run_node = run_nodes[1].captures[1].node
-            local target_child = run_node:child_by_field_name("target")
-            local target = target_child and ts_query.node_text(target_child) or ""
-            method = "run"
-            url_path = target
+            break
           end
         end
       end
@@ -221,7 +219,7 @@ end
 
 local function method_hl(method)
   if not method or method == "--" then return "PosteMethodOther" end
-  if method == "run" then return "PosteRun" end
+  if method:lower() == "run" then return "PosteRun" end
   if method == "@" then return "PreProc" end
   local m = method:upper()
   if m == "GET" then return "PosteMethodGET"
