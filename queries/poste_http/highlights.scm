@@ -66,12 +66,11 @@
   (import_path) @PosteImportPath)
 (import_alias_clause) @PosteImportAlias
 
+(run_directive) @PosteRun
 (run_directive
-  "run" @PosteRun
   (run_target
     (run_target_prefix) @PosteRunTarget))
 (run_directive
-  "run" @PosteRun
   (run_target
     (run_target_name) @PosteRequestName))
 (run_vars_clause) @PosteRunVars

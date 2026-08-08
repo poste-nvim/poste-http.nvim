@@ -88,16 +88,14 @@ local function collect_requests(bufnr)
         if not skip and next_line:match("^%s*<<") then skip = true end
 
         if not skip then
-          method = next_line:match("^%s*(%u+)%s")
-          if not method then
-            -- Script-only block: bare SCRIPT request line (no URL)
-            method = next_line:match("^%s*(%u+)$")
-          end
-          if not method then
-            local run_target = next_line:match("^%s*run%s+(%S+)")
-            if run_target then
-              method = "run"
-              url_path = run_target
+          local run_target = next_line:match("^%s*[Rr][Uu][Nn]%s+(%S+)")
+          if run_target then
+            method = "run"
+            url_path = run_target
+          else
+            method = next_line:match("^%s*(%u+)%s")
+            if not method then
+              method = next_line:match("^%s*(%u+)$")
             end
           end
           if method and method ~= "run" then

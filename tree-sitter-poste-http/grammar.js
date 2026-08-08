@@ -272,7 +272,7 @@ module.exports = grammar({
     )),
 
     run_directive: $ => seq(
-      'run',
+      token(prec(1, /[Rr][Uu][Nn]/)),
       /\s+/,
       field('target', $.run_target),
       optional($.run_vars_clause),

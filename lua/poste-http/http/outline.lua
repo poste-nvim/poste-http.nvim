@@ -33,6 +33,10 @@ local function extract_method_url(buf, start_line, total_lines)
       if trimmed:match("%%}") then in_pre = false end
     elseif trimmed == "" or trimmed:match("^@%w") or trimmed:match("^#") or trimmed:match("^<<") then  -- luacheck: ignore 542
     else
+      local run_target = trimmed:match("^[Rr][Uu][Nn]%s+(%S+)")
+      if run_target then
+        return "run", run_target
+      end
       local method = trimmed:match("^(%u+)%s")
       if method then
         local url = trimmed:match("^%u+%s+(.+)")
@@ -43,10 +47,6 @@ local function extract_method_url(buf, start_line, total_lines)
         ) or nil
         if path then path = path:gsub("%?.*", "") end
         return method, (path and path ~= "" and path or nil)
-      end
-      local run_target = trimmed:match("^run%s+(%S+)")
-      if run_target then
-        return "run", run_target
       end
       return nil, nil
     end

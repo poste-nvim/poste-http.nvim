@@ -767,10 +767,6 @@
     "named": true
   },
   {
-    "type": "run",
-    "named": false
-  },
-  {
     "type": "run_target_name",
     "named": true
   },
