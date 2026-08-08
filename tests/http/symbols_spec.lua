@@ -38,6 +38,6 @@ describe("symbols.collect_requests method column", function()
       "### Run login",
       "run #api.Login (@username=alice)",
     })
-    assert.are_equal("run", requests[1].method)
+    assert.are_equal("RUN", requests[1].method)
   end)
 end)

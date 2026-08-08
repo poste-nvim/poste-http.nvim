@@ -40,7 +40,7 @@ end
 
 local function method_hl(method)
   if not method or method == "--" then return "PosteMethodOther" end
-  if method == "run" then return "PosteRun" end
+  if method == "RUN" then return "PosteRun" end
   local m = method:upper()
   if m == "GET" then return "PosteMethodGET"
   elseif m == "POST" then return "PosteMethodPOST"
@@ -90,7 +90,7 @@ local function collect_requests(bufnr)
         if not skip then
           local run_target = next_line:match("^%s*[Rr][Uu][Nn]%s+(%S+)")
           if run_target then
-            method = "run"
+            method = "RUN"
             url_path = run_target
           else
             method = next_line:match("^%s*(%u+)%s")
@@ -98,7 +98,7 @@ local function collect_requests(bufnr)
               method = next_line:match("^%s*(%u+)$")
             end
           end
-          if method and method ~= "run" then
+          if method and method ~= "RUN" then
             url_path = extract_url_path(next_line)
           end
           break
@@ -133,7 +133,7 @@ local function show_snacks_picker(requests)
     local method = req.method or "--"
     local url, short
 
-    if method == "run" then
+    if method == "RUN" then
       url = "#" .. req.name
       short = short_name(req.name)
     else

@@ -35,7 +35,7 @@ local function extract_method_url(buf, start_line, total_lines)
     else
       local run_target = trimmed:match("^[Rr][Uu][Nn]%s+(%S+)")
       if run_target then
-        return "run", run_target
+        return "RUN", run_target
       end
       local method = trimmed:match("^(%u+)%s")
       if method then
@@ -156,7 +156,7 @@ local function ts_collect_items(buf)
           local run_node = run_nodes[1].captures[1].node
           local target_child = run_node:child_by_field_name("target")
           local target = target_child and ts_query.node_text(target_child) or ""
-          method = "run"
+          method = "RUN"
           url_path = target
         else
           local line_nodes = ts_query.query_nodes_in_range(buf, [[
@@ -214,7 +214,7 @@ local function collect_items(buf)
   end
   for _, item in ipairs(items) do
     if item.method and item.method:lower() == "run" then
-      item.method = "run"
+      item.method = "RUN"
     end
   end
   return items
@@ -226,7 +226,7 @@ end
 
 local function method_hl(method)
   if not method or method == "--" then return "PosteMethodOther" end
-  if method:lower() == "run" then return "PosteRun" end
+  if method == "RUN" then return "PosteRun" end
   if method == "@" then return "PreProc" end
   local m = method:upper()
   if m == "GET" then return "PosteMethodGET"
