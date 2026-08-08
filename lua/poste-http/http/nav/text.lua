@@ -20,9 +20,9 @@ function M.goto_definition()
   if nav_util.goto_client_run_definition(buf, line_num, col) then
     return
   end
-  if trimmed:match("^run%s+#") then
+  if trimmed:lower():match("^run%s+#") then
     local cword = vim.fn.expand("<cword>")
-    local ref = trimmed:match("^run%s+#(.+)$")
+    local ref = trimmed:match("^[Rr][Uu][Nn]%s+#(.+)$")
     if ref then
       local name_only = ref:match("^(%S+)") or ref
       local dot_pos = name_only:find("%.")
@@ -76,8 +76,8 @@ function M.goto_definition()
         end
       end
     end
-  elseif trimmed:match("^run%s+%.") then
-    local path = trimmed:match("^run%s+(%S+)")
+  elseif trimmed:lower():match("^run%s+%.") then
+    local path = trimmed:match("^[Rr][Uu][Nn]%s+(%S+)")
     if path then
       local path_pos = line_text:find(vim.pesc(path))
       if path_pos and col >= path_pos - 1 and col <= path_pos - 1 + #path then
@@ -437,8 +437,8 @@ function M.goto_references()
           end
         end
       end
-    elseif trimmed_l:match("^run%s+#") then
-      local ref = trimmed_l:match("^run%s+#(.+)$")
+    elseif trimmed_l:lower():match("^run%s+#") then
+      local ref = trimmed_l:match("^[Rr][Uu][Nn]%s+#(.+)$")
       if ref then
         local dot_pos = ref:find("%.")
         if dot_pos then

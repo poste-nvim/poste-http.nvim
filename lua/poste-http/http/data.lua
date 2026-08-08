@@ -618,11 +618,11 @@ M.script_api_docs = {
     },
     ["request.variables"] = {
       sig = "request.variables.set(name, value) / request.variables.get(name)",
-      desc = "Read/write variables for the current request. Values set here can be referenced in the request via {{variables.name}}.",
+      desc = "Read/write variables for the current request. Values set here can be referenced in the request via `{{variables.name}}`.",
     },
     ["request.variables.set"] = {
       sig = "request.variables.set(name, value)",
-      desc = "Set a request variable. Value is converted to string and available as {{variables.name}} later.",
+      desc = "Set a request variable. Value is converted to string and available as `{{variables.name}}` later.",
     },
     ["request.variables.get"] = {
       sig = "request.variables.get(name)",
@@ -650,7 +650,7 @@ M.script_api_docs = {
     },
     ["client.global.set"] = {
       sig = "client.global.set(name, value)",
-      desc = "Set a persistent global variable. Available across all requests via client.global.get().",
+      desc = "Set a persistent global variable. Available across all requests via `client.global.get()`.",
     },
     ["client.global.get"] = {
       sig = "client.global.get(name)",
@@ -658,7 +658,7 @@ M.script_api_docs = {
     },
     ["variables"] = {
       sig = "variables",
-      desc = "Table of file/block-level @variable definitions from the current file.",
+      desc = "Table of file/block-level `@variable` definitions from the current file.",
     },
     ["env"] = {
       sig = "env",

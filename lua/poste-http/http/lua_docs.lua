@@ -254,20 +254,20 @@ function M.try_lsp_hover(script_lines, line, col, callback)
 end
 
 --- Render LSP result in a floating window.
-function M.show_lsp_result(lines)
+function M.show_lsp_result(lines, key)
   if not lines or #lines == 0 then return end
-  util.open_doc_preview(lines, { title = " Lua API " })
+  util.open_doc_preview(lines, { title = " Lua API ", track_key = key })
 end
 
 --- Show built-in documentation in a floating window.
-function M.show_builtin(sig, desc, title)
+function M.show_builtin(sig, desc, title, key)
   local lines = {}
   table.insert(lines, "```lua")
   table.insert(lines, sig)
   table.insert(lines, "```")
   table.insert(lines, "")
   table.insert(lines, desc)
-  util.open_doc_preview(lines, { title = " " .. (title or "Lua API") .. " " })
+  util.open_doc_preview(lines, { title = " " .. (title or "Lua API") .. " ", track_key = key })
 end
 
 ---------------------------------------------------------------------------
@@ -439,6 +439,7 @@ M.lua_docs = {
 --- @param cursor_col number  1-indexed column in .http buffer
 --- @param identifier string  full dotted identifier under cursor
 function M.show_doc(buf, cursor_line, cursor_col, identifier)
+  local key = "lua:" .. identifier
   -- Bare method names (find, match, gsub, etc.) — query LSP with the
   -- qualified name (string.find) so LSP resolves the rich docs.
   -- Falls back to built-in if LSP unavailable.
@@ -447,9 +448,9 @@ function M.show_doc(buf, cursor_line, cursor_col, identifier)
     local lsp_col = #method_module[identifier] + 2
     M.try_lsp_hover({ qualified }, 1, lsp_col, function(result)
       if result then
-        M.show_lsp_result(result)
+        M.show_lsp_result(result, key)
       else
-        M.show_builtin_fallback(identifier)
+        M.show_builtin_fallback(identifier, key)
       end
     end)
     return
@@ -458,20 +459,20 @@ function M.show_doc(buf, cursor_line, cursor_col, identifier)
   if lines then
     M.try_lsp_hover(lines, lua_line, lua_col, function(result)
       if result then
-        M.show_lsp_result(result)
+        M.show_lsp_result(result, key)
       else
-        M.show_builtin_fallback(identifier)
+        M.show_builtin_fallback(identifier, key)
       end
     end)
   else
-    M.show_builtin_fallback(identifier)
+    M.show_builtin_fallback(identifier, key)
   end
 end
 
-function M.show_builtin_fallback(identifier)
+function M.show_builtin_fallback(identifier, key)
   local entry = M.lookup_builtin(identifier)
   if entry then
-    M.show_builtin(entry.sig, entry.desc, "Lua API")
+    M.show_builtin(entry.sig, entry.desc, "Lua API", key)
   end
 end
 

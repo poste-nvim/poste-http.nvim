@@ -116,9 +116,12 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
 
   if parent_type == "header" then
     local header_key = ts_query.find_child_by_type(parent, "header_key")
-    local key_text = header_key and ts_query.node_text(header_key) or ""
+    local key_text = header_key and ts_query.node_text(header_key, buf) or ""
     if node_type == "header_value" then
       return "header_value", key_text
+    end
+    if not line_before_cursor:find(":", 1, true) then
+      return "method_or_header", nil
     end
     if key_text ~= "" then
       return "header_value", key_text
@@ -129,10 +132,10 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
   if parent_type == "variable" then
     local after
     if node:type() == "identifier" then
-      after = ts_query.node_text(node)
+      after = ts_query.node_text(node, buf)
     else
       local identifier_node = node:named_child(0)
-      after = identifier_node and ts_query.node_text(identifier_node) or ""
+      after = identifier_node and ts_query.node_text(identifier_node, buf) or ""
     end
     local dot_pos = after:find("%.")
     if dot_pos then
@@ -165,7 +168,7 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
     if node_type == "import_path" then
       return "import_path", nil
     end
-    local node_text = ts_query.node_text(node)
+    local node_text = ts_query.node_text(node, buf)
     if node_text == "as" or node_text:match("^as%s+") then
       return "import_alias", nil
     end
@@ -177,16 +180,16 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
 
   if parent_type == "run_directive" then
     local trimmed = vim.trim(line_before_cursor)
-    if trimmed:match("^run%s+#") then
-      local rest = trimmed:match("^run%s+#(.*)$")
+    if trimmed:lower():match("^run%s+#") then
+      local rest = trimmed:match("^[Rr][Uu][Nn]%s+#(.*)$")
       if rest and rest:find("%.") then
         local alias, partial = rest:match("^([^%.]+)%.(.*)$")
         return "run_target_alias", { alias = alias, partial = partial or "" }
       end
       return "run_target_hash", rest or ""
     end
-    if trimmed:match("^run%s+") then
-      local target = trimmed:match("^run%s+(.*)$")
+    if trimmed:lower():match("^run%s+") then
+      local target = trimmed:match("^[Rr][Uu][Nn]%s+(.*)$")
       return "run_target", target or ""
     end
     return "run_target", nil
@@ -300,18 +303,18 @@ local function detect_context(line_before_cursor, buf, cursor_line, cursor_col)
     end
     return "import_path", nil
   end
-  if trimmed:match("^run") then
+  if trimmed:lower():match("^run") then
     -- run #Name or run #alias.Name
-    if trimmed:match("^run%s+#") then
-      local rest = trimmed:match("^run%s+#(.*)$")
+    if trimmed:lower():match("^run%s+#") then
+      local rest = trimmed:match("^[Rr][Uu][Nn]%s+#(.*)$")
       if rest and rest:find("%.") then
         local alias, partial = rest:match("^([^%.]+)%.(.*)$")
         return "run_target_alias", { alias = alias, partial = partial or "" }
       end
       return "run_target_hash", rest or ""
     end
-    if trimmed:match("^run%s+") then
-      local target = trimmed:match("^run%s+(.*)$")
+    if trimmed:lower():match("^run%s+") then
+      local target = trimmed:match("^[Rr][Uu][Nn]%s+(.*)$")
       return "run_target", target or ""
     end
     return "run_target", nil

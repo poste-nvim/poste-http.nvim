@@ -138,6 +138,36 @@ function M.get_buffer_cache(buf)
           if not line:match("%}") then
             in_post_block = true
           end
+        elseif vim.trim(line):upper() == "SCRIPT" then
+          request_found_in_block = true
+          past_first_block = true
+          current_block = {
+            name = "",
+            start_line = i,
+            end_line = nil,
+            block_vars = {},
+            has_pre = false,
+            has_post = false,
+            has_run = false,
+            last_content_line = nil,
+          }
+          t = "request"
+        elseif line:match("^[A-Z]+%s+%S") then
+          request_found_in_block = true
+          past_first_block = true
+          current_block = {
+            name = "",
+            start_line = i,
+            end_line = nil,
+            block_vars = {},
+            has_pre = false,
+            has_post = false,
+            has_run = false,
+            last_content_line = nil,
+          }
+          t = "request"
+        elseif line:match("^[%w%-]+%s*:") then
+          t = "header"
         else
           t = "file"
         end
@@ -232,7 +262,7 @@ function M.get_buffer_cache(buf)
         end
       elseif line:match("^[%w%-]+%s*:") then
         t = "header"
-      elseif line:match("^run%s+") then
+      elseif line:lower():match("^run%s+") then
         t = "run"
         if current_block then current_block.has_run = true end
       elseif trimmed == "" then

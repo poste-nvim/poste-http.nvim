@@ -134,7 +134,7 @@ local function show_snacks_picker(requests)
     local url, short
 
     if method == "RUN" then
-      url = "#" .. req.name
+      url = req.url_path or "#" .. req.name
       short = short_name(req.name)
     else
       url = req.url_path or ""

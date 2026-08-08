@@ -52,9 +52,9 @@ end
 ---                      vars = { string: string } }
 local function parse_run_line(line)
   local trimmed = vim.trim(line)
-  if not trimmed:match("^run ") then return nil end
+  if not trimmed:lower():match("^run ") then return nil end
 
-  local rest = trimmed:match("^run%s+(.+)")
+  local rest = trimmed:match("^[Rr][Uu][Nn]%s+(.+)")
   if not rest then return nil end
 
   -- Extract optional inline variables: (@key=val, ...)

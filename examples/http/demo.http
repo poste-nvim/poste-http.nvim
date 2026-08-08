@@ -8,6 +8,7 @@ Accept: application/json
 
 ### Get Users
 < {%
+os.time()
   local page = request.variables.get("page") or 1
   request.variables.set("page", tostring(page))
 %}
@@ -39,8 +40,7 @@ Content-Type: application/json
 ### Update User (with empty header)
 PUT {{base_url}}/api/users/1
 Authorization: Bearer {{api_key}}
-X-Empty-Header:
-Content-Type: application/json
+X-Empty-Header: Content-Type: application/json
 
 {
   "name": "John Updated"
@@ -49,10 +49,9 @@ Content-Type: application/json
 ### Delete User
 DELETE {{base_url}}/api/users/1
 
-### Run via alias
 import ./fixtures/http-completion.http as fixtures
-
-run #fixtures.GetUser
+### Run via alias
+RUN #fixtures.GetUser
 
 ### Magic vars
 GET {{base_url}}/logs?ts={{$timestamp}}&uuid={{$uuid}}

@@ -36,7 +36,7 @@ end
 
 --- blink.cmp: trigger characters that activate this source.
 function M:get_trigger_characters()
-  return { " ", ":", "/", "-", "{", ".", "#" }
+  return { ":", "/", "-", "{", ".", "#" }
 end
 
 --- blink.cmp: keyword pattern for word boundary detection.
@@ -92,7 +92,7 @@ function source.get_keyword_pattern()
 end
 
 function source:get_trigger_characters()
-  return { " ", ":", "/", "-", "{", ".", "#" }
+  return { ":", "/", "-", "{", ".", "#" }
 end
 
 function source:get_debug_name()
