@@ -10,7 +10,8 @@ local list_width = 46
 local detail_buf = nil
 local detail_win = nil
 local current_index = nil
-local detail_view = "body"
+local DEFAULT_DETAIL_VIEW = "verbose"
+local detail_view = DEFAULT_DETAIL_VIEW
 local _ = nil  -- detail_jq_query placeholder
 local hiding = false
 local list_ns = vim.api.nvim_create_namespace("poste_history_list")
@@ -30,9 +31,10 @@ local METHOD_HL = {
 
 local METHOD_WIDTH = 8
 local STATUS_WIDTH = 3
--- Method (8) + status (3) + gap (1) + max elapsed "123.00 ms" (9)
--- + 2-space gap + timestamp (5).
-local FIXED_WIDTH = METHOD_WIDTH + STATUS_WIDTH + 17
+local ELAPSED_WIDTH = 9
+local TIMESTAMP_WIDTH = 5
+-- Method (8) + status (3) + gap (1) + elapsed (9) + 2-space gap + timestamp (5).
+local FIXED_WIDTH = METHOD_WIDTH + STATUS_WIDTH + 1 + ELAPSED_WIDTH + 2 + TIMESTAMP_WIDTH
 
 local function truncate_response(response)
   if not response or type(response) ~= "table" then return response end
@@ -123,7 +125,7 @@ local function format_list_line(entry, name_width)
   local elapsed = format_elapsed(entry.response and entry.response.latency_ms)
   local ts = format_timestamp(entry.time)
   local line = string.format(
-    "%-" .. METHOD_WIDTH .. "s%-" .. name_width .. "s%-" .. STATUS_WIDTH .. "s %s  %s",
+    "%-" .. METHOD_WIDTH .. "s%-" .. name_width .. "s%-" .. STATUS_WIDTH .. "s %-" .. ELAPSED_WIDTH .. "s  %s",
     method, name, status_text, elapsed, ts
   )
 
@@ -137,8 +139,8 @@ local function format_list_line(entry, name_width)
     status_col = METHOD_WIDTH + name_width,
     status_end = METHOD_WIDTH + name_width + #status_text,
     elapsed_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1,
-    elapsed_end = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + #elapsed,
-    ts_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + #elapsed + 2,
+    elapsed_end = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + ELAPSED_WIDTH,
+    ts_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + ELAPSED_WIDTH + 2,
   }
 end
 
@@ -360,7 +362,7 @@ local function hide()
   detail_buf = nil
   detail_win = nil
   current_index = nil
-  detail_view = "body"
+  detail_view = DEFAULT_DETAIL_VIEW
   hiding = false
 end
 
@@ -574,7 +576,7 @@ function M.show()
   detail_win = dw
 
   current_index = nil
-  detail_view = "body"
+  detail_view = DEFAULT_DETAIL_VIEW
 
   setup_list_keymaps()
   setup_detail_keymaps()

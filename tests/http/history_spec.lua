@@ -25,7 +25,7 @@ describe("history._test.format_list_line", function()
       method = "POST",
       latency_ms = 12,
     }), 18)
-    assert.equals("POST    RegisterUser      200 12.00 ms  " .. os.date("%H:%M", entry("RegisterUser").time), line)
+    assert.equals("POST    RegisterUser      200 12.00 ms   " .. os.date("%H:%M", entry("RegisterUser").time), line)
     assert.equals("PosteMethodPOST", info.method_hl)
     assert.equals(0, info.method_col)
     assert.equals(4, info.method_end)
@@ -33,7 +33,7 @@ describe("history._test.format_list_line", function()
     assert.equals("200", info.status)
     assert.equals("PosteStatus2xx", info.status_hl)
     assert.equals(8 + 18 + 4, info.elapsed_col)
-    assert.equals(8 + 18 + 4 + 8 + 2, info.ts_col)
+    assert.equals(8 + 18 + 4 + 9 + 2, info.ts_col)
   end)
 
   it("shows status before elapsed", function()
