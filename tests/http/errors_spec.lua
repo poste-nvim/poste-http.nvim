@@ -134,6 +134,42 @@ describe("errors.find_var_line", function()
     local lines = { "{{a}}", "{{a}}" }
     assert.equal(1, errors.find_var_line(lines, "a"))
   end)
+
+  it("scopes search to a line range (start_line..end_line)", function()
+    local lines = {
+      "# {{a}} (comment in earlier block)",
+      "GET /x",
+      "# {{a}} (comment in target block)",
+      '  "id": {{a}}',
+    }
+    assert.equal(3, errors.find_var_line(lines, "a", 3, 4))
+  end)
+
+  it("returns nil when name is outside the given line range", function()
+    local lines = {
+      "{",
+      '  "id": {{a}},',
+      "}",
+    }
+    assert.is_nil(errors.find_var_line(lines, "a", 3, 3))
+  end)
+
+  it("returns the line within the block even when the first file occurrence is earlier", function()
+    local lines = {
+      "# {{my_number}} → 100",
+      "### 07",
+      "POST /x",
+      "{",
+      '  "id": {{my_number}},',
+      "}",
+    }
+    assert.equal(5, errors.find_var_line(lines, "my_number", 2, 6))
+  end)
+
+  it("clamps a start_line greater than end_line to nil result", function()
+    local lines = { "{{a}}" }
+    assert.is_nil(errors.find_var_line(lines, "a", 5, 2))
+  end)
 end)
 
 describe("errors.apply_highlights jump targets", function()

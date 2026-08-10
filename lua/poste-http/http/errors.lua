@@ -28,15 +28,22 @@ function M.find_unresolved_vars(parts)
   return result
 end
 
---- Find the first (1-indexed) line in `lines` where `{{name}}` appears.
+--- Find the first (1-indexed) line in `lines[begin..end]` where `{{name}}` appears.
+--- Searches the full array by default. When `start_line` and `end_line` are given,
+--- only scans lines in that range (1-indexed, inclusive).
 --- @param lines string[]  Source buffer lines
 --- @param name string     Variable name (without braces)
+--- @param start_line number|nil  Optional 1-indexed start line (inclusive)
+--- @param end_line number|nil    Optional 1-indexed end line (inclusive)
 --- @return number|nil
-function M.find_var_line(lines, name)
+function M.find_var_line(lines, name, start_line, end_line)
   if not lines or not name then return nil end
   local needle = "{{" .. name .. "}}"
-  for i, line in ipairs(lines) do
-    if line:find(needle, 1, true) then
+  local s = start_line or 1
+  local e = end_line or #lines
+  for i = s, e do
+    local line = lines[i]
+    if line and line:find(needle, 1, true) then
       return i
     end
   end

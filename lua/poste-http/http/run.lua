@@ -753,7 +753,7 @@ local function start_curl_exec(ctx)
     local src_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
     local errs = {}
     for _, name in ipairs(unresolved) do
-      local real_line = errors.find_var_line(src_lines, name)
+      local real_line = errors.find_var_line(src_lines, name, block_start, block_end)
       table.insert(errs, errors.pre_request("variable_resolution",
         string.format("Cannot resolve variable '{{%s}}' in request", name),
         { var = name, line = real_line, file = file }))
