@@ -105,7 +105,7 @@ Content-Type: application/json
 
 ================================================================================
 POST with JSON body
-================================================================================
+===============================================================================
 
 ### Create user
 POST https://api.example.com/users
@@ -116,7 +116,38 @@ Content-Type: application/json
   "email": "john@example.com"
 }
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+
+(document
+  (request_block
+    (separator)
+    (request_name))
+  (request_line
+    (method
+      (method_post))
+    (url
+      (url_path)))
+  (header
+    (header_key)
+    (header_value))
+  (json_body))
+
+================================================================================
+POST with JSON body containing hex color (#) in strings
+================================================================================
+
+### Recolor
+POST /cloth/recolor/works
+Content-Type: application/json
+
+{
+  "extractedColors": [
+    {"hex": "#ddc306", "selected": false},
+    {"hex": "#3bb1b1", "selected": true}
+  ]
+}
+
+-------------------------------------------------------------------------------
 
 (document
   (request_block

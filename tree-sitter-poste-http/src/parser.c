@@ -1348,8 +1348,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 65:
       if (lookahead != 0 &&
-          lookahead != '\n' &&
-          lookahead != '#') ADVANCE(203);
+          lookahead != '\n') ADVANCE(203);
       END_STATE();
     case 66:
       if (lookahead != 0 &&

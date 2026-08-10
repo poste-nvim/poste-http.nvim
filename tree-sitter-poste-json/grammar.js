@@ -5,7 +5,6 @@ module.exports = grammar({
 
   extras: $ => [
     /\s/,
-    $.comment,
   ],
 
   supertypes: $ => [
@@ -13,7 +12,7 @@ module.exports = grammar({
   ],
 
   rules: {
-    document: $ => repeat($.value),
+    document: $ => repeat(choice($.value, $.comment)),
 
     value: $ => choice(
       $.object,

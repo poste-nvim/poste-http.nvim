@@ -298,7 +298,7 @@ module.exports = grammar({
     // ─── JSON Body ──────────────────────────────────
     json_body: $ => token(seq(
       /[\[{][^\n]*/,
-      /(?:\n[^#\n][^\n]*)*/,
+      /(?:\n[^\n]+)*/,
     )),
 
     // ─── Multipart Boundary ─────────────────────────

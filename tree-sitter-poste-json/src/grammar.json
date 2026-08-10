@@ -5,8 +5,17 @@
     "document": {
       "type": "REPEAT",
       "content": {
-        "type": "SYMBOL",
-        "name": "value"
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "value"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "comment"
+          }
+        ]
       }
     },
     "value": {
@@ -409,10 +418,6 @@
     {
       "type": "PATTERN",
       "value": "\\s"
-    },
-    {
-      "type": "SYMBOL",
-      "name": "comment"
     }
   ],
   "conflicts": [],
