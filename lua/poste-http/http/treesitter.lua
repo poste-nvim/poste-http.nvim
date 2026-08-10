@@ -4,6 +4,30 @@ local state = require("poste-http.state")
 
 local ns = vim.api.nvim_create_namespace("poste_http_var_refs")
 local mapping_ns = vim.api.nvim_create_namespace("poste_http_prompt_mapping")
+local undo_ns = vim.api.nvim_create_namespace("poste_http_undo_fix")
+
+local function invalidate_parser(bufnr)
+  vim.schedule(function()
+    local okp, parser = pcall(vim.treesitter.get_parser, bufnr, "poste_http")
+    if okp and parser then
+      if parser.invalidate then
+        pcall(parser.invalidate, parser)
+      else
+        pcall(vim.treesitter.stop, bufnr)
+        pcall(vim.treesitter.start, bufnr, "poste_http")
+      end
+    end
+  end)
+end
+
+vim.on_key(function(key)
+  if vim.fn.mode() == "n" and (key == "u" or key == "U" or key == vim.keycode("<C-R>")) then
+    local bufnr = vim.api.nvim_get_current_buf()
+    if vim.bo[bufnr] and vim.bo[bufnr].filetype == "poste_http" then
+      invalidate_parser(bufnr)
+    end
+  end
+end, undo_ns)
 
 local function highlight_var_refs(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
