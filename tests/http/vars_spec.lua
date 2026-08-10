@@ -79,3 +79,48 @@ describe("collect_var_defs", function()
     assert.equals("http://localhost:8888", r.host)
   end)
 end)
+
+describe("VarResolver:substitute with table values", function()
+  it("encodes table as JSON when substituted into content", function()
+    local resolver = vars.new()
+    resolver.session_vars = { obj = { name = "doge" } }
+    local result = resolver:substitute('{"obj": {{obj}}}')
+    assert.equals('{"obj": {"name":"doge"}}', result)
+  end)
+
+  it("encodes nested table as JSON", function()
+    local resolver = vars.new()
+    resolver.session_vars = { user = { profile = { name = "Alice", age = 30 } } }
+    local result = resolver:substitute('{{user}}')
+    assert.truthy(result:match('"name"%s*:%s*"Alice"'))
+    assert.truthy(result:match('"age"%s*:%s*30'))
+    assert.is_falsy(result:match("^table:"))
+  end)
+
+  it("handles string values unchanged", function()
+    local resolver = vars.new()
+    resolver.session_vars = { name = "hello" }
+    local result = resolver:substitute('{{name}}')
+    assert.equals("hello", result)
+  end)
+
+  it("handles numeric values", function()
+    local resolver = vars.new()
+    resolver.session_vars = { count = 42 }
+    local result = resolver:substitute('{{count}}')
+    assert.equals("42", result)
+  end)
+
+  it("handles boolean values", function()
+    local resolver = vars.new()
+    resolver.session_vars = { flag = true }
+    local result = resolver:substitute('{{flag}}')
+    assert.equals("true", result)
+  end)
+
+  it("leaves unresolved {{var}} as-is", function()
+    local resolver = vars.new()
+    local result = resolver:substitute('{{unknown}}')
+    assert.equals("{{unknown}}", result)
+  end)
+end)

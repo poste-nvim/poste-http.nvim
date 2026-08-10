@@ -627,6 +627,7 @@ end
 
 M._dep_chain = nil
 M._resolve_request_variable = resolve_request_variable
+M.value_to_http_string = value_to_http_string
 
 M._test = {
   find_request_variable_refs = find_request_variable_refs,

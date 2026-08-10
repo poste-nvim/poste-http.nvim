@@ -43,11 +43,27 @@ function VarResolver:_resolve_magic(name)
   return nil
 end
 
+local function value_to_string(v)
+  local t = type(v)
+  if t == "string" then
+    return v
+  elseif t == "number" or t == "boolean" then
+    return tostring(v)
+  elseif t == "table" and v ~= vim.NIL then
+    local ok, encoded = pcall(vim.json.encode, v)
+    if ok then return encoded end
+    return tostring(v)
+  end
+  return ""
+end
+
 function VarResolver:substitute(input)
   local result = input
   for _ = 1, 20 do
     local next = result:gsub("{{([^}]+)}}", function(var_name)
-      return self:resolve(var_name) or "{{" .. var_name .. "}}"
+      local v = self:resolve(var_name)
+      if v ~= nil then return value_to_string(v) end
+      return "{{" .. var_name .. "}}"
     end)
     if next == result then break end
     result = next

@@ -132,7 +132,7 @@ local function collect_entries(buf, cursor_line)
         if var_name:match("%.response%.") or var_name:match("%.request%.") then
           local resolved = request_deps.resolve_single_ref(var_name)
           if resolved ~= nil then
-            return resolved
+            return request_deps.value_to_http_string(resolved)
           end
         end
         return "{{" .. var_name .. "}}"
@@ -345,5 +345,9 @@ function M.show_inspector()
   vim.keymap.set("n", "<Esc>", close, { buffer = float_buf, noremap = true, silent = true })
   vim.keymap.set("n", "<CR>", jump_to_def, { buffer = float_buf, noremap = true, silent = true })
 end
+
+M._test = {
+  collect_entries = collect_entries,
+}
 
 return M
