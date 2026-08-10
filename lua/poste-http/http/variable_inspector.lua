@@ -52,6 +52,13 @@ local function collect_entries(buf, cursor_line)
   local block_start, block_end = cache.find_request_block_bounds(buf, cursor_line)
   local first_block = find_first_block_line(buf_lines)
 
+  -- Resolve Lua import references (@var = alias.keypath → @var = value) so the
+  -- inspector shows the actual Lua value, not the raw alias token. Line count is
+  -- preserved (import lines become blank), so block/file ranges still align.
+  local buf_dir = buf_path ~= "" and vim.fn.fnamemodify(buf_path, ":h") or vim.fn.getcwd()
+  local import = require("poste-http.http.import")
+  local resolved_lines = vim.split(import.resolve_lua_imports(table.concat(buf_lines, "\n"), buf_dir), "\n", { plain = true })
+
   local entries = {}
 
   local function add_entry(var_name, value, source, opts)
@@ -72,13 +79,13 @@ local function collect_entries(buf, cursor_line)
 
   local block_vars = {}
   if block_start and block_end then
-    block_vars = vars.collect_var_defs_with_lines(buf_lines, block_start, block_end)
+    block_vars = vars.collect_var_defs_with_lines(resolved_lines, block_start, block_end)
     for name, info in pairs(block_vars) do
       add_entry(name, info.value, "request_vars", { file = buf_path, line = info.line })
     end
   end
 
-  local file_vars = vars.collect_var_defs_with_lines(buf_lines, 1, first_block and first_block - 1 or #buf_lines)
+  local file_vars = vars.collect_var_defs_with_lines(resolved_lines, 1, first_block and first_block - 1 or #resolved_lines)
   for name, info in pairs(file_vars) do
     add_entry(name, info.value, "file_vars", { file = buf_path, line = info.line })
   end

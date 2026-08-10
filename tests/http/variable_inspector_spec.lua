@@ -2,17 +2,24 @@ local variable_inspector = require("poste-http.http.variable_inspector")
 local request_deps = require("poste-http.http.request_deps")
 local state = require("poste-http.state")
 
-local function setup_buffer(lines)
+local function setup_buffer(lines, filename)
   local buf = vim.api.nvim_create_buf(true, true)
-  vim.api.nvim_buf_set_name(buf, os.tmpname() .. ".http")
+  vim.api.nvim_buf_set_name(buf, filename or os.tmpname() .. ".http")
   vim.bo[buf].filetype = "poste_http"
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_set_current_buf(buf)
   return buf
 end
 
+local function write_lua_file(path, content)
+  local f = io.open(path, "w")
+  f:write(content)
+  f:close()
+end
+
 describe("variable_inspector collect_entries", function()
   local buf
+  local lua_file
 
   before_each(function()
     state.global_vars = {}
@@ -25,6 +32,10 @@ describe("variable_inspector collect_entries", function()
     state.script_variables = {}
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
     pcall(vim.cmd, "bwipeout!")
+    if lua_file then
+      os.remove(lua_file)
+      lua_file = nil
+    end
   end)
 
   it("displays a table-valued request ref as JSON, not 'table: 0x...'", function()
@@ -49,5 +60,56 @@ describe("variable_inspector collect_entries", function()
     assert.truthy(entries.obj)
     assert.equals('{"name":"doge"}', entries.obj[1].value)
     assert.is_falsy(entries.obj[1].value:match("^table:"))
+  end)
+
+  it("resolves Lua import @var = alias.keypath to the actual value", function()
+    lua_file = os.tmpname() .. ".lua"
+    write_lua_file(lua_file, [[
+return {
+  a_string = "hello from lua",
+  an_int = 100,
+  a_float = 3.14,
+  person = { name = "Lex", age = 23, role = "admin" },
+}
+]])
+
+    buf = setup_buffer({
+      "import " .. lua_file .. " as m",
+      "",
+      "@my_name = m.a_string",
+      "@my_number = m.an_int",
+      "@my_person = m.person",
+      "@my_pi = m.a_float",
+      "",
+      "### 01",
+      "GET /test",
+    }, os.tmpname() .. ".http")
+
+    local entries, sorted = variable_inspector._test.collect_entries(buf, 9)
+    assert.truthy(entries)
+    assert.equals("hello from lua", entries.my_name[1].value)
+    assert.equals("100", entries.my_number[1].value)
+    assert.truthy(entries.my_person[1].value:match('"name"%s*:%s*"Lex"'))
+    assert.truthy(entries.my_person[1].value:match('"age"%s*:%s*23'))
+    assert.truthy(entries.my_person[1].value:match('"role"%s*:%s*"admin"'))
+    assert.equals("3.14", entries.my_pi[1].value)
+  end)
+
+  it("shows the raw alias token when Lua import resolution fails", function()
+    buf = setup_buffer({
+      "import ./nonexistent.lua as m",
+      "",
+      "@my_name = m.a_string",
+      "",
+      "### 01",
+      "GET /test",
+    })
+
+    local entries, sorted = variable_inspector._test.collect_entries(buf, 6)
+    assert.truthy(entries)
+    assert.truthy(entries.my_name)
+    -- When the Lua file doesn't exist, resolve_lua_imports leaves the line
+    -- unchanged (import line becomes blank, @var value stays as raw token).
+    assert.equals("m.a_string", entries.my_name[1].value)
   end)
 end)
