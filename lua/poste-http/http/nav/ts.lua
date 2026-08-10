@@ -242,6 +242,58 @@ function M.goto_definition()
         end
       end
     end
+
+    -- Lua import alias.keypath reference: @var = m.a_string
+    local alias, keypath = text:match("^(%w+)%.(.+)$")
+    if alias and keypath then
+      local sr, sc, er, ec = node:range()
+      local rel_col = col - sc
+      local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local import_mod = require("poste-http.http.import")
+      local import_path = nil
+      local import_alias_line = nil
+      for i, l in ipairs(buf_lines) do
+        local imp = import_mod.parse_import_line(l)
+        if imp and imp.type == "aliased" and imp.alias == alias then
+          import_path = imp.path
+          import_alias_line = i
+          break
+        end
+      end
+      if not import_path or not import_alias_line then
+        vim.notify("Import not found for alias '" .. alias .. "'", vim.log.levels.WARN)
+        return
+      end
+      if rel_col < #alias then
+        local l = buf_lines[import_alias_line]
+        local as_pos = l:find(" as " .. vim.pesc(alias) .. "%s*$")
+        local target_col = (as_pos and as_pos + 3) or 0
+        vim.cmd("normal! m'")
+        vim.api.nvim_win_set_cursor(0, { import_alias_line, target_col })
+        return
+      end
+      local buf_name = vim.api.nvim_buf_get_name(buf)
+      local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
+      local full_path = vim.fn.simplify(buf_dir .. "/" .. import_path)
+      if vim.fn.filereadable(full_path) == 1 then
+        vim.cmd("normal! m'")
+        vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+        local first_key = keypath:match("^([^%.]+)")
+        if first_key then
+          local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+          for i, l in ipairs(lines) do
+            if l:match('^%s*' .. vim.pesc(first_key) .. '%s*=') or l:match('^%s*%[' .. vim.pesc(first_key) .. '%]') then
+              vim.api.nvim_win_set_cursor(0, { i, 0 })
+              return
+            end
+          end
+        end
+      else
+        vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
+      end
+      return
+    end
+
     vim.notify("Definition not found: " .. tostring(var_name), vim.log.levels.WARN)
     return
   end

@@ -1086,4 +1086,6 @@ M._test = {
   execute_import_via_curl = execute_import_via_curl,
 }
 
+M.parse_import_line = parse_import_line
+
 return M

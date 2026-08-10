@@ -98,3 +98,65 @@ describe("nav.text.goto_definition on client.run", function()
     pcall(vim.cmd, "bwipeout!")
   end)
 end)
+
+describe("nav.text.goto_definition on Lua import @var = alias.keypath", function()
+  local function setup_lua_import()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    local lua_file = dir .. "/vars.lua"
+    local f = io.open(lua_file, "w")
+    f:write("return {\n  a_string = \"hello from lua\",\n}\n")
+    f:close()
+
+    local buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, dir .. "/test.http")
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "import ./vars.lua as m",
+      "",
+      "@my_name = m.a_string",
+      "",
+      "### 01",
+      "GET /test",
+    })
+    vim.api.nvim_set_current_buf(buf)
+    vim.bo[buf].filetype = "poste_http"
+    return dir, lua_file, buf
+  end
+
+  it("jumps to import line when cursor is on the alias", function()
+    local dir, lua_file, buf = setup_lua_import()
+
+    -- Cursor on 'm' in 'm.a_string' (col 11, 0-indexed where 'm' starts)
+    vim.api.nvim_win_set_cursor(0, { 3, 11 })
+
+    require("poste-http.http.nav.text").goto_definition()
+
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    assert.equals(1, cursor[1])
+    local line = vim.api.nvim_buf_get_lines(0, cursor[1] - 1, cursor[1], false)[1] or ""
+    assert.truthy(line:match("import.*as m"))
+
+    pcall(vim.fn.delete, dir, "rf")
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+  end)
+
+  it("opens the Lua file when cursor is on the keypath", function()
+    local dir, lua_file, buf = setup_lua_import()
+
+    -- Cursor on 'a_string' in 'm.a_string' (col 13, 0-indexed where 'a' of 'a_string' starts)
+    -- '@my_name = m.a_string' → 'a' at 1-indexed 14, 0-indexed 13
+    vim.api.nvim_win_set_cursor(0, { 3, 13 })
+
+    require("poste-http.http.nav.text").goto_definition()
+
+    assert.are_equal(vim.fn.resolve(lua_file), vim.api.nvim_buf_get_name(0))
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local line = vim.api.nvim_buf_get_lines(0, cursor[1] - 1, cursor[1], false)[1] or ""
+    assert.truthy(line:match("a_string"))
+
+    pcall(vim.fn.delete, dir, "rf")
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+  end)
+end)
