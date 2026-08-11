@@ -2,6 +2,7 @@ local state = require("poste-http.state")
 local context_detector = require("poste-http.http.context_detector")
 local data = require("poste-http.http.data")
 local lua_docs = require("poste-http.http.lua_docs")
+local import = require("poste-http.http.import")
 local nav_ts = require("poste-http.http.nav.ts")
 local nav_text = require("poste-http.http.nav.text")
 local util = require("poste-http.util")
@@ -142,18 +143,25 @@ function M.show_var_value()
 
   local buf_path = vim.api.nvim_buf_get_name(buf)
   local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local full_content = table.concat(buf_lines, "\n")
+  local buf_dir = buf_path ~= "" and vim.fn.fnamemodify(buf_path, ":h") or vim.fn.getcwd()
+  local resolved_content = import.resolve_lua_imports(full_content, buf_dir)
+  local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
   local cache = require("poste-http.http.cache")
   local block_start, block_end = cache.find_request_block_bounds(buf, line_num)
   local vars = require("poste-http.http.vars")
   local resolver = vars.build_resolver_from_state({
     buf = buf,
-    lines = buf_lines,
+    lines = resolved_lines,
     file_path = buf_path,
     block_start = block_start,
     block_end = block_end,
     env_name = state.current_env,
   })
   local value = resolver:resolve(var_name)
+  if value == nil then
+    value = import.resolve_lua_keypath(var_name, full_content, buf_dir)
+  end
   local resolved = value or "(unresolved)"
 
   local title = " " .. var_name .. " "

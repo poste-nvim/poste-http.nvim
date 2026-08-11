@@ -1074,6 +1074,48 @@ function M.resolve_lua_imports(content, buf_dir)
   return table.concat(result_lines, "\n")
 end
 
+--- Resolve a single `alias.keypath` reference against Lua imports.
+--- Parses import lines from content, loads Lua modules, and resolves the keypath.
+--- @param keypath string  e.g. "m.person.age" or "m.tags[1]"
+--- @param content string  Full buffer content (to find import directives)
+--- @param buf_dir string  Directory of the current buffer
+--- @return string|nil  Resolved value as string, or nil if unresolvable
+function M.resolve_lua_keypath(keypath, content, buf_dir)
+  if not keypath or not content or not buf_dir then return nil end
+
+  local alias = keypath:match("^(%w+)%.")
+  if not alias then return nil end
+
+  for line in content:gmatch("[^\n]+") do
+    local imp = parse_import_line(line)
+    if imp and imp.type == "aliased" and imp.alias == alias then
+      local file_path = resolve_path(imp.path, buf_dir)
+      local cached = lua_module_cache[file_path]
+      if not cached then
+        local f, err = io.open(file_path, "r")
+        if not f then return nil end
+        local src = f:read("*a")
+        f:close()
+        local fn, load_err = load(src, "@" .. file_path)
+        if not fn then return nil end
+        local ok, exports = pcall(fn)
+        if not ok then return nil end
+        cached = exports or {}
+        lua_module_cache[file_path] = cached
+      end
+      local inner_keypath = keypath:match("^%w+%.(.+)$")
+      if inner_keypath then
+        local resolved = resolve_path_for_export(cached, inner_keypath)
+        if resolved ~= nil then
+          return value_to_http_string(resolved)
+        end
+      end
+      return nil
+    end
+  end
+  return nil
+end
+
 -- Test interface
 M._test = {
   parse_import_line = parse_import_line,

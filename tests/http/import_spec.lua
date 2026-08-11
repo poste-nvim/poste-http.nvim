@@ -372,6 +372,44 @@ POST /test
       os.remove(tmpfile)
     end)
   end)
+
+  describe("resolve_lua_keypath", function()
+    local tmpfile
+    local content
+
+    before_each(function()
+      tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("return { a_string = 'hello', person = { name = 'lex', age = 23 }, tags = { 'red', 'green' } }")
+      f:close()
+      content = ("import %s as m\n\n@my_name = m.a_string\n@person_name = m.person.name\n"):format(tmpfile)
+    end)
+
+    after_each(function()
+      os.remove(tmpfile)
+    end)
+
+    it("resolves a top-level keypath", function()
+      assert.are_equal("hello", import_mod.resolve_lua_keypath("m.a_string", content, "/tmp"))
+    end)
+
+    it("resolves a nested keypath", function()
+      assert.are_equal("23", import_mod.resolve_lua_keypath("m.person.age", content, "/tmp"))
+      assert.are_equal("lex", import_mod.resolve_lua_keypath("m.person.name", content, "/tmp"))
+    end)
+
+    it("resolves an array-indexed keypath", function()
+      assert.are_equal("red", import_mod.resolve_lua_keypath("m.tags[1]", content, "/tmp"))
+    end)
+
+    it("returns nil for an unknown alias", function()
+      assert.is_nil(import_mod.resolve_lua_keypath("x.nope", content, "/tmp"))
+    end)
+
+    it("returns nil for an unknown keypath", function()
+      assert.is_nil(import_mod.resolve_lua_keypath("m.nope", content, "/tmp"))
+    end)
+  end)
 end)
 
 describe("execute_import_via_curl", function()
