@@ -79,6 +79,46 @@ function M.goto_definition()
         return
       end
 
+      -- Lua import alias reference: {{m.keypath}} in URL/header/body
+      local alias, keypath = var_name:match("^(%w+)%.(.+)$")
+      if alias and keypath then
+        local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+        local import_mod = require("poste-http.http.import")
+        local import_path = nil
+        for i, l in ipairs(buf_lines) do
+          local imp = import_mod.parse_import_line(l)
+          if imp and imp.type == "aliased" and imp.alias == alias then
+            import_path = imp.path
+            break
+          end
+        end
+        if import_path then
+          local buf_name = vim.api.nvim_buf_get_name(buf)
+          local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
+          local full_path = import_path:sub(1, 1) == "/" and import_path
+            or vim.fn.simplify(buf_dir .. "/" .. import_path)
+          if vim.fn.filereadable(full_path) == 1 then
+            vim.cmd("normal! m'")
+            vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+            local first_key = keypath:match("^([^%.]+)")
+            first_key = first_key:match("^([%w_]+)")
+            if first_key then
+              local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+              for i, l in ipairs(lines) do
+                if l:match('^%s*' .. vim.pesc(first_key) .. '%s*=')
+                   or l:match('^%s*%w+%.' .. vim.pesc(first_key) .. '%s*=') then
+                  vim.api.nvim_win_set_cursor(0, { i, 0 })
+                  return
+                end
+              end
+            end
+          else
+            vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
+          end
+          return
+        end
+      end
+
       vim.notify("Definition not found: " .. var_name, vim.log.levels.WARN)
       return
     end
@@ -142,6 +182,46 @@ function M.goto_definition()
       vim.cmd("normal! m'")
       vim.api.nvim_win_set_cursor(0, { pre_line, pre_col })
       return
+    end
+
+    -- Lua import alias reference: {{m.keypath}} in URL/header/body
+    local alias, keypath = var_name:match("^(%w+)%.(.+)$")
+    if alias and keypath then
+      local buf_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+      local import_mod = require("poste-http.http.import")
+      local import_path = nil
+      for i, l in ipairs(buf_lines) do
+        local imp = import_mod.parse_import_line(l)
+        if imp and imp.type == "aliased" and imp.alias == alias then
+          import_path = imp.path
+          break
+        end
+      end
+      if import_path then
+        local buf_name = vim.api.nvim_buf_get_name(buf)
+        local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
+        local full_path = import_path:sub(1, 1) == "/" and import_path
+          or vim.fn.simplify(buf_dir .. "/" .. import_path)
+        if vim.fn.filereadable(full_path) == 1 then
+          vim.cmd("normal! m'")
+          vim.cmd("edit " .. vim.fn.fnameescape(full_path))
+          local first_key = keypath:match("^([^%.]+)")
+          first_key = first_key:match("^([%w_]+)")
+          if first_key then
+            local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+            for i, l in ipairs(lines) do
+              if l:match('^%s*' .. vim.pesc(first_key) .. '%s*=')
+                 or l:match('^%s*%w+%.' .. vim.pesc(first_key) .. '%s*=') then
+                vim.api.nvim_win_set_cursor(0, { i, 0 })
+                return
+              end
+            end
+          end
+        else
+          vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
+        end
+        return
+      end
     end
 
     vim.notify("Definition not found: " .. var_name, vim.log.levels.WARN)
@@ -274,7 +354,8 @@ function M.goto_definition()
       end
       local buf_name = vim.api.nvim_buf_get_name(buf)
       local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-      local full_path = vim.fn.simplify(buf_dir .. "/" .. import_path)
+      local full_path = import_path:sub(1, 1) == "/" and import_path
+          or vim.fn.simplify(buf_dir .. "/" .. import_path)
       if vim.fn.filereadable(full_path) == 1 then
         vim.cmd("normal! m'")
         vim.cmd("edit " .. vim.fn.fnameescape(full_path))
@@ -335,7 +416,8 @@ function M.goto_definition()
     end
     local buf_name = vim.api.nvim_buf_get_name(buf)
     local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-    local full_path = vim.fn.simplify(buf_dir .. "/" .. import_path)
+    local full_path = import_path:sub(1, 1) == "/" and import_path
+        or vim.fn.simplify(buf_dir .. "/" .. import_path)
     if vim.fn.filereadable(full_path) == 1 then
       vim.cmd("normal! m'")
       vim.cmd("edit " .. vim.fn.fnameescape(full_path))

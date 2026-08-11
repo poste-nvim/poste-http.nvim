@@ -212,7 +212,8 @@ function M.goto_definition()
           if import_path then
             local buf_name = vim.api.nvim_buf_get_name(buf)
             local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-            local full_path = vim.fn.simplify(buf_dir .. "/" .. import_path)
+            local full_path = import_path:sub(1, 1) == "/" and import_path
+              or vim.fn.simplify(buf_dir .. "/" .. import_path)
             if vim.fn.filereadable(full_path) == 1 then
               vim.cmd("normal! m'")
               vim.cmd("edit " .. vim.fn.fnameescape(full_path))
