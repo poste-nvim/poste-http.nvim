@@ -601,6 +601,10 @@
         "required": false,
         "types": [
           {
+            "type": "import_var_ref",
+            "named": true
+          },
+          {
             "type": "var_value",
             "named": true
           },
@@ -696,6 +700,10 @@
   },
   {
     "type": "import_path",
+    "named": true
+  },
+  {
+    "type": "import_var_ref",
     "named": true
   },
   {

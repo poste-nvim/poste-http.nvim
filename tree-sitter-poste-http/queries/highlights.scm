@@ -8,6 +8,7 @@
   (var_name) @PosteVarDef)
 (var_assign) @PosteVarAssign
 (var_value) @PosteVarValue
+(import_var_ref) @PosteVarValue
 
 ; Multi-line variable body
 (multiline_variable) @PosteVarValue

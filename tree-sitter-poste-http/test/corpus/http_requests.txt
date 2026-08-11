@@ -55,6 +55,49 @@ Variable definition
     (var_value)))
 
 ================================================================================
+Import variable reference (Lua import keypath)
+================================================================================
+
+@my_name = m.a_string
+@first_tag = m.tags[1]
+@first_user_name = m.users[1].name
+
+--------------------------------------------------------------------------------
+
+(document
+  (variable_definition
+    (var_name)
+    (var_assign)
+    (import_var_ref))
+  (variable_definition
+    (var_name)
+    (var_assign)
+    (import_var_ref))
+  (variable_definition
+    (var_name)
+    (var_assign)
+    (import_var_ref)))
+
+================================================================================
+Import variable reference falls back to plain var_value
+================================================================================
+
+@number = 123
+@plain = hello world
+
+--------------------------------------------------------------------------------
+
+(document
+  (variable_definition
+    (var_name)
+    (var_assign)
+    (var_value))
+  (variable_definition
+    (var_name)
+    (var_assign)
+    (var_value)))
+
+================================================================================
 Variable reference in URL
 ================================================================================
 

@@ -103,6 +103,11 @@ function M.setup()
     { "PosteJsonColon",    "Delimiter" },
     { "PosteJsonComma",    "Delimiter" },
     { "PosteJsonEscape",   "SpecialChar" },
+    { "PosteImportRef",    "PosteVarValue" },
+    { "PosteImportRefAlias", "PosteImportAlias" },
+    { "PosteImportRefDot",   "PosteVarAssign" },
+    { "PosteImportRefKey",   "PosteVarValue" },
+    { "PosteImportRefIndex", "Number" },
   }
   for _, pair in ipairs(syntax_links) do
     local existing = vim.api.nvim_get_hl(0, { name = pair[1] })
@@ -218,6 +223,7 @@ function M.setup()
     "PosteStatus2xx", "PosteStatus3xx", "PosteStatus4xx", "PosteStatus5xx",
     "PosteVerboseSeparator", "PosteVerboseSection", "PosteVerboseSubHeader", "PosteVerboseKey", "PosteVerboseValue",
     "PosteRequestKey", "PosteRequestValue",
+    "PosteImportRef", "PosteImportRefAlias", "PosteImportRefDot", "PosteImportRefKey", "PosteImportRefIndex",
     "PosteAssertSummary", "PosteAssertSummaryFail",
     "PosteAssertPass", "PosteAssertFail",
     "PosteAssertIconPass", "PosteAssertIconFail",

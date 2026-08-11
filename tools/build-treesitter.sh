@@ -8,7 +8,7 @@ echo "Generating parser from grammar.js..."
 tree-sitter generate
 
 echo "Compiling..."
-${CC:-cc} -c -Isrc -fPIC -O2 -o src/parser.o src/parser.c
-${CC:-cc} -shared -o src/parser.o src/parser.o
+${CC:-cc} -c -Isrc/tree_sitter -fPIC -O2 -o src/parser.o src/parser.c
+${CC:-cc} -shared -o tree-sitter-poste_http.so src/parser.o
 
 echo "Done: tree-sitter-poste-http/src/parser.c"

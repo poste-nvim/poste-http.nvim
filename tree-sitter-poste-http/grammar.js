@@ -150,7 +150,7 @@ module.exports = grammar({
         optional(WS),
         optional($.var_assign),
         optional(WS),
-        field('value', choice($.variable, $.var_value)),
+        field('value', choice($.variable, $.import_var_ref, $.var_value)),
       )),
       NL,
     ),
@@ -163,6 +163,18 @@ module.exports = grammar({
       /[^\{]/,
       /[^\n]*/,
     ),
+
+    // Import variable reference: @var = alias.keypath
+    // Single token to avoid lexer conflict with var_value's opening regex.
+    // Sub-highlighting applied via Lua extmarks (treesitter.lua).
+    import_var_ref: $ => token(seq(
+      /[a-zA-Z_][a-zA-Z0-9_]*/,
+      repeat1(seq(
+        '.',
+        /[a-zA-Z_][a-zA-Z0-9_]*/,
+        optional(seq('[', /\d+/, ']')),
+      )),
+    )),
 
     // ─── Multi-line Variable ────────────────────────
     multiline_variable: $ => token(seq(

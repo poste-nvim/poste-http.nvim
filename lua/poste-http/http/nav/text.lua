@@ -220,7 +220,8 @@ function M.goto_definition()
               if first_key then
                 local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
                 for i, l in ipairs(lines) do
-                  if l:match('^%s*' .. vim.pesc(first_key) .. '%s*=') or l:match('^%s*%[' .. vim.pesc(first_key) .. '%]') then
+                  if l:match('^%s*' .. vim.pesc(first_key) .. '%s*=')
+                   or l:match('^%s*%w+%.' .. vim.pesc(first_key) .. '%s*=') then
                     vim.api.nvim_win_set_cursor(0, { i, 0 })
                     return
                   end

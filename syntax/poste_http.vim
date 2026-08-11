@@ -55,9 +55,19 @@ syn match PosteRunVarValue '[^,)= \t]\+' contained
 " ─── Variable definitions: @name = value / @name value ──
 syn match PosteVarDef '^\s*@\w\+'
   \ nextgroup=PosteVarAssign,PosteVarValue skipwhite
-syn match PosteVarAssign '=' contained nextgroup=PosteVarValue skipwhite
+syn match PosteVarAssign '=' contained nextgroup=PosteImportRef,PosteVarValue skipwhite
 syn match PosteVarValue '[^= \t].*$' contained
   \ contains=PosteVarRef,PosteMagicVar
+
+" ─── Lua import variable reference: @var = alias.key[.key...] ──
+" Structured ref (e.g. m.config.endpoint, m.tags[1]) gets granular colors;
+" non-dotted values fall back to PosteVarValue.
+syn match PosteImportRef '\w\+\%(\.\w\+\)\+\(\%(\[\d\+\]\)\?\)\?$' contained
+  \ contains=PosteImportRefDot,PosteImportRefIndex,PosteImportRefKey
+syn match PosteImportRefDot   '\.' contained
+syn match PosteImportRefIndex '\[\d\+\]' contained
+syn match PosteImportRefKey   '\w\+' contained
+syn match PosteImportRefAlias '\w\+' contained
 
 " ─── Multi-line variable value end marker ──────────
 syn match PosteMultiVarEnd '^\s*<<<\s*$'
@@ -223,5 +233,11 @@ hi def link PosteJsonBrackets Delimiter
 hi def link PosteJsonColon   Delimiter
 hi def link PosteJsonComma   Delimiter
 hi def link PosteJsonEscape  SpecialChar
+
+hi def link PosteImportRef     PosteVarValue
+hi def link PosteImportRefAlias PosteImportAlias
+hi def link PosteImportRefDot   PosteVarAssign
+hi def link PosteImportRefKey   PosteVarValue
+hi def link PosteImportRefIndex Number
 
 let b:current_syntax = "poste_http"

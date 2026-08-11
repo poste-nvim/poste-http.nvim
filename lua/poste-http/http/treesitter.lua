@@ -122,6 +122,65 @@ local function highlight_var_refs(bufnr)
         end
         s = b + 1
       end
+
+      -- Highlight Lua import var ref sub-parts: @var = alias.key[...].key[...]
+      local var_start, var_end, var_name = line:find("^%s*@([%w_]+)%s*=%s*")
+      if var_start and var_name then
+        local value = line:sub(var_end + 1)
+        local alias_end = value:find("^([a-zA-Z_][a-zA-Z0-9_]*%.+)")
+        if alias_end then
+          local alias_name = value:match("^([a-zA-Z_][a-zA-Z0-9_]*)")
+          if alias_name then
+            vim.api.nvim_buf_set_extmark(bufnr, ns, row, var_end, {
+              end_row = row, end_col = var_end + #alias_name,
+              hl_group = "PosteImportRefAlias",
+              priority = 155,
+            })
+            local pos = var_end + #alias_name
+            local rest = value:sub(#alias_name + 1)
+            local seg_idx = 1
+            while seg_idx <= #rest do
+              local c = rest:sub(seg_idx, seg_idx)
+              if c == "." then
+                vim.api.nvim_buf_set_extmark(bufnr, ns, row, pos, {
+                  end_row = row, end_col = pos + 1,
+                  hl_group = "PosteImportRefDot",
+                  priority = 155,
+                })
+                pos = pos + 1
+                seg_idx = seg_idx + 1
+              elseif c:match("[a-zA-Z_]") then
+                local key_end = rest:find("[^a-zA-Z0-9_]", seg_idx)
+                if not key_end then key_end = #rest + 1 end
+                vim.api.nvim_buf_set_extmark(bufnr, ns, row, pos, {
+                  end_row = row, end_col = pos + (key_end - seg_idx),
+                  hl_group = "PosteImportRefKey",
+                  priority = 155,
+                })
+                pos = pos + (key_end - seg_idx)
+                seg_idx = key_end
+              elseif c == "[" then
+                local bracket_end = rest:find("]", seg_idx)
+                if bracket_end then
+                  bracket_end = bracket_end + 1
+                else
+                  bracket_end = #rest + 1
+                end
+                vim.api.nvim_buf_set_extmark(bufnr, ns, row, pos, {
+                  end_row = row, end_col = pos + (bracket_end - seg_idx),
+                  hl_group = "PosteImportRefIndex",
+                  priority = 155,
+                })
+                pos = pos + (bracket_end - seg_idx)
+                seg_idx = bracket_end
+              else
+                seg_idx = seg_idx + 1
+                pos = pos + 1
+              end
+            end
+          end
+        end
+      end
     end
     -- Highlight prompt mapping keys (name:/key:/desc:) inside << [ ... ] lines
     if line:find("^%s*<<") then

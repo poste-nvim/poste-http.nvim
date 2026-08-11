@@ -51,3 +51,46 @@ describe("treesitter client.run target highlights", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 end)
+
+describe("treesitter Lua import var ref highlights", function()
+  it("subdivides alias, dots and keys in @var = alias.keypath", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@my_name = m.config.endpoint" })
+
+    treesitter._test.highlight_var_refs(buf)
+
+    local groups = extmark_groups(buf, 0)
+    assert.is_true(vim.tbl_contains(groups, "PosteImportRefAlias"),
+      "expected PosteImportRefAlias for alias, got: " .. vim.inspect(groups))
+    assert.is_true(vim.tbl_contains(groups, "PosteImportRefDot"),
+      "expected PosteImportRefDot for '.' separators, got: " .. vim.inspect(groups))
+    assert.is_true(vim.tbl_contains(groups, "PosteImportRefKey"),
+      "expected PosteImportRefKey for path segments, got: " .. vim.inspect(groups))
+    assert.is_false(vim.tbl_contains(groups, "PosteImportRefIndex"))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  it("highlights array index separately in @var = alias.key[1]", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@first_tag = m.tags[1]" })
+
+    treesitter._test.highlight_var_refs(buf)
+
+    local groups = extmark_groups(buf, 0)
+    assert.is_true(vim.tbl_contains(groups, "PosteImportRefIndex"),
+      "expected PosteImportRefIndex for [1], got: " .. vim.inspect(groups))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+
+  it("does not highlight plain var values", function()
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@plain = hello world" })
+
+    treesitter._test.highlight_var_refs(buf)
+
+    local groups = extmark_groups(buf, 0)
+    assert.is_false(vim.tbl_contains(groups, "PosteImportRefAlias"))
+    assert.is_false(vim.tbl_contains(groups, "PosteImportRefKey"))
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
+end)
