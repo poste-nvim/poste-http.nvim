@@ -308,6 +308,61 @@ function M.build_script_local_variable_items(line_text, buf, cursor_line)
   return items
 end
 
+--- Build completion items for Lua import alias keypath completion.
+--- Navigates into the exports table based on the partial path and suggests
+--- keys of the current table, filtered by the trailing partial text.
+--- Handles table navigation through dot-separated paths and array index
+--- brackets (e.g. "users[1].name").
+--- @param exports table  Lua module exports table
+--- @param partial string  Path typed after the alias dot (e.g. "person." or "config.endp")
+--- @param alias string  Import alias name (for detail display)
+--- @return table  Completion items
+function M.build_lua_import_items(exports, partial, alias)
+  local items = {}
+  local segments = vim.split(partial, ".", { plain = true })
+  local last = segments[#segments] or ""
+  local node = exports
+  for i = 1, #segments - 1 do
+    local seg = segments[i]
+    if seg ~= "" then
+      local name, idx = seg:match("^(%w+)%[(%d+)%]$")
+      if name then
+        node = node[name]
+        if type(node) == "table" then
+          node = node[tonumber(idx)]
+        else
+          node = nil
+        end
+      else
+        node = node[seg]
+      end
+    end
+    if type(node) ~= "table" then
+      node = nil
+      break
+    end
+  end
+  if type(node) == "table" then
+    for key in pairs(node) do
+      local k = tostring(key)
+      if last == "" or k:sub(1, #last) == last then
+        local val = node[key]
+        local is_table = type(val) == "table"
+        table.insert(items, {
+          label = is_table and (k .. ".") or k,
+          kind = is_table and 9 or 10, -- KIND_MODULE or KIND_PROPERTY
+          insertText = is_table and (k .. ".") or k,
+          filterText = k,
+          sortText = (is_table and "0" or "1") .. k,
+          detail = alias .. "." .. (partial == "" and "" or (partial .. ".")) .. k,
+        })
+      end
+    end
+    table.sort(items, function(a, b) return a.sortText < b.sortText end)
+  end
+  return items
+end
+
 --- Get completion items for a given line context.
 --- @param line_before_cursor string Text before cursor
 --- @param buf number Buffer number
@@ -512,6 +567,18 @@ function M.get_items_for_context(line_before_cursor, buf, cursor_line, cursor_co
       end
     end
 
+    return items
+  end
+
+  if ctx == "import_var_ref" then
+    local data_extra = extra or {}
+    local alias = data_extra.alias or ""
+    local partial = data_extra.partial or ""
+    local import_index = cache.collect_import_index(buf)
+    local entry = (import_index.aliased or {})[alias]
+    if entry and entry.is_lua and entry.exports then
+      items = M.build_lua_import_items(entry.exports, partial, alias)
+    end
     return items
   end
 

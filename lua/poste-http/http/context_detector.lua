@@ -149,6 +149,20 @@ local function ts_detect_context(line_before_cursor, buf, cursor_line, cursor_co
   end
 
   if parent_type == "variable_definition" then
+    if node_type == "var_name" then
+      return nil
+    end
+    -- Lua import alias keypath: @var = alias. → suggest keys from the module
+    if node_type == "import_var_ref" or node_type == "var_value" then
+      local text = ts_query.node_text(node, buf)
+      local alias, partial = text:match("^(%w+)%.(.*)$")
+      if alias then
+        local index = cache.collect_import_index(buf)
+        if (index.aliased or {})[alias] then
+          return "import_var_ref", { alias = alias, partial = partial or "" }
+        end
+      end
+    end
     return nil
   end
 
@@ -371,8 +385,15 @@ local function detect_context(line_before_cursor, buf, cursor_line, cursor_col)
     return "variable", after_open
   end
 
-  -- @var definition (no unclosed {{) → no completion
+  -- @var definition: detect Lua import alias keypath @var = alias.
   if first_char == "@" then
+    local var_name, alias, partial = line_before_cursor:match("^%s*@(%w[%w_]*)%s*=%s*(%w+)%s*%.(.*)$")
+    if var_name and alias then
+      local index = cache.collect_import_index(buf)
+      if (index.aliased or {})[alias] then
+        return "import_var_ref", { alias = alias, partial = partial or "" }
+      end
+    end
     return nil, nil
   end
 

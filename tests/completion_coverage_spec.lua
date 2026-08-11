@@ -510,3 +510,107 @@ describe("edge cases", function()
     assert.is_nil(ctx)
   end)
 end)
+
+----------------------------------------------------------------------
+-- Lua import alias completion
+----------------------------------------------------------------------
+describe("import_var_ref context", function()
+  local lua_file, buf
+
+  before_each(function()
+    local dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    lua_file = dir .. "/vars.lua"
+    local f = io.open(lua_file, "w")
+    f:write([[
+local M = {}
+M.a_string = "hello"
+M.an_int = 100
+M.person = { name = "Lex", age = 23 }
+M.config = { endpoint = "x", timeout = 5 }
+M.tags = { "a", "b" }
+M.users = { { id = 1, name = "alice" } }
+return M
+]])
+    f:close()
+
+    buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_current_buf(buf)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "import " .. lua_file .. " as m",
+      "",
+      "@my_name = m.",
+      "@pn = m.person.",
+      "@ce = m.config.end",
+      "@fu = m.users[1].name",
+    })
+    vim.bo[buf].filetype = "poste_http"
+  end)
+
+  after_each(function()
+    if lua_file then
+      local dir = vim.fn.fnamemodify(lua_file, ":h")
+      pcall(vim.fn.delete, dir, "rf")
+    end
+    if buf and vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+  end)
+
+  it("detects import_var_ref context after alias dot", function()
+    local ctx, extra = test.detect_context("@my_name = m.", buf, 3, 14)
+    assert.equals("import_var_ref", ctx)
+    assert.equals("m", extra.alias)
+  end)
+
+  it("detects import_var_ref with partial keypath", function()
+    local ctx, extra = test.detect_context("@my_name = m.con", buf, 3, 17)
+    assert.equals("import_var_ref", ctx)
+    assert.equals("m", extra.alias)
+    assert.equals("con", extra.partial)
+  end)
+
+  it("returns nil for @var without alias dot", function()
+    local ctx = test.detect_context("@my_name = hello", buf, 3, 17)
+    assert.is_nil(ctx)
+  end)
+
+  it("returns nil for @var with unknown alias", function()
+    local ctx = test.detect_context("@x = unknown.", buf, 4, 12)
+    assert.is_nil(ctx)
+  end)
+
+  it("returns top-level items after alias dot", function()
+    local items = test.get_items_for_context("@my_name = m.", buf, 3, 14)
+    local labels = {}
+    for _, it in ipairs(items) do labels[it.label] = true end
+    assert.is_true(labels["a_string"], "expected a_string, got: " .. vim.inspect(labels))
+    assert.is_true(labels["an_int"], "expected an_int")
+    assert.is_true(labels["config."], "expected config. (namespace)")
+    assert.is_true(labels["person."], "expected person. (namespace)")
+  end)
+
+  it("filters by partial text", function()
+    local items = test.get_items_for_context("@ce = m.config.end", buf, 5, 19)
+    local labels = {}
+    for _, it in ipairs(items) do labels[it.label] = true end
+    assert.is_true(labels["endpoint"], "expected endpoint, got: " .. vim.inspect(labels))
+    assert.is_nil(labels["timeout"])
+  end)
+
+  it("navigates into nested tables", function()
+    local items = test.get_items_for_context("@pn = m.person.", buf, 3, 16)
+    local labels = {}
+    for _, it in ipairs(items) do labels[it.label] = true end
+    assert.is_true(labels["name"], "expected name, got: " .. vim.inspect(labels))
+    assert.is_true(labels["age"], "expected age")
+  end)
+
+  it("navigates through array index", function()
+    local items = test.get_items_for_context("@fu = m.users[1].", buf, 4, 18)
+    local labels = {}
+    for _, it in ipairs(items) do labels[it.label] = true end
+    assert.is_true(labels["name"], "expected name, got: " .. vim.inspect(labels))
+    assert.is_true(labels["id"], "expected id")
+  end)
+end)
