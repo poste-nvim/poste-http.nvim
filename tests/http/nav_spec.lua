@@ -167,7 +167,7 @@ describe("nav.ts.goto_definition on Lua import_var_ref", function()
     vim.fn.mkdir(dir, "p")
     local lua_file = dir .. "/vars.lua"
     local f = io.open(lua_file, "w")
-    f:write("return {\n  a_string = \"hello from lua\",\n}\n")
+    f:write("return {\n  a_string = \"hello from lua\",\n  users = {\n    { id = 1, name = \"alice\" },\n  },\n}\n")
     f:close()
 
     local buf = vim.api.nvim_create_buf(true, true)
@@ -176,6 +176,7 @@ describe("nav.ts.goto_definition on Lua import_var_ref", function()
       "import ./vars.lua as m",
       "",
       "@my_name = m.a_string",
+      "@first_user = m.users[1].name",
       "",
       "### 01",
       "GET /test",
@@ -214,6 +215,24 @@ describe("nav.ts.goto_definition on Lua import_var_ref", function()
     local cursor = vim.api.nvim_win_get_cursor(0)
     local line = vim.api.nvim_buf_get_lines(0, cursor[1] - 1, cursor[1], false)[1] or ""
     assert.truthy(line:match("a_string"))
+
+    pcall(vim.fn.delete, dir, "rf")
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+  end)
+
+  it("opens the Lua file at the correct table for array-indexed keypath", function()
+    local dir, lua_file, buf = setup_lua_import()
+
+    vim.api.nvim_win_set_cursor(0, { 4, 16 })
+
+    require("poste-http.http.nav.ts").goto_definition()
+
+    assert.are_equal(vim.fn.resolve(lua_file), vim.api.nvim_buf_get_name(0))
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local line = vim.api.nvim_buf_get_lines(0, cursor[1] - 1, cursor[1], false)[1] or ""
+    assert.truthy(line:match("users"),
+      "expected to land on 'users' line, got: " .. line)
 
     pcall(vim.fn.delete, dir, "rf")
     pcall(vim.api.nvim_buf_delete, buf, { force = true })

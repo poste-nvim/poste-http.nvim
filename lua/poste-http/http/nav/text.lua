@@ -217,6 +217,7 @@ function M.goto_definition()
               vim.cmd("normal! m'")
               vim.cmd("edit " .. vim.fn.fnameescape(full_path))
               local first_key = keypath:match("^([^%.]+)")
+              first_key = first_key:match("^([%w_]+)")
               if first_key then
                 local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
                 for i, l in ipairs(lines) do
