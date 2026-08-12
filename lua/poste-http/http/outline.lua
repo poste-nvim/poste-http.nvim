@@ -27,11 +27,11 @@ local function extract_method_url(buf, start_line, total_lines)
   local in_pre = false
   for _, line in ipairs(lines) do
     local trimmed = line:match("^%s*(.-)%s*$") or line
-    if trimmed:match("^<%s*{%%") then
+    if trimmed:match("^<%s*{") then
       in_pre = true
     elseif in_pre then
       if trimmed:match("%%}") then in_pre = false end
-    elseif trimmed == "" or trimmed:match("^@%w") or trimmed:match("^#") or trimmed:match("^<<") then  -- luacheck: ignore 542
+    elseif trimmed == "" or trimmed:match("^@%S") or trimmed:match("^#") or trimmed:match("^<<") then  -- luacheck: ignore 542
     else
       local run_target = trimmed:match("^[Rr][Uu][Nn]%s+(%S+)")
       if run_target then

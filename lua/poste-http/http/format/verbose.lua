@@ -80,6 +80,30 @@ local function format_elapsed(ms, pending_start_hires)
   return "-"
 end
 
+local function calc_response_size(r)
+  if not r then return 0 end
+  local body_size
+  if r.metadata and r.metadata.file_size then
+    body_size = r.metadata.file_size
+  else
+    body_size = #(r.body or "")
+  end
+  local headers_size = 0
+  if r.headers then
+    for _, h in ipairs(r.headers) do
+      headers_size = headers_size + #h[1] + 2 + #h[2] + 2 -- "key: value\r\n"
+    end
+  end
+  return body_size + headers_size
+end
+
+function M.format_response_size(r)
+  local total = calc_response_size(r)
+  if total == 0 then return "0 B" end
+  local human = fmt_util.human_size(total)
+  return string.format("%s  (%s bytes)", human, total)
+end
+
 local function extract_connection_info(verbose)
   if not verbose or verbose == "" then return {} end
   local info = {}
@@ -177,6 +201,10 @@ function M.format_verbose(r, pending)
     table.insert(lines, "  Status Code: " .. st)
   end
   table.insert(lines, "  Request Time: " .. (timestamp ~= "" and timestamp or "-"))
+  if r then
+    local resp_size = M.format_response_size(r)
+    table.insert(lines, "  Response Size: " .. resp_size)
+  end
   table.insert(lines, "  Elapsed: " .. format_elapsed(elapsed_ms))
   table.insert(lines, "  Env: " .. (env ~= "" and env or "-"))
   table.insert(lines, "  ")

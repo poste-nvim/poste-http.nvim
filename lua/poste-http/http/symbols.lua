@@ -75,15 +75,16 @@ local function collect_requests(bufnr)
         local skip = false
 
         if next_line:match("^%s*$") then skip = true end
-        if not skip and next_line:match("^%s*<%s*{%%") then
-          in_pre_script = true
-          skip = true
-        end
         if not skip and in_pre_script then
           if next_line:match("%%}") then in_pre_script = false end
           skip = true
         end
-        if not skip and next_line:match("^%s*@%w") then skip = true end
+        if not skip and next_line:match("^%s*<%s*{") then
+          in_pre_script = true
+          skip = true
+          if next_line:match("%%}") then in_pre_script = false end
+        end
+        if not skip and next_line:match("^%s*@%S") then skip = true end
         if not skip and next_line:match("^%s*#") then skip = true end
         if not skip and next_line:match("^%s*<<") then skip = true end
 
@@ -93,15 +94,18 @@ local function collect_requests(bufnr)
             method = "RUN"
             url_path = run_target
           else
-            method = next_line:match("^%s*(%u+)%s")
+            method = next_line:match("^%s*(%u+)%s+(%S+)")
+            if not method then
+              method = next_line:match("^%s*(%u+)%s+$")
+            end
             if not method then
               method = next_line:match("^%s*(%u+)$")
             end
           end
           if method and method ~= "RUN" then
             url_path = extract_url_path(next_line)
+            break
           end
-          break
         end
       end
 
