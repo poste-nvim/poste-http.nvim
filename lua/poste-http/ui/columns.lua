@@ -13,6 +13,8 @@
 ---   lead     leading spaces before this column (default: opts.gap, or 0 for
 ---            the first column) — allows non-uniform gaps between columns
 ---   ellipsis truncate over-long cells with "..." (default true; false = hard cut)
+---   hl      default highlight group for every cell in this column (optional;
+---            per-cell override via row value `{ text, hl }` takes precedence)
 ---
 --- opts:
 ---   width    total display width of each line (required when any column has
@@ -27,9 +29,10 @@
 --- @param cols table[]  column specs, see above
 --- @param opts table|nil
 --- @return string[] lines — one formatted line per row
---- @return table[][] cells — cells[row][col] = { text, col, end_col, width }
+--- @return table[][] cells — cells[row][col] = { text, col, end_col, width, hl }
 ---   text is the visible (truncated) cell text; col/end_col are byte offsets
----   suitable for nvim_buf_set_extmark.
+---   suitable for nvim_buf_set_extmark. hl is the resolved highlight group
+---   (per-cell override, or column default, or nil).
 local M = {}
 
 local function disp_width(s)
@@ -75,9 +78,11 @@ local function truncate(text, max_width, ellipsis)
 end
 
 local function cell_text(v)
-  if v == nil then return "" end
-  if type(v) == "string" then return v end
-  return tostring(v)
+  if v == nil then return "", nil end
+  if type(v) == "table" then
+    return v.text ~= nil and tostring(v.text) or "", v.hl
+  end
+  return tostring(v), nil
 end
 
 --- @param rows table[]
@@ -103,6 +108,7 @@ function M.render(rows, cols, opts)
       min = spec.min,
       ellipsis = spec.ellipsis ~= false,
       lead = spec.lead or (c == 1 and 0 or gap),
+      hl = spec.hl,
     }
   end
 
@@ -173,11 +179,14 @@ function M.render(rows, cols, opts)
     for c = 1, ncols do
       local spec = specs[c]
       local w = widths[c]
-      local vis = truncate(texts[r][c], w, spec.ellipsis)
+      local text, cell_hl = cell_text(rows[r] and rows[r][c])
+      local vis = truncate(text, w, spec.ellipsis)
       local padn = math.max(0, w - disp_width(vis))
       local lead_sp = string.rep(" ", spec.lead)
       local pad_sp = string.rep(pad, padn)
       local cell = { text = vis, width = w }
+      -- Precedence: per-cell override > column default > nil
+      cell.hl = cell_hl or spec.hl
       if spec.align == "right" then
         segs[#segs + 1] = lead_sp .. pad_sp .. vis
         cell.col = byte_offset + spec.lead + pad_byte * padn
