@@ -13,32 +13,12 @@
 
 | Layer | Tool | Location |
 |-------|------|----------|
-| Rust parser unit | `#[cfg(test)] mod tests` | `crates/poste-core/src/parser.rs` |
-| Rust executor unit | `#[cfg(test)] mod tests` | `crates/poste-exec/src/executor.rs` |
 | Lua unit | busted (`tests/run.sh`) | `tests/http_*_spec.lua` |
 | Lua integration | busted (`tests/run.sh`) | `tests/` |
 
 ## Workflow
 
-### Rust (parser / executor)
-
-```rust
-#[test]
-fn test_feature_name() {
-    // Arrange: build input content / Request
-    // Act: call parser / executor
-    // Assert: verify Request.body / Response fields
-}
-```
-
-Add the test to the existing `mod tests` block in the source file. Run:
-
-```bash
-cargo test -p poste-core   # parser changes
-cargo test -p poste-exec   # executor changes
-```
-
-### Lua (UI / scripts / assertions)
+### Lua (parser / execution)
 
 ```lua
 describe("module_name", function()
@@ -58,15 +38,15 @@ tests/run.sh
 
 ## Testing Patterns
 
-### Testing parser behavior
+### Testing Lua parsing
 
-Feed content to `parse_at_line` or `parse_block` and assert on `Request` fields:
+Feed content to `parse_at_line` or `parse_block` and assert on request fields:
 
-```rust
-let parser = Parser::new(env_vars);
-let request = parser.parse_at_line(content, line_num, "http")?;
-assert!(request.body.contains("expected"));
-assert!(!request.body.contains("should be stripped"));
+```lua
+local parser = require("poste-http.http.parser")
+local request = parser.parse_at_line(content, line_num)
+assert.is.truthy(request.body:match("expected"))
+assert.is.falsy(request.body:match("should be stripped"))
 ```
 
 ### Testing Lua script execution
@@ -94,8 +74,7 @@ end)
 
 ## Common Rules
 
-- **Rust assertion tests** go in `parser.rs` inline, not in a separate test file
 - **Lua tests** go in `tests/` directory, named `http_<feature>_spec.lua`
 - **Do not add SQL tests** when changing HTTP code — CI separates the two
-- **Test both success and error paths** — parser errors, curl failures, JSON decode failures
+- **Test both success and error paths** — parse errors, curl failures, JSON decode failures
 - **New `state` fields** need tests that verify they're set/cleared at the right time

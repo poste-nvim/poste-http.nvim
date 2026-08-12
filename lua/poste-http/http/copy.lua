@@ -1,6 +1,7 @@
 --- Copy HTTP request as curl command.
 local state = require("poste-http.state")
 local vars = require("poste-http.http.vars")
+local request_deps = require("poste-http.http.request_deps")
 
 local M = {}
 
@@ -242,6 +243,21 @@ function M.copy_as_curl()
   -- Resolve variables in the raw block content
   local raw_lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
   local resolved_content = vars.substitute_vars(table.concat(raw_lines, "\n"), resolver)
+
+  -- Resolve cross-request {{Name.response.body.X}} / {{Name.request.body.X}}
+  -- references from cached responses. This does not trigger new requests;
+  -- unresolved refs are left as-is, matching `gi` behavior.
+  resolved_content = resolved_content:gsub("{{(.-)}}", function(var_name)
+    var_name = vim.trim(var_name)
+    if var_name:match("%.response%.") or var_name:match("%.request%.") then
+      local resolved = request_deps.resolve_single_ref(var_name)
+      if resolved ~= nil then
+        return request_deps.value_to_http_string(resolved)
+      end
+    end
+    return "{{" .. var_name .. "}}"
+  end)
+
   local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
   local request_lines = {}
   local in_script = false

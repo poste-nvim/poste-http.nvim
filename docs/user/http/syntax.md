@@ -1,7 +1,7 @@
 # Poste HTTP File Syntax Reference
 
 > This document defines all supported syntax elements for `.http` / `.rest` files,
-> used as a unified reference for completion, highlighting, formatting, and the Rust CLI parser.
+> used as a unified reference for completion, highlighting, formatting, and the Lua parser.
 
 ## 1. File Structure
 
@@ -456,7 +456,7 @@ See [Variable Resolution](./variables.md) for the complete documentation. Key hi
 
 ## 5. Implementation Status Checklist
 
-| Syntax | Parser (Rust) | Completion (Lua) | Highlight (Lua) | Format (todo) |
+| Syntax | Parser (Lua) | Completion (Lua) | Highlight (Lua) | Format (todo) |
 |---|---|---|---|---|
 | `#` comment | ✅ skip | — | ❌ | — |
 | `@variable` definition | ✅ | ✅ | ❌ | ✅ todo |
@@ -469,7 +469,7 @@ See [Variable Resolution](./variables.md) for the complete documentation. Key hi
 | Request body | ✅ | — | ❌ | ✅ todo |
 | `< path` file include/upload | ✅ Lua | — | ✅ `PosteFileUpload` | ✅ todo |
 | `{{var}}` reference | ✅ | ✅ | ❌ | — |
-| `{{$magic}}` | ❌ Rust-side | ✅ | ❌ | — |
+| `{{$magic}}` | Lua-side | ✅ | ❌ | — |
 | `< {% %} ` | ✅ skip | ✅ | ❌ | ✅ todo |
 | `< ./path.lua` | ✅ skip | ❌ | ❌ | — |
 | `> {% %} ` | ✅ skip | ✅ | ❌ | ✅ todo |

@@ -5,6 +5,20 @@ local assertions = require("poste-http.http.assertions")
 local vars = require("poste-http.http.vars")
 local nested_access = require("poste-http.http.nested_access")
 local jq_mapping = require("poste-http.http.jq_mapping")
+local _import_mod = nil
+local _cache_mod = nil
+local function get_import_mod()
+  if not _import_mod then
+    _import_mod = require("poste-http.http.import")
+  end
+  return _import_mod
+end
+local function get_cache_mod()
+  if not _cache_mod then
+    _cache_mod = require("poste-http.http.cache")
+  end
+  return _cache_mod
+end
 
 local M = {}
 
@@ -416,10 +430,47 @@ local function execute_deps_for_block(opts)
   for _, ref in ipairs(refs) do
     if request_response_cache[ref.request_name] then
     else
-      for _, req in ipairs(requests) do
+      local already_pending = false
+      for _, req in ipairs(pending_deps) do
         if req.name == ref.request_name then
-          table.insert(pending_deps, req)
+          already_pending = true
           break
+        end
+      end
+      if not already_pending then
+        for _, req in ipairs(requests) do
+          if req.name == ref.request_name then
+            table.insert(pending_deps, req)
+            already_pending = true
+            break
+          end
+        end
+      end
+      if not already_pending then
+        local resolved = get_import_mod().resolve_reference(ref.request_name, get_cache_mod().collect_import_index(opts.buf))
+        if resolved then
+          local file_content = vim.fn.readfile(resolved.path)
+          if file_content and #file_content > 0 then
+            local block_start = resolved.line
+            local block_end = #file_content
+            for j = block_start + 1, #file_content do
+              if file_content[j]:match("^%s*###") then
+                block_end = j - 1
+                break
+              end
+            end
+            local block_lines = {}
+            for i = block_start, block_end do
+              table.insert(block_lines, file_content[i] or "")
+            end
+            table.insert(pending_deps, {
+              name = ref.request_name,
+              start_line = block_start,
+              end_line = block_end,
+              block_text = table.concat(block_lines, "\n"),
+              file = resolved.path,
+            })
+          end
         end
       end
     end
@@ -487,17 +538,23 @@ local function execute_deps_for_block(opts)
     state.log("INFO", string.format("Resolving dependency '%s' (depth %d)", dep_req.name, depth))
 
     local function do_execute(resolved_content)
-      if not resolved_content then resolved_content = content end
-      local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
-      local dep_lines = {}
-      for i = dep_req.start_line, dep_req.end_line do
-        table.insert(dep_lines, resolved_lines[i] or "")
+      local dep_block_text
+      if dep_req.block_text then
+        dep_block_text = dep_req.block_text
+      else
+        if not resolved_content then resolved_content = content end
+        local resolved_lines = vim.split(resolved_content, "\n", { plain = true })
+        local dep_lines = {}
+        for i = dep_req.start_line, dep_req.end_line do
+          table.insert(dep_lines, resolved_lines[i] or "")
+        end
+        dep_block_text = table.concat(dep_lines, "\n")
       end
-      local dep_block_text = table.concat(dep_lines, "\n")
+      local dep_file = dep_req.file or file
       local has_prompts = dep_block_text:match("<<[%a_][%w_]")
 
       if has_prompts and handle_prompt then
-        handle_prompt(buf, dep_req.start_line, resolved_content, file, env_name, function(prompt_resolved)
+        handle_prompt(buf, dep_req.start_line, resolved_content or dep_block_text, dep_file, env_name, function(prompt_resolved)
           if not prompt_resolved then
             state.log("WARN", string.format("Dependency '%s' prompt cancelled, skipping", dep_req.name))
             execute_next_dep()
@@ -509,7 +566,7 @@ local function execute_deps_for_block(opts)
             table.insert(dep_lines2, prompt_lines[i] or "")
           end
           local dep_block_text2 = table.concat(dep_lines2, "\n")
-          execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text2, function(response)
+          execute_dependent_request_async(buf, dep_file, env_name, dep_req, dep_block_text2, function(response)
             if response then
               state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
             else
@@ -519,7 +576,7 @@ local function execute_deps_for_block(opts)
           end)
         end)
       else
-        execute_dependent_request_async(buf, file, env_name, dep_req, dep_block_text, function(response)
+        execute_dependent_request_async(buf, dep_file, env_name, dep_req, dep_block_text, function(response)
           if response then
             state.log("INFO", string.format("Dependency '%s' executed and cached", dep_req.name))
           else

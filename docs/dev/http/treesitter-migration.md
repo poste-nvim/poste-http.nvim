@@ -274,15 +274,15 @@ end
 
 ## Phase 7: Formatting (Optional)
 
-**Current:** `PosteFormatHttp` delegates to `poste fmt` Rust CLI.
+**Current:** `PosteFormatHttp` delegates to an in-editor Lua formatter.
 
-**Target:** Optionally add an in-editor formatting path that uses tree-sitter to:
+**Target:** Optionally enhance formatting with tree-sitter to:
 - Sort headers alphabetically
 - Normalize header key capitalization
 - Ensure consistent `### ` separator format
 - Strip trailing whitespace
 
-This would be a Lua-only formatter (no CLI dependency), but would be less capable than the Rust formatter. The Rust CLI remains the primary formatter.
+This is a Lua-only formatter (no CLI dependency), and would replace the current formatter entirely.
 
 ---
 
@@ -297,7 +297,7 @@ This would be a Lua-only formatter (no CLI dependency), but would be less capabl
 | 4 | `textobj.lua` | Small | Low | Medium — new ergonomics |
 | 5 | `diagnostics.lua` | Medium | Medium | High — catches errors early |
 | 6 | `outline.lua` | Small | Low | Medium — reactive outline |
-| 7 | `format.lua` | Low | Low | Low — Rust CLI still primary |
+| 7 | `format.lua` | Low | Low | Low — enhancement over existing Lua formatter |
 
 **Phases 1-2 should be done together** since they share the same tree-sitter node-at-point infrastructure.
 

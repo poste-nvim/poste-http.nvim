@@ -208,7 +208,7 @@ Software developer from New York
 
    > **Removed**: `< path` for non-multipart bodies (e.g., JSON body embedding) is no longer supported. Use Lua import instead.
 
-3. **Binary Data Preservation**: The Rust executor uses `curl --data-binary` instead of `curl -d` to ensure binary data (like images) is transmitted correctly without modification.
+3. **Binary Data Preservation**: Poste uses `curl --data-binary` instead of `curl -d` to ensure binary data (like images) is transmitted correctly without modification.
 
 ### Boundary Best Practices
 
