@@ -1,13 +1,13 @@
 # Poste Architecture Overview
 
-> Overall architecture of the multi-protocol request executor
+> Overall architecture of the HTTP request executor plugin
 
 ---
 
 ## Core Design Principles
 
-1. **Protocol isolation** — HTTP and SQL are fully isolated at the implementation layer, sharing only infrastructure
-2. **File-driven** — All requests originate from `.http` / `.sql` files
+1. **Protocol isolation** — HTTP is fully isolated from other protocols; this repo is HTTP-only
+2. **File-driven** — All requests originate from `.http` / `.rest` files
 3. **Keyboard-first** — Neovim plugin uses keyboard as primary interaction mode
 4. **Lua + curl** — HTTP uses pure Lua for parsing, resolving, and execution; curl is the only subprocess
 
@@ -18,32 +18,20 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                   Neovim Plugin Layer (Lua)                   │
-│  ┌────────────────────┐  ┌──────────────┐                    │
-│  │  lua/poste/http/   │  │  lua/poste/  │                    │
-│  │  (HTTP-specific)   │  │  (shared)    │                    │
-│  │                    │  │              │                    │
-│  │ run.lua            │  │ state.lua    │                    │
-│  │ buffer.lua         │  │ select.lua   │                    │
-│  │ completion.lua     │  │ indicators   │                    │
-│  │ format.lua         │  │ constants    │                    │
-│  │ highlights.lua     │  │ error.lua    │                    │
-│  │ assertions.lua     │  │ help.lua     │                    │
-│  │ scripts.lua        │  │              │                    │
-│  │ curl.lua           │  │              │                    │
-│  │ copy.lua           │  │              │                    │
-│  │ nav.lua            │  │              │                    │
-│  │ history.lua        │  │              │                    │
-│  │ describe.lua       │  │              │                    │
-│  │ view.lua           │  │              │                    │
-│  │ json.lua           │  │              │                    │
-│  │ vars.lua           │  │              │                    │
-│  │ curl_exec.lua      │  │              │                    │
-│  │ response_parser.lua│  │              │                    │
-│  │ file_include.lua   │  │              │                    │
-│  │ format_file.lua    │  │              │                    │
-│  │ import*.lua        │  │              │                    │
-│  └────────────────────┘  └──────────────┘                    │
-│                          ↓                                  │
+│  ┌──────────────────────────────────────────┐                 │
+│  │  lua/poste-http/                         │                 │
+│  │  (shared infra + HTTP-specific)          │                 │
+│  │                                          │                 │
+│  │  Shared: state.lua, select.lua,          │                 │
+│  │          indicators.lua, buffer_setup     │                 │
+│  │                                          │                 │
+│  │  HTTP: run.lua, buffer.lua, view.lua,    │                 │
+│  │        completion.lua, format.lua,        │                 │
+│  │        highlights.lua, json.lua,          │                 │
+│  │        session.lua, describe.lua,         │                 │
+│  │        vars.lua, cache.lua, resolve.lua   │                 │
+│  └──────────────────────────────────────────┘                 │
+│                          │                                  │
 │              init.lua: filetype dispatch                    │
 │              poste_http → http.init.run_request()           │
 │                              │                              │
@@ -53,50 +41,9 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-The Rust CLI (`poste`) is no longer used for HTTP. All parsing, variable resolution,
+The Rust CLI (`poste`) is no longer used. All parsing, variable resolution,
 formatting, and import parsing are done in pure Lua. The only subprocess is `curl`,
 spawned via `vim.fn.jobstart`.
-
----
-
-## Protocol Implementation Comparison
-
-| Dimension | HTTP | SQL |
-|-----------|------|-----|
-| File extension | `.http`, `.rest` | `.sql`, `.mysql`, `.sqlite` |
-| Parser | tree-sitter (`describe.lua`) + `vars.lua` | `sql_parser.rs` (Rust) |
-| Executor | `curl_exec.lua` → curl | `sql_executor.rs` (sqlx) |
-| Result panel | Right vertical split | Bottom horizontal split |
-| Navigation | Normal text cursor | Cell (hjkl) navigation |
-| Completion | `http/completion.lua` | `sql/completion.lua` |
-| Syntax highlighting | `syntax/poste_http.vim` | `syntax/poste_sql.vim` |
-| Formatter | `format_file.lua` (Lua) | N/A |
-
----
-
-## Shared vs Isolated
-
-### Shared Files (poste-http.nvim infra)
-
-| File | Purpose |
-|------|---------|
-| `lua/poste/state.lua` | Shared state (env, current connection, etc.) |
-| `lua/poste/select.lua` | Generic Picker UI |
-| `lua/poste/indicators.lua` | Generic spinner/✓/✘ |
-| `ftdetect/poste.vim` | Filetype detection |
-
-### Isolated Files (HTTP-Specific, in poste-http.nvim)
-
-| Group | Files |
-|-------|-------|
-| **Execution** | `run.lua`, `curl_exec.lua`, `response_parser.lua`, `file_include.lua` |
-| **Parsing** | `describe.lua` (tree-sitter), `vars.lua` (VarResolver), `cache.lua` (UI index) |
-| **UI** | `buffer.lua`, `view.lua`, `format.lua`, `format/`, `highlights.lua`, `json.lua` |
-| **Scripts** | `scripts.lua`, `assertions.lua`, `session.lua` |
-| **Navigation** | `nav.lua`, `symbols.lua`, `outline.lua`, `textobj.lua`, `folding.lua` |
-| **Completion** | `completion.lua`, `context_detector.lua`, `item_builder.lua`, `var_collector.lua`, `data.lua` |
-| **Import** | `import.lua`, `import_openapi.lua`, `import_swagger.lua`, `import_postman.lua`, `import_parser.lua` |
-| **Misc** | `copy.lua`, `curl.lua`, `history.lua`, `env.lua`, `boundary_indicator.lua`, `diagnostics.lua`, `format_file.lua`, `treesitter.lua`, `ts_query.lua`, `lua_docs.lua`, `md5.lua`, `script_snippet.lua`, `highlights.lua` |
 
 ---
 
@@ -104,11 +51,11 @@ spawned via `vim.fn.jobstart`.
 
 ### Lua-side dispatch
 
-`lua/poste/init.lua`'s `run_request()`:
+`lua/poste-http/init.lua`'s `run_request()`:
 
 ```lua
 function M.run_request()
-  -- HTTP only — SQL handled by poste-sql.nvim plugin
+  -- HTTP-only: parse .http file, resolve vars, execute curl
 end
 ```
 
@@ -190,7 +137,7 @@ No Rust dependency for HTTP.
 
 | Layer | Tool | Location |
 |-------|------|----------|
-| Lua unit tests | busted (`tests/run.sh`) | `tests/*.lua` |
+| Lua unit tests | busted (`tests/run.sh`) | `tests/http/*_spec.lua` |
 | Contract tests | busted | `tests/contract/` |
 | Tree-sitter grammar | `tree-sitter test` | `tree-sitter-poste-http/` |
 
@@ -199,11 +146,10 @@ No Rust dependency for HTTP.
 ## Related Documents
 
 - [HTTP Developer Docs](./http/README.md)
-- [Rust Retirement Plan](./rust-retirement-plan.md) — migration status
 - [HTTP TDD Guide](./http/tdd-guide.md)
 - [File Index](./file-index.md)
 - [Testing Guide](./testing.md)
 
 ---
 
-*Architecture overview — Last updated: 2026-07-26*
+*Architecture overview — Last updated: 2026-08-12*

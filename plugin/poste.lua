@@ -1,7 +1,7 @@
 -- Poste plugin loader — HTTP request executor.
 
 -- Preload our core modules into package.loaded so they are cached before
--- any other plugin (e.g. poste.nvim) can load their own versions.
+-- any other plugin can load their own versions.
 require("poste-http.state")
 require("poste-http.constants")
 require("poste-http.util")

@@ -6,8 +6,8 @@ vim.opt.runtimepath:append(".")
 
 -- Make test helper modules loadable via require("helpers.*")
 package.path = package.path
-  .. ";./lua/?.lua"
-  .. ";./lua/?/init.lua"
+  .. ";./lua/poste-http/?.lua"
+  .. ";./lua/poste-http/?/init.lua"
   .. ";./tests/?.lua"
   .. ";./tests/?/init.lua"
   .. ";./tests/helpers/?.lua"

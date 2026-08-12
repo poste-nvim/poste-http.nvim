@@ -12,7 +12,6 @@ M.config = {
   max_body_lines = 500,
   body_preview_lines = 20,
   default_view = "body",
-  sql_formatters = { "sqlfluff", "sqlfmt", "sql-formatter", "pg_format" },
   keymaps = {
     http_source = {
       run = "<CR>",

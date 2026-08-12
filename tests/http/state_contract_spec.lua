@@ -25,11 +25,6 @@ describe("state.config defaults", function()
     assert.equals(80, state.config.split_size)
   end)
 
-  it("sql_formatters has defaults in order", function()
-    assert.is_table(state.config.sql_formatters)
-    assert.equals("sqlfluff", state.config.sql_formatters[1])
-  end)
-
   it("highlights is an empty table", function()
     assert.is_table(state.config.highlights)
     assert.equals(0, vim.tbl_count(state.config.highlights))

@@ -1,8 +1,7 @@
---- Phase 2b: HTTP/SQL session lifecycle tests.
+--- HTTP session lifecycle tests.
 
 local state = require("poste-http.state")
 local http_session = require("poste-http.http.session")
-local sql_session = require("poste.sql.session")
 
 describe("http.session", function()
   before_each(function()
@@ -61,38 +60,6 @@ describe("http.session", function()
     http_session.finish()
     assert.is_nil(http_session.active())
     assert.is_nil(state._http_session)
-  end)
-end)
-
-describe("sql.session", function()
-  before_each(function()
-    state.last_response = { status = 200 }
-    state.sql.last_dataset = { columns = {}, rows = {} }
-    state.sql.pagination = { page = 3 }
-    state.sql.cell = { row = 5, col = 2 }
-    state.sql._raw_mode = true
-    state.sql.context.connection = "local"
-    state.sql.context.database = "mydb"
-  end)
-
-  it("begin() clears request-scoped SQL state", function()
-    local s = sql_session.begin({ file = "q.sql" })
-    assert.is_not_nil(s)
-    assert.is_nil(state.last_response)
-    assert.is_nil(state.sql.last_dataset)
-    assert.is_true(vim.tbl_isempty(state.sql.pagination))
-    assert.equal(1, state.sql.cell.row)
-    assert.equal(1, state.sql.cell.col)
-    assert.is_false(state.sql._raw_mode)
-    -- Context persists
-    assert.equal("local", state.sql.context.connection)
-    assert.equal("mydb", state.sql.context.database)
-  end)
-
-  it("begin() sets active SQL session", function()
-    local s = sql_session.begin({ line = 10 })
-    assert.equals(s, sql_session.active())
-    assert.equals(s, state._sql_session)
   end)
 end)
 

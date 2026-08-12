@@ -19,7 +19,7 @@
 | `error.lua` | Error handling |
 | `help.lua` | Help window |
 
-### HTTP Module (`lua/poste/http/`)
+### HTTP Module (`lua/poste-http/http/`)
 
 #### Execution Pipeline
 
@@ -111,21 +111,12 @@
 | `history.lua` | HTTP request history UI + persistence |
 | `format_file.lua` | `.http` file formatter (pure Lua, tree-sitter based) |
 
-### SQL Module
-
-SQL Lua code moved to [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) (separate repo).
-
----
-
 ## VimScript
 
 | File | Description |
 |------|-------------|
 | `syntax/poste_http.vim` | HTTP syntax highlighting |
-| `syntax/poste_sql.vim` | SQL syntax highlighting |
-| `syntax/poste_dataset.vim` | Dataset buffer syntax |
 | `ftdetect/poste.vim` | Filetype detection (.http/.sql/.sqlite) |
-| `ftplugin/poste_sql.vim` | SQL filetype plugin settings |
 
 ---
 
@@ -133,7 +124,7 @@ SQL Lua code moved to [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nv
 
 | Type | Location | Description |
 |------|----------|-------------|
-| Lua tests | `tests/*.lua` | busted framework |
+| Lua tests | `tests/http/*_spec.lua` | busted framework |
 | Contract tests | `tests/contract/` | Golden fixtures for response shapes |
 | Tree-sitter grammar | `tree-sitter-poste-http/` | Grammar tests |
 
@@ -156,4 +147,4 @@ SQL Lua code moved to [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nv
 
 ---
 
-*File index — Last updated: 2026-07-26*
+*File index — Last updated: 2026-08-12*

@@ -61,7 +61,7 @@ X-Timestamp: {{$timestamp}}
 ### 02 — File-level @var: simple reference
 @last_status = {{01_healthcheck.response.body.status}}
 # Tests: {{host}} → http://localhost:8888
-GET {{host}}/anything/file-level-simple
+GET {{host}}/anything/file-level-simple?status={{last_status}}
 X-Source: file-level-var
 
 ### 03 — File-level @var: composite reference

@@ -28,8 +28,6 @@
 
 ## SQL
 
-SQL docs moved to [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) (separate repo).
-
 ## Build
 
 ```bash
