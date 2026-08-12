@@ -5,6 +5,7 @@
 --- Extracted from the former format.lua god module.
 local state = require("poste-http.state")
 local fmt_util = require("poste-http.http.format.util")
+local columns = require("poste-http.ui.columns")
 
 local M = {}
 
@@ -193,31 +194,52 @@ function M.format_verbose(r, pending)
   table.insert(lines, "  ")
   _sep_lines[#lines] = true
 
+  -- General section: key-value pairs rendered with aligned columns
+  local general_rows = {}
   if request_name ~= "" then
-    table.insert(lines, "  Name: " .. request_name)
+    table.insert(general_rows, { "  Name: ", request_name })
   end
   if r then
-    local st = format_status_text(r)
-    table.insert(lines, "  Status Code: " .. st)
+    table.insert(general_rows, { "  Status Code: ", format_status_text(r) })
   end
-  table.insert(lines, "  Request Time: " .. (timestamp ~= "" and timestamp or "-"))
+  table.insert(general_rows, { "  Request Time: ", timestamp ~= "" and timestamp or "-" })
   if r then
-    local resp_size = M.format_response_size(r)
-    table.insert(lines, "  Response Size: " .. resp_size)
+    table.insert(general_rows, { "  Response Size: ", M.format_response_size(r) })
   end
-  table.insert(lines, "  Elapsed: " .. format_elapsed(elapsed_ms))
-  table.insert(lines, "  Env: " .. (env ~= "" and env or "-"))
+  table.insert(general_rows, { "  Elapsed: ", format_elapsed(elapsed_ms) })
+  table.insert(general_rows, { "  Env: ", env ~= "" and env or "-" })
+
+  if #general_rows > 0 then
+    local general_lines, _ = columns.render(general_rows, {
+      { max = 16, gap = 2 },
+      { flex = true, pad = false },
+    }, { width = 80, gap = 1 })
+    for _, line in ipairs(general_lines) do
+      table.insert(lines, line)
+    end
+  end
+
   table.insert(lines, "  ")
   _sep_lines[#lines] = true
 
   table.insert(lines, "  Request Headers")
   if request_headers ~= "" then
+    local header_rows = {}
     for l in request_headers:gmatch("[^\r\n]+") do
       local k, v = l:match("^([^:]+):%s*(.+)$")
       if k and v then
-        table.insert(lines, "  " .. k .. ": " .. v)
+        table.insert(header_rows, { "  " .. k .. ": ", v })
       else
         table.insert(lines, "  " .. l)
+      end
+    end
+    if #header_rows > 0 then
+      local header_lines, _ = columns.render(header_rows, {
+        { max = 30, gap = 2 },
+        { flex = true, pad = false },
+      }, { width = 80, gap = 1 })
+      for _, line in ipairs(header_lines) do
+        table.insert(lines, line)
       end
     end
   else
@@ -343,17 +365,19 @@ function M.format_verbose(r, pending)
       local conn_info = extract_connection_info(verbose)
       if next(conn_info) then
         table.insert(lines, "  Connection")
-        if conn_info.proxy then
-          table.insert(lines, "  Proxy:     " .. conn_info.proxy)
-        end
-        if conn_info.tls then
-          table.insert(lines, "  TLS:       " .. conn_info.tls)
-        end
-        if conn_info.http then
-          table.insert(lines, "  HTTP:      " .. conn_info.http)
-        end
-        if conn_info.exit then
-          table.insert(lines, "  Exit Code: " .. conn_info.exit)
+        local conn_rows = {}
+        if conn_info.proxy then table.insert(conn_rows, { "  Proxy: ", conn_info.proxy }) end
+        if conn_info.tls then table.insert(conn_rows, { "  TLS: ", conn_info.tls }) end
+        if conn_info.http then table.insert(conn_rows, { "  HTTP: ", conn_info.http }) end
+        if conn_info.exit then table.insert(conn_rows, { "  Exit Code: ", conn_info.exit }) end
+        if #conn_rows > 0 then
+          local conn_lines, _ = columns.render(conn_rows, {
+            { max = 16, gap = 2 },
+            { flex = true, pad = false },
+          }, { width = 80, gap = 1 })
+          for _, line in ipairs(conn_lines) do
+            table.insert(lines, line)
+          end
         end
       end
     end
@@ -677,7 +701,10 @@ function M.apply_verbose_highlights(buf, lines, r)
         })
         local val_start = colon + 2
         if val_start <= #line then
-          local value = line:sub(val_start)
+          local raw_val = line:sub(val_start)
+          local leading_ws = raw_val:match("^%s*") or ""
+          local value = raw_val:sub(#leading_ws + 1)
+          local content_start = val_start + #leading_ws
           local matched = false
 
           if line:match("^  Request Method:") then
@@ -688,8 +715,8 @@ function M.apply_verbose_highlights(buf, lines, r)
             }
             local meth = value:match("^(%S+)")
             if meth and hl_map[meth] then
-              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, val_start - 1, {
-                end_col = val_start - 1 + #meth,
+              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1, {
+                end_col = content_start - 1 + #meth,
                 hl_group = hl_map[meth], priority = 200,
               })
               matched = true
@@ -704,8 +731,8 @@ function M.apply_verbose_highlights(buf, lines, r)
               elseif sc < 500 then hl_group = "PosteStatus4xx"
               else hl_group = "PosteStatus5xx"
               end
-              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, val_start - 1, {
-                end_col = val_start - 1 + #code,
+              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1, {
+                end_col = content_start - 1 + #code,
                 hl_group = hl_group, priority = 200,
               })
               matched = true
@@ -713,8 +740,8 @@ function M.apply_verbose_highlights(buf, lines, r)
           elseif line:match("^  Elapsed:") then
             local s, e = value:find("^[%d%.]+")
             if s then
-              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, val_start - 1 + s - 1, {
-                end_col = val_start - 1 + e,
+              vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1 + s - 1, {
+                end_col = content_start - 1 + e,
                 hl_group = "PosteLatency", priority = 200,
               })
               matched = true
@@ -722,7 +749,7 @@ function M.apply_verbose_highlights(buf, lines, r)
           end
 
           if not matched then
-            vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, val_start - 1, {
+            vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1, {
               end_row = row, end_col = #line,
               hl_group = "PosteVerboseValue", priority = 100,
             })

@@ -139,4 +139,20 @@ describe("poste-http.ui.columns", function()
       columns.render({ { "a", "b" } }, { { width = 1 }, { flex = true } }, {})
     end)
   end)
+
+  it("does not pad cells when pad is false", function()
+    local lines, cells = columns.render(
+      { { "a", "short" }, { "b", "longer value" } },
+      { { width = 1 }, { flex = true, pad = false } },
+      { width = 20 }
+    )
+    -- Value column ends at the visible text, no trailing spaces.
+    assert.equals("short", lines[1]:sub(3))
+    assert.equals("longer value", lines[2]:sub(3))
+    assert.not_matches("%s+$", lines[1])
+    assert.not_matches("%s+$", lines[2])
+    -- Cell range covers exactly the visible text (col 2: after "a" + lead).
+    assert.equals(2, cells[1][2].col)
+    assert.equals(2 + #"short", cells[1][2].end_col)
+  end)
 end)

@@ -12,6 +12,10 @@
 ---            opts.width); optional min/max act as bounds on the stretched width
 ---   lead     leading spaces before this column (default: opts.gap, or 0 for
 ---            the first column) — allows non-uniform gaps between columns
+---   pad      pad cells to the column width (default true; false renders the
+---            visible text only, no trailing/leading spaces — use on the last
+---            column to avoid trailing whitespace; column width still caps
+---            truncation)
 ---   ellipsis truncate over-long cells with "..." (default true; false = hard cut)
 ---   hl      default highlight group for every cell in this column (optional;
 ---            per-cell override via row value `{ text, hl }` takes precedence)
@@ -108,6 +112,7 @@ function M.render(rows, cols, opts)
       min = spec.min,
       ellipsis = spec.ellipsis ~= false,
       lead = spec.lead or (c == 1 and 0 or gap),
+      pad = spec.pad ~= false,
       hl = spec.hl,
     }
   end
@@ -181,7 +186,7 @@ function M.render(rows, cols, opts)
       local w = widths[c]
       local text, cell_hl = cell_text(rows[r] and rows[r][c])
       local vis = truncate(text, w, spec.ellipsis)
-      local padn = math.max(0, w - disp_width(vis))
+      local padn = spec.pad and math.max(0, w - disp_width(vis)) or 0
       local lead_sp = string.rep(" ", spec.lead)
       local pad_sp = string.rep(pad, padn)
       local cell = { text = vis, width = w }
