@@ -113,3 +113,59 @@ return {
     assert.equals("m.a_string", entries.my_name[1].value)
   end)
 end)
+
+describe("variable_inspector rendering", function()
+  local buf
+
+  after_each(function()
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+  end)
+
+  local function float_lines()
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.bo[b].filetype == "poste-variable-inspector" then
+        return vim.api.nvim_buf_get_lines(b, 0, -1, false)
+      end
+    end
+    return nil
+  end
+
+  it("aligns CJK variable names by display width", function()
+    buf = setup_buffer({
+      "@用户 = 张三",
+      "@en = John",
+      "### Test",
+      "GET /api",
+    })
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+    variable_inspector.show_inspector()
+
+    local lines = float_lines()
+    assert.truthy(lines, "inspector float buffer was created")
+    assert.equals(2, #lines, "one rendered row per variable")
+
+    -- Value column must start at the same display column for CJK and ASCII
+    -- names. string.format pads by bytes, which would misalign CJK names.
+    local function value_display_col(line, value_text)
+      local pos = line:find(value_text, 1, true)
+      assert.truthy(pos, "value text present in rendered line")
+      return vim.fn.strdisplaywidth(line:sub(1, pos - 1))
+    end
+    local function line_with(lines_, text)
+      for _, line in ipairs(lines_) do
+        if line:find(text, 1, true) then return line end
+      end
+      return nil
+    end
+    local cjk_line = line_with(lines, "张三")
+    local ascii_line = line_with(lines, "John")
+    assert.truthy(cjk_line, "CJK value row rendered")
+    assert.truthy(ascii_line, "ASCII value row rendered")
+assert.equals(
+      value_display_col(cjk_line, "张三"),
+      value_display_col(ascii_line, "John")
+    )
+  end)
+end)

@@ -2,6 +2,7 @@ local vars = require("poste-http.http.vars")
 local cache = require("poste-http.http.cache")
 local state = require("poste-http.state")
 local request_deps = require("poste-http.http.request_deps")
+local columns = require("poste-http.ui.columns")
 
 local M = {}
 
@@ -269,26 +270,37 @@ function M.show_inspector()
   local col_value_w = math.max(20, content_width - col_name_w - col_type_w - col_loc_w - 6)
   col_loc_w = math.min(col_loc_w, math.max(10, content_width - col_name_w - col_type_w - col_value_w - 6))
 
+  -- Render through the columns component: padding is display-width aware
+  -- (string.format pads by bytes, which misaligns wide characters).
+  local render_rows = { { "Variable", "Value", "Type", "Location" } }
+  for _, r in ipairs(rows) do
+    table.insert(render_rows, {
+      r.name,
+      middle_ellipsis(r.value, col_value_w),
+      r.type,
+      middle_ellipsis(r.location, col_loc_w),
+    })
+  end
+  local lines, cells = columns.render(render_rows, {
+    { max = col_name_w },
+    { width = col_value_w, ellipsis = false },
+    { max = col_type_w },
+    { width = col_loc_w, ellipsis = false },
+  }, { width = target_width, gap = 2 })
+
   local float_buf = vim.api.nvim_create_buf(false, true)
   local jump_map = {}
   vim.b[float_buf].poste_var_jump_map = jump_map
-
-  local lines = {}
-  for _, r in ipairs(rows) do
-    local val = middle_ellipsis(r.value, col_value_w)
-    local loc = middle_ellipsis(r.location, col_loc_w)
-    local line = string.format("%-" .. col_name_w .. "s  %-" .. col_value_w .. "s  %-" .. col_type_w .. "s  %s",
-      r.name, val, r.type, loc)
-    table.insert(lines, line)
-    jump_map[#lines] = r.entry
+  for i, r in ipairs(rows) do
+    jump_map[i] = r.entry
   end
 
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, vim.list_slice(lines, 2))
   vim.bo[float_buf].modifiable = false
   vim.bo[float_buf].bufhidden = "wipe"
   vim.bo[float_buf].filetype = "poste-variable-inspector"
 
-  local height = math.min(#lines + 2, math.floor(vim.o.lines * 0.7))
+  local height = math.min(#rows + 2, math.floor(vim.o.lines * 0.7))
 
   local win_opts = {
     relative = "editor",
@@ -312,21 +324,17 @@ function M.show_inspector()
     end
   end
 
-  local header = string.format("%-" .. col_name_w .. "s  %-" .. col_value_w .. "s  %-" .. col_type_w .. "s  %s",
-    "Variable", "Value", "Type", "Location")
-  vim.wo[win].winbar = header
+  vim.wo[win].winbar = lines[1]
   vim.wo[win].cursorline = true
 
-  local col_sep = col_name_w + 2
-  local col_type_start = col_sep + col_value_w + 2
-  local col_loc_start = col_type_start + col_type_w + 2
   for i, r in ipairs(rows) do
+    local c = cells[i + 1]
     local line_idx = i - 1
-    vim.api.nvim_buf_add_highlight(float_buf, -1, "PosteVarDef", line_idx, 0, col_name_w)
-    vim.api.nvim_buf_add_highlight(float_buf, -1, "PosteVarValue", line_idx, col_sep, col_sep + col_value_w)
+    vim.api.nvim_buf_add_highlight(float_buf, -1, "PosteVarDef", line_idx, c[1].col, c[1].end_col)
+    vim.api.nvim_buf_add_highlight(float_buf, -1, "PosteVarValue", line_idx, c[2].col, c[2].end_col)
     local type_hl = r.source == "env" and "Comment" or "Normal"
-    vim.api.nvim_buf_add_highlight(float_buf, -1, type_hl, line_idx, col_type_start, col_type_start + col_type_w)
-    vim.api.nvim_buf_add_highlight(float_buf, -1, "Comment", line_idx, col_loc_start, -1)
+    vim.api.nvim_buf_add_highlight(float_buf, -1, type_hl, line_idx, c[3].col, c[3].end_col)
+    vim.api.nvim_buf_add_highlight(float_buf, -1, "Comment", line_idx, c[4].col, -1)
   end
 
   local function close()
