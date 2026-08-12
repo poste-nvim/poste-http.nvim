@@ -31,7 +31,8 @@ load the `lua-patterns` skill before writing any `string.match`/`gmatch`/`gsub`.
 
 | Want | Go to |
 |------|-------|
-| **Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)** | `lua/poste-http/` — edit there |
+|**Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)**|`lua/poste-http/` — edit there|
+|**UI components (columns, …)**|`lua/poste-http/ui/` — pure, unit-tested, window-free|
 | File index | `docs/dev/file-index.md` |
 | Architecture | `docs/dev/architecture-overview.md` |
 | Build & test | `docs/dev/testing.md` |

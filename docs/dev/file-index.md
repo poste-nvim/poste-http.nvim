@@ -19,6 +19,15 @@
 | `error.lua` | Error handling |
 | `help.lua` | Help window |
 
+### UI Components (`lua/poste-http/ui/`)
+
+Reusable rendering components — the seed of a standalone Neovim UI component
+library. Pure functions, unit-tested without windows.
+
+| File | Description |
+|------|-------------|
+| `columns.lua` | Column-aligned list layout: `render(rows, cols, opts)` → aligned lines + per-cell byte ranges for extmarks. Per-column align (left/right), fixed/max/flex widths, ellipsis truncation, display-width aware (CJK-safe) |
+
 ### HTTP Module (`lua/poste-http/http/`)
 
 #### Execution Pipeline

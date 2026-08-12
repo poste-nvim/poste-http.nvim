@@ -26,3 +26,4 @@ tree-sitter-poste-json/Cargo.lock
 parser/node-types.json
 *.so
 examples/**/generated/
+.codebase-memory

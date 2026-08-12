@@ -3,6 +3,12 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-08-12: http/history-empty-list — `render_list` only wrote buffer lines in the non-empty branch; after deleting the last entry the list window kept showing stale rows (and a fresh window showed a blank float instead of "(no history)"). Fix: the "(no history)" line now goes through the same modifiable/set-lines path in `render_list`. See `lua/poste-http/http/history.lua`.
+- 2026-08-12: tests/run.sh — `PlenaryBustedDirectory` was undefined ("Not an editor command"): adding plenary to rtp via `-c "set rtp+=..."` happens after startup, so `plugin/plenary.vim` is never auto-sourced. Fix: source it explicitly (`-c "runtime plugin/plenary.vim"`) before the busted command. See `tests/run.sh`.
+- 2026-08-12: http/history-timestamp — `vim.uv.gettimeofday()` (nvim 0.12) returns a `sec, usec` VALUE PAIR, not a table; capturing `local t = vim.uv.gettimeofday()` silently grabs only the seconds number ("attempt to index a number"). History timestamps now render `HH:MM:SS.mmm` from `{time, time_usec}` stored at `add_entry`; list window widened 46 → 53 so the 12-char timestamp doesn't squeeze the flex name column. See `lua/poste-http/http/history.lua`.
+
+- 2026-08-12: ui/columns — new reusable column layout component (`lua/poste-http/ui/columns.lua`, `render(rows, cols, opts)`). Column spec: align (left/right), width (fixed), max (natural capped), flex (stretch, needs opts.width), lead (per-column gap), ellipsis (default true). Returns lines + per-cell byte `col`/`end_col` for extmarks. Width/truncation math is display-width based (`strdisplaywidth`/`strcharpart`), so CJK cells align and are never split mid-character. history.lua list rendering now uses it: `format_list_line(entry, width)` where width is the total list width. See `lua/poste-http/ui/columns.lua`, `tests/ui_columns_spec.lua`.
+
 - 2026-08-07: http/orchestration — SCRIPT blocks (`> {% %}` body) now run as
   orchestration scripts via a coroutine scheduler (`orchestration.run_script`):
   `client.run(target, args)` resolves `#Name`/`#alias.Name` through

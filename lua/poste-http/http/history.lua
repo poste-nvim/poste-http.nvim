@@ -1,12 +1,14 @@
 local state = require("poste-http.state")
 local format = require("poste-http.http.format")
 local buffer = require("poste-http.http.buffer")
+local columns = require("poste-http.ui.columns")
 
 local M = {}
 
 local list_buf = nil
 local list_win = nil
-local list_width = 46
+-- method (8) + name (18) + status (3) + gap (1) + elapsed (9) + gap (2) + ts (12, HH:MM:SS.mmm).
+local list_width = 53
 local detail_buf = nil
 local detail_win = nil
 local current_index = nil
@@ -32,9 +34,15 @@ local METHOD_HL = {
 local METHOD_WIDTH = 8
 local STATUS_WIDTH = 3
 local ELAPSED_WIDTH = 9
-local TIMESTAMP_WIDTH = 5
--- Method (8) + status (3) + gap (1) + elapsed (9) + 2-space gap + timestamp (5).
-local FIXED_WIDTH = METHOD_WIDTH + STATUS_WIDTH + 1 + ELAPSED_WIDTH + 2 + TIMESTAMP_WIDTH
+-- method (8) | name (stretch) | status (3) | gap (1) | elapsed (9) | gap (2) | timestamp (natural).
+-- Name and status sit flush against method (no gaps), matching the classic list layout.
+local LIST_COLS = {
+  { width = METHOD_WIDTH, ellipsis = false },
+  { flex = true, lead = 0 },
+  { width = STATUS_WIDTH, lead = 0 },
+  { lead = 1, width = ELAPSED_WIDTH },
+  { lead = 2 },
+}
 
 local function truncate_response(response)
   if not response or type(response) ~= "table" then return response end
@@ -45,12 +53,22 @@ local function truncate_response(response)
   return r
 end
 
+local function now()
+  if vim.uv and vim.uv.gettimeofday then
+    local sec, usec = vim.uv.gettimeofday()
+    if sec then return sec, usec or 0 end
+  end
+  return os.time(), 0
+end
+
 function M.add_entry(name, response, assertion_results, script_logs, source_file)
   state.http_history_id_counter = state.http_history_id_counter + 1
+  local sec, usec = now()
   local entry = {
     id = state.http_history_id_counter,
     name = name,
-    time = os.time(),
+    time = sec,
+    time_usec = usec,
     source_file = source_file or "",
     response = truncate_response(response),
     assertion_results = assertion_results and vim.deepcopy(assertion_results) or nil,
@@ -71,9 +89,10 @@ function M.delete_entry(id)
   end
 end
 
-local function format_timestamp(time)
+local function format_timestamp(time, usec)
   if not time then return "" end
-  return os.date("%H:%M", time)
+  local ms = usec and math.floor(usec / 1000) or 0
+  return string.format("%s.%03d", os.date("%H:%M:%S", time), ms)
 end
 
 local function entry_method(entry)
@@ -106,42 +125,46 @@ local function status_hl(status)
   return "Comment"
 end
 
+--- Build the five display cells for one history entry (method, name, status,
+--- elapsed, timestamp). Also returns the raw status for highlight mapping.
+local function build_row(entry)
+  local status = entry.response and entry.response.status
+  local method = entry_method(entry)
+  if method == "" then method = "-" end
+  local status_text = (tonumber(status) or 0) > 0 and tostring(status) or "-"
+  return {
+    method,
+    entry.name or "",
+    status_text,
+    format_elapsed(entry.response and entry.response.latency_ms),
+    format_timestamp(entry.time, entry.time_usec),
+  }, status
+end
+
+--- Attach highlight groups and byte ranges to the rendered cells of one row.
+local function entry_info(cells, status)
+  return {
+    method = cells[1].text,
+    method_hl = METHOD_HL[cells[1].text] or "PosteMethodOther",
+    method_col = cells[1].col,
+    method_end = cells[1].end_col,
+    status = cells[3].text,
+    status_hl = status_hl(status),
+    status_col = cells[3].col,
+    status_end = cells[3].end_col,
+    elapsed_col = cells[4].col,
+    elapsed_end = cells[4].end_col,
+    ts_col = cells[5].col,
+  }
+end
+
 --- Build the display line for one history entry.
 --- Returns the line text plus column metadata used for extmark highlighting.
-local function format_list_line(entry, name_width)
-  local method = entry_method(entry)
-  if #method > METHOD_WIDTH then
-    method = method:sub(1, METHOD_WIDTH)
-  end
-  if method == "" then method = "-" end
-
-  local name = entry.name or ""
-  if #name > name_width then
-    name = name:sub(1, name_width - 3) .. "..."
-  end
-
-  local status = entry.response and entry.response.status
-  local status_text = (tonumber(status) or 0) > 0 and tostring(status) or "-"
-  local elapsed = format_elapsed(entry.response and entry.response.latency_ms)
-  local ts = format_timestamp(entry.time)
-  local line = string.format(
-    "%-" .. METHOD_WIDTH .. "s%-" .. name_width .. "s%-" .. STATUS_WIDTH .. "s %-" .. ELAPSED_WIDTH .. "s  %s",
-    method, name, status_text, elapsed, ts
-  )
-
-  return line, {
-    method = method,
-    method_hl = METHOD_HL[method] or "PosteMethodOther",
-    method_col = 0,
-    method_end = #method,
-    status = status_text,
-    status_hl = status_hl(status),
-    status_col = METHOD_WIDTH + name_width,
-    status_end = METHOD_WIDTH + name_width + #status_text,
-    elapsed_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1,
-    elapsed_end = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + ELAPSED_WIDTH,
-    ts_col = METHOD_WIDTH + name_width + STATUS_WIDTH + 1 + ELAPSED_WIDTH + 2,
-  }
+--- `width` is the total list width (defaults to the current list window width).
+local function format_list_line(entry, width)
+  local row, status = build_row(entry)
+  local lines, cells = columns.render({ row }, LIST_COLS, { width = width or list_width })
+  return lines[1], entry_info(cells[1], status)
 end
 
 local function get_active_tabs()
@@ -291,29 +314,33 @@ end
 
 local function render_list()
   if not list_buf or not vim.api.nvim_buf_is_valid(list_buf) then return end
-  local lines = {}
-  local name_width = list_width - FIXED_WIDTH
-
   vim.api.nvim_buf_clear_namespace(list_buf, list_ns, 0, -1)
 
-  if #state.http_history == 0 then
-    lines = { "(no history)" }
-  else
-    local line_info = {}
-    for _, entry in ipairs(state.http_history) do
-      local line, info = format_list_line(entry, name_width)
-      table.insert(lines, line)
-      table.insert(line_info, info)
+  local lines = { "(no history)" }
+  local line_info = {}
+
+  if #state.http_history > 0 then
+    local rows = {}
+    local statuses = {}
+    for i, entry in ipairs(state.http_history) do
+      rows[i], statuses[i] = build_row(entry)
     end
+    local rendered, cells = columns.render(rows, LIST_COLS, { width = list_width })
+    lines = rendered
+    for i = 1, #rows do
+      line_info[i] = entry_info(cells[i], statuses[i])
+    end
+  end
 
-    vim.api.nvim_set_option_value("modifiable", true, { buf = list_buf })
-    vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
-    vim.api.nvim_set_option_value("modifiable", false, { buf = list_buf })
-    vim.bo[list_buf].filetype = "poste_history_list"
+  vim.api.nvim_set_option_value("modifiable", true, { buf = list_buf })
+  vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
+  vim.api.nvim_set_option_value("modifiable", false, { buf = list_buf })
+  vim.bo[list_buf].filetype = "poste_history_list"
 
-    -- Colored method, elapsed, and gray timestamp via extmarks
-    for i, line in ipairs(lines) do
-      local info = line_info[i]
+  -- Colored method, elapsed, and gray timestamp via extmarks
+  for i, line in ipairs(lines) do
+    local info = line_info[i]
+    if info then
       vim.api.nvim_buf_set_extmark(list_buf, list_ns, i - 1, info.method_col, {
         end_col = info.method_end,
         hl_group = info.method_hl,
@@ -529,7 +556,7 @@ function M.show()
   local total_height = math.floor(editor_height * 0.88)
   local top = math.floor((editor_height - total_height) / 2)
   local left = math.floor((editor_width - total_width) / 2)
-  list_width = 46
+  list_width = 53
   local gap = 1
 
   list_buf = vim.api.nvim_create_buf(false, true)
