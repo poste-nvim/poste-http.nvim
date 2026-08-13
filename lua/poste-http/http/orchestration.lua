@@ -6,20 +6,7 @@
 --- runs inside a coroutine: `client.run` yields and is resumed when the
 --- request completes, so scripts read as sequential code.
 local import = require("poste-http.http.import")
-
---- Recursively convert decoded JSON to pure Lua tables, avoiding userdata/cdata.
-local function json_to_table(v)
-  if v == vim.NIL then return nil end
-  local t = type(v)
-  if t == "table" then
-    local r = {}
-    for k, v2 in pairs(v) do
-      r[k] = json_to_table(v2)
-    end
-    return r
-  end
-  return v
-end
+local util = require("poste-http.util")
 
 local M = {}
 
@@ -59,7 +46,7 @@ function M.build_response(raw)
       if k == "body" then
         if decoded == nil then
           local ok, parsed = pcall(vim.json.decode, raw_body)
-          decoded = (ok and parsed) and json_to_table(parsed) or raw_body
+          decoded = (ok and parsed) and util.json_to_table(parsed) or raw_body
         end
         return decoded
       end

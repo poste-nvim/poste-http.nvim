@@ -1,6 +1,24 @@
 local M = {}
 local hover_tracker = nil
 
+--- Recursively convert decoded JSON to pure Lua tables, avoiding userdata/cdata.
+--- `vim.json.decode` may return `vim.NIL` or cdata wrappers depending on
+--- the Neovim build; this normalizes to plain `nil` and plain Lua tables.
+--- @param v any
+--- @return any
+function M.json_to_table(v)
+  if v == vim.NIL then return nil end
+  local t = type(v)
+  if t == "table" then
+    local r = {}
+    for k, v2 in pairs(v) do
+      r[k] = M.json_to_table(v2)
+    end
+    return r
+  end
+  return v
+end
+
 function M.clean_nil(t)
   if not t or type(t) ~= "table" then return t end
   for k, v in pairs(t) do
