@@ -78,6 +78,32 @@ function M.run_script(code, opts, on_complete)
   local sandbox = {
     client = {
       log = collect_log,
+      global = {
+        set = function(name, value)
+          state.set_global_var(name, tostring(value))
+          state.log("INFO", string.format("Orchestration: client.global.set('%s', '%s')", name, tostring(value)))
+        end,
+        get = function(name)
+          return state.global_vars[name]
+        end,
+        header = {
+          set = function(name, value)
+            state.set_global_header(name, tostring(value))
+            state.log("INFO", string.format("Orchestration: client.global.header.set('%s', '%s')", name, tostring(value)))
+          end,
+          get = function(name)
+            return state.global_headers[name]
+          end,
+          remove = function(name)
+            state.remove_global_header(name)
+            state.log("INFO", string.format("Orchestration: client.global.header.remove('%s')", name))
+          end,
+          clear = function()
+            state.clear_global_headers()
+            state.log("INFO", "Orchestration: client.global.header.clear()")
+          end,
+        },
+      },
       assert = function(cond, msg)
         if not cond then
           error(msg or "Assertion failed", 2)

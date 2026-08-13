@@ -7,6 +7,7 @@ local scripts = require("poste-http.http.scripts")
 local vars = require("poste-http.http.vars")
 local nested_access = require("poste-http.http.nested_access")
 local jq_mapping = require("poste-http.http.jq_mapping")
+local global_headers = require("poste-http.http.global_headers")
 local _import_mod = nil
 local _cache_mod = nil
 local function get_import_mod()
@@ -220,7 +221,7 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
   curl_exec.execute({
     method = method,
     url = url,
-    headers = resolved_headers,
+    headers = global_headers.merge(resolved_headers, resolver),
     body = body,
     buf_dir = buf_dir,
   }, function(response)

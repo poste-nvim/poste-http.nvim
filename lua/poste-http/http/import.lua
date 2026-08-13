@@ -19,6 +19,7 @@ local resolve = require("poste-http.http.resolve")
 local curl_exec = require("poste-http.http.curl_exec")
 local describe = require("poste-http.http.describe")
 local vars = require("poste-http.http.vars")
+local global_headers = require("poste-http.http.global_headers")
 local uv = vim.uv or vim.loop
 
 local M = {}
@@ -525,8 +526,9 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
 
   local buf_dir = file_path ~= "" and vim.fn.fnamemodify(file_path, ":h") or vim.fn.getcwd()
 
+  local merged_headers = global_headers.merge(resolved_headers, resolver)
   local h_parts = {}
-  for _, h in ipairs(resolved_headers) do
+  for _, h in ipairs(merged_headers) do
     table.insert(h_parts, h[1] .. ": " .. h[2])
   end
   local headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or ""
@@ -546,7 +548,7 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
   curl_exec.execute({
     method = method,
     url = url,
-    headers = resolved_headers,
+    headers = merged_headers,
     body = body,
     buf_dir = buf_dir,
   }, function(response)

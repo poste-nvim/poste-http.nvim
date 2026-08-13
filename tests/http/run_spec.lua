@@ -341,4 +341,18 @@ describe("scripts.scan_script_set_calls", function()
     assert.equal(1, vim.tbl_count(result))
     assert.equal(2, result.first)
   end)
+
+  it("finds client.global.header.set calls with double quotes", function()
+    local lines = { 'client.global.header.set("Authorization", "Bearer tok")' }
+    local result = scripts.scan_script_set_calls(lines, 1, 1)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(1, result.Authorization)
+  end)
+
+  it("finds client.global.header.set calls with single quotes", function()
+    local lines = { "client.global.header.set('Authorization', 'Bearer tok')" }
+    local result = scripts.scan_script_set_calls(lines, 1, 1)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(1, result.Authorization)
+  end)
 end)

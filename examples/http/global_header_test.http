@@ -1,0 +1,11 @@
+
+import ./global_header.http as h
+
+### test gloal headers
+SCRIPT
+> {%
+    client.run("#h.a")
+    client.run("#h.b")
+    client.run("#h.c")
+%}
+

@@ -17,6 +17,7 @@ local curl_exec = require("poste-http.http.curl_exec")
 local vars = require("poste-http.http.vars")
 local orchestration = require("poste-http.http.orchestration")
 local errors = require("poste-http.http.errors")
+local global_headers = require("poste-http.http.global_headers")
 
 local uv = vim.uv or vim.loop
 
@@ -721,23 +722,23 @@ local function start_curl_exec(ctx)
     return
   end
 
-  state.log("INFO", string.format("curl: %s %s (%d headers)", method, url, #headers))
+  local merged_headers = global_headers.merge(headers, resolver)
+  state.log("INFO", string.format("curl: %s %s (%d headers, %d global)", method, url, #headers, #merged_headers - #headers))
 
   local start_hires = (vim.uv or vim.loop).hrtime()
 
   curl_exec.execute({
     method = method,
     url = url,
-    headers = headers,
+    headers = merged_headers,
     body = body,
     buf_dir = buf_dir,
   }, function(response)
     handle_curl_response(response, ctx)
   end)
 
-  -- Set pending request from values we already have (no re-parse)
   local h_parts = {}
-  for _, h in ipairs(headers) do
+  for _, h in ipairs(merged_headers) do
     table.insert(h_parts, h[1] .. ": " .. h[2])
   end
   state.set_pending_request({

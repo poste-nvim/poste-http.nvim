@@ -1,0 +1,24 @@
+
+@host = http://localhost:8888
+
+### a
+< {%
+    client.global.header.clear()
+%}
+GET {{host}}/anything
+Content-Type: application/x-www-form-urlencoded
+
+> {%
+    client.global.header.set("X-a", "apple")
+    client.global.header.set("X-b", "banana")
+%}
+
+### b
+POST {{host}}/anything
+Content-Type: application/json
+
+### c
+POST {{host}}/anything
+Content-Type: application/json
+X-b: bob
+

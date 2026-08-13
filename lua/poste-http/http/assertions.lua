@@ -108,6 +108,28 @@ function M.run_assertions(response_data, code, script_vars)
       get = function(name)
         return state.global_vars[name]
       end,
+      header = {
+        set = function(name, value)
+          local ctx = state._exec_context
+          local line = ctx and ctx.line
+          state.set_global_header(name, tostring(value))
+          if line then
+            state.global_headers_sources[name] = { file = ctx.file, line = line }
+          end
+          state.log("INFO", string.format("Post-script: client.global.header.set('%s', '%s')", name, tostring(value)))
+        end,
+        get = function(name)
+          return state.global_headers[name]
+        end,
+        remove = function(name)
+          state.remove_global_header(name)
+          state.log("INFO", string.format("Post-script: client.global.header.remove('%s')", name))
+        end,
+        clear = function()
+          state.clear_global_headers()
+          state.log("INFO", "Post-script: client.global.header.clear()")
+        end,
+      },
     },
     test = function(name, fn)
       current_test = { name = name, passed = 0, failed = 0, errors = {} }

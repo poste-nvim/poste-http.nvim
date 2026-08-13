@@ -184,6 +184,30 @@ function M.run_pre_script(code, script_vars)
       get = function(name)
         return state.global_vars[name]
       end,
+      header = {
+        set = function(name, value)
+          local ctx = state._exec_context
+          local line = ctx and ctx.line
+          state.set_global_header(name, tostring(value))
+          if line then
+            state.global_headers_sources[name] = { file = ctx.file, line = line }
+          end
+          state.log("INFO", string.format("Pre-script: client.global.header.set('%s', '%s')", name, tostring(value)))
+        end,
+        get = function(name)
+          return state.global_headers[name]
+        end,
+        remove = function(name)
+          local ctx = state._exec_context
+          local line = ctx and ctx.line
+          state.remove_global_header(name)
+          state.log("INFO", string.format("Pre-script: client.global.header.remove('%s')", name))
+        end,
+        clear = function()
+          state.clear_global_headers()
+          state.log("INFO", "Pre-script: client.global.header.clear()")
+        end,
+      },
     },
     log = function(msg)
       table.insert(logs, tostring(msg))
@@ -305,6 +329,12 @@ function M.scan_script_set_calls(buf_lines, block_start, block_end)
       end
       if not name then
         name = line:match("request%.variables%.set%s*%(%s*'([^']+)'")
+      end
+      if not name then
+        name = line:match('client%.global%.header%.set%s*%(%s*"([^"]+)"')
+      end
+      if not name then
+        name = line:match("client%.global%.header%.set%s*%(%s*'([^']+)'")
       end
       if name then
         map[name] = i

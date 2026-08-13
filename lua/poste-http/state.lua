@@ -76,8 +76,10 @@ M.http_history = {}
 M.http_history_max = 100
 M.http_history_id_counter = 0
 M.global_vars = {}
+M.global_headers = {}
 M.script_variables = {}
 M.global_vars_sources = {}
+M.global_headers_sources = {}
 M.script_variables_sources = {}
 M._exec_context = nil
 
@@ -218,6 +220,23 @@ function M.set_global_var(name, value)
   if M._exec_context and not M.global_vars_sources[name] then
     M.global_vars_sources[name] = { file = M._exec_context.file, line = M._exec_context.line }
   end
+end
+
+function M.set_global_header(name, value)
+  M.global_headers[name] = value
+  if M._exec_context and not M.global_headers_sources[name] then
+    M.global_headers_sources[name] = { file = M._exec_context.file, line = M._exec_context.line }
+  end
+end
+
+function M.remove_global_header(name)
+  M.global_headers[name] = nil
+  M.global_headers_sources[name] = nil
+end
+
+function M.clear_global_headers()
+  M.global_headers = {}
+  M.global_headers_sources = {}
 end
 
 function M.set_script_variable(name, value)

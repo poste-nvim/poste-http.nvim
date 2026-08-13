@@ -448,6 +448,10 @@ M.pre_script_keywords = {
   { name = "request.variables.get",  desc = "Get variable value" },
   { name = "client.global.set",      desc = "Set persistent global variable" },
   { name = "client.global.get",      desc = "Get persistent global variable" },
+  { name = "client.global.header.set",    desc = "Set persistent global header" },
+  { name = "client.global.header.get",    desc = "Get persistent global header value" },
+  { name = "client.global.header.remove", desc = "Remove a persistent global header" },
+  { name = "client.global.header.clear",  desc = "Clear all persistent global headers" },
   { name = "client.log",             desc = "Log message to script output" },
   { name = "md5",                    desc = "Compute MD5 hash" },
 }
@@ -473,6 +477,10 @@ M.post_script_keywords = {
   -- Also include pre-request keywords (client.global, client.log available)
   { name = "client.global.set",      desc = "Set persistent global variable" },
   { name = "client.global.get",      desc = "Get persistent global variable" },
+  { name = "client.global.header.set",    desc = "Set persistent global header" },
+  { name = "client.global.header.get",    desc = "Get persistent global header value" },
+  { name = "client.global.header.remove", desc = "Remove a persistent global header" },
+  { name = "client.global.header.clear",  desc = "Clear all persistent global headers" },
   { name = "client.log",             desc = "Log message to script output" },
   { name = "md5",                    desc = "Compute MD5 hash" },
 }
@@ -665,6 +673,26 @@ M.script_api_docs = {
       sig = "client.global.get(name)",
       desc = "Get a persistent global variable previously set by any request.",
     },
+    ["client.global.header"] = {
+      sig = "client.global.header",
+      desc = "Persistent global header store. Headers set here are automatically included in every request, unless overridden by a same-named header in the request block.",
+    },
+    ["client.global.header.set"] = {
+      sig = "client.global.header.set(name, value)",
+      desc = "Set a persistent global header. The value is resolved at request time, so {{var}} references are evaluated per-request.",
+    },
+    ["client.global.header.get"] = {
+      sig = "client.global.header.get(name)",
+      desc = "Get the raw value of a global header (may contain {{var}} references).",
+    },
+    ["client.global.header.remove"] = {
+      sig = "client.global.header.remove(name)",
+      desc = "Remove a specific global header by name.",
+    },
+    ["client.global.header.clear"] = {
+      sig = "client.global.header.clear()",
+      desc = "Remove all global headers.",
+    },
     ["variables"] = {
       sig = "variables",
       desc = "Table of file/block-level `@variable` definitions from the current file.",
@@ -812,6 +840,26 @@ M.script_api_docs = {
     ["client.global.get"] = {
       sig = "client.global.get(name)",
       desc = "Get a persistent global variable previously set by any request.",
+    },
+    ["client.global.header"] = {
+      sig = "client.global.header",
+      desc = "Persistent global header store. Headers set here are automatically included in every request, unless overridden by a same-named header in the request block.",
+    },
+    ["client.global.header.set"] = {
+      sig = "client.global.header.set(name, value)",
+      desc = "Set a persistent global header. The value is resolved at request time, so {{var}} references are evaluated per-request.",
+    },
+    ["client.global.header.get"] = {
+      sig = "client.global.header.get(name)",
+      desc = "Get the raw value of a global header (may contain {{var}} references).",
+    },
+    ["client.global.header.remove"] = {
+      sig = "client.global.header.remove(name)",
+      desc = "Remove a specific global header by name.",
+    },
+    ["client.global.header.clear"] = {
+      sig = "client.global.header.clear()",
+      desc = "Remove all global headers.",
     },
     ["assert"] = {
       sig = "assert(condition, message)",
