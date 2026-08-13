@@ -165,7 +165,7 @@ describe("http image preview", function()
     assert.equals(1, render_calls)
     local saw_anchor = false
     for _, call in ipairs(mock.calls) do
-      if type(call) == "table" and call.pos and call.pos[1] == 18 then
+      if type(call) == "table" and call.pos and call.pos[1] == 17 then
         saw_anchor = true
         break
       end

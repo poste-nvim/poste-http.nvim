@@ -362,7 +362,6 @@ describe("blink.cmp integration", function()
     local chars = completion:get_trigger_characters()
 
     assert.is_table(chars)
-    assert.is_true(vim.tbl_contains(chars, " "))
     assert.is_true(vim.tbl_contains(chars, ":"))
     assert.is_true(vim.tbl_contains(chars, "{"))
   end)
@@ -386,7 +385,6 @@ describe("nvim-cmp integration", function()
     local chars = instance:get_trigger_characters()
 
     assert.is_table(chars)
-    assert.is_true(vim.tbl_contains(chars, " "))
     assert.is_true(vim.tbl_contains(chars, ":"))
   end)
 

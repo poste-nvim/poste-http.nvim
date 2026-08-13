@@ -6,6 +6,7 @@ local function resolve_deps(content, block_line)
   request_deps._resolve_content_dependencies_impl(0, "/tmp/test.http", "dev", content, block_line, function(resolved)
     result = resolved
   end)
+  vim.wait(100, function() return result ~= nil end)
   return result
 end
 

@@ -367,28 +367,26 @@ end
 --- @param cursor_line number  Cursor line number (1-indexed)
 --- @return table  { name = true, ... }
 function M.collect_script_set_vars(buf, cursor_line)
-  local block = M.get_block_at_line(buf, cursor_line)
-  local start_line, end_line
-  if block then
-    start_line = block.start_line
-    end_line = block.end_line
-  else
-    local cache = M.get_buffer_cache(buf)
-    local first_head = nil
-    for i = 1, #cache.line_type do
-      if cache.line_type[i] == "head" then
-        first_head = i
-        break
-      end
-    end
-    start_line = 1
-    end_line = (first_head and first_head - 1) or #cache.line_type
-  end
   local cache = M.get_buffer_cache(buf)
+  local first_head = nil
+  for i = 1, #cache.line_type do
+    if cache.line_type[i] == "head" then
+      first_head = i
+      break
+    end
+  end
+  local file_head_end = (first_head and first_head - 1) or #cache.line_type
+
+  local block = M.get_block_at_line(buf, cursor_line)
+  local scan_end = file_head_end
+  if block then
+    scan_end = math.max(scan_end, block.end_line)
+  end
+
   local set_vars = {}
-  local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, scan_end, false)
   for i, line in ipairs(lines) do
-    local line_num = start_line + i - 1
+    local line_num = i
     local lt = cache.line_type[line_num]
     if lt == "pre_script" then
       for _, name in line:gmatch("request%.variables%.set%((['\"])([%w_]+)%1") do
