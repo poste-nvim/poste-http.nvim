@@ -361,8 +361,12 @@ function M.show_inspector()
   vim.keymap.set("n", "<CR>", jump_to_def, { buffer = float_buf, noremap = true, silent = true })
 end
 
-M._test = {
-  collect_entries = collect_entries,
-}
+--- Collect variable entries for a buffer at the given cursor line.
+--- @param buf number
+--- @param cursor_line number
+--- @return table, boolean  entries map, sorted flag
+function M.collect_entries(buf, cursor_line)
+  return collect_entries(buf, cursor_line)
+end
 
 return M

@@ -46,8 +46,8 @@ end
 handlers.prompts = default_prompt_handler
 handlers.dependencies = default_dependency_handler
 
-local function run_stage(stage, content, opts, on_complete)
-  local handler = handlers[stage]
+local function run_stage(stage, content, opts, on_complete, stage_handlers)
+  local handler = stage_handlers[stage]
   if not handler then
     on_complete(content)
     return
@@ -66,10 +66,13 @@ end
 ---   - binary: string|nil
 ---   - file: string|nil
 ---   - env_name: string|nil
+---   - handlers: table|nil  Optional { prompts, dependencies } overrides
+---     (used for testing; defaults come from this module)
 --- @param on_complete function|string|nil
 function M.resolve(content, opts, on_complete)
   opts = opts or {}
   local mode = opts.mode or "request"
+  local stage_handlers = opts.handlers or handlers
 
   local function finish(resolved)
     if on_complete then
@@ -83,8 +86,8 @@ function M.resolve(content, opts, on_complete)
         finish(nil)
         return
       end
-      run_stage("prompts", dep_resolved, opts, finish)
-    end)
+      run_stage("prompts", dep_resolved, opts, finish, stage_handlers)
+    end, stage_handlers)
     return
   end
 
@@ -93,26 +96,8 @@ function M.resolve(content, opts, on_complete)
       finish(nil)
       return
     end
-    run_stage("dependencies", prompt_resolved, opts, finish)
-  end)
+    run_stage("dependencies", prompt_resolved, opts, finish, stage_handlers)
+  end, stage_handlers)
 end
-
-M._test = {
-  get_handlers = function()
-    return vim.tbl_extend("force", {}, handlers)
-  end,
-  set_handlers = function(new_handlers)
-    handlers.prompts = default_prompt_handler
-    handlers.dependencies = default_dependency_handler
-    if new_handlers then
-      if new_handlers.prompts then
-        handlers.prompts = new_handlers.prompts
-      end
-      if new_handlers.dependencies then
-        handlers.dependencies = new_handlers.dependencies
-      end
-    end
-  end,
-}
 
 return M

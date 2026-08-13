@@ -9,14 +9,10 @@
 ---   - blink.cmp source (M.new, M:enabled, M:get_*, M:get_completions, M:resolve, M:execute)
 ---   - nvim-cmp source (M.source table, minimal wrapper)
 ---   - Registration (M.register for both engines)
----   - Diagnostics (M.status, M._test)
+---   - Diagnostics (M.status)
 
 local M = {}
-local data = require("poste-http.http.data")
-local context_detector = require("poste-http.http.context_detector")
 local item_builder = require("poste-http.http.item_builder")
-local cache = require("poste-http.http.cache")
-local var_collector = require("poste-http.http.var_collector")
 
 ---------------------------------------------------------------------------
 -- blink.cmp source (module-level interface)
@@ -203,42 +199,5 @@ function M.status()
   end
   return "not registered"
 end
-
----------------------------------------------------------------------------
--- Test interface
----------------------------------------------------------------------------
-
-M._test = {
-  detect_context = context_detector.detect_context,
-  detect_script_context = context_detector.detect_script_context,
-  build_items = item_builder.build_items,
-  build_keyword_items = item_builder.build_keyword_items,
-  build_script_variable_items = item_builder.build_script_variable_items,
-  get_items_for_context = item_builder.get_items_for_context,
-  get_namespace_items = item_builder.get_namespace_items,
-  _get_variable_items = item_builder._get_variable_items,
-  get_buffer_cache = cache.get_buffer_cache,
-  collect_file_vars = cache.collect_file_vars,
-  collect_env_vars = cache.collect_env_vars,
-  collect_request_vars = cache.collect_request_vars,
-  collect_script_local_vars = cache.collect_script_local_vars,
-  collect_script_set_vars = cache.collect_script_set_vars,
-  collect_request_names = cache.collect_request_names,
-  collect_import_index = cache.collect_import_index,
-  collect_all_vars = var_collector.collect_all_vars,
-  collect_magic_vars = var_collector.collect_magic_vars,
-  pre_script_keywords = data.pre_script_keywords,
-  post_script_keywords = data.post_script_keywords,
-  lua_keywords = data.lua_keywords,
-  lua_sandbox_functions = data.lua_sandbox_functions,
-  lua_sandbox_modules = data.lua_sandbox_modules,
-  lua_module_members = data.lua_module_members,
-  http_status_codes = data.http_status_codes,
-  header_names = data.header_names,
-  mime_types = data.mime_types,
-  header_values = data.header_values,
-  magic_var_defs = data.magic_var_defs,
-  prompt_mapping_fields = data.prompt_mapping_fields,
-}
 
 return M

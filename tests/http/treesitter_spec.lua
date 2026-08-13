@@ -3,7 +3,7 @@
 local treesitter = require("poste-http.http.treesitter")
 
 local function extmark_groups(buf, row)
-  local marks = vim.api.nvim_buf_get_extmarks(buf, treesitter._test.ns, { row, 0 }, { row, -1 }, { details = true })
+  local marks = vim.api.nvim_buf_get_extmarks(buf, treesitter.ns, { row, 0 }, { row, -1 }, { details = true })
   local groups = {}
   for _, m in ipairs(marks) do
     groups[#groups + 1] = m[4].hl_group
@@ -22,7 +22,7 @@ describe("treesitter client.run target highlights", function()
       "%}",
     })
 
-    treesitter._test.highlight_var_refs(buf)
+    treesitter.highlight_var_refs(buf)
 
     local groups = extmark_groups(buf, 3)
     assert.is_true(vim.tbl_contains(groups, "PosteRunTarget"),
@@ -42,7 +42,7 @@ describe("treesitter client.run target highlights", function()
       "%}",
     })
 
-    treesitter._test.highlight_var_refs(buf)
+    treesitter.highlight_var_refs(buf)
 
     local groups = extmark_groups(buf, 3)
     assert.is_true(vim.tbl_contains(groups, "PosteRequestName"),
@@ -57,7 +57,7 @@ describe("treesitter Lua import var ref highlights", function()
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@my_name = m.config.endpoint" })
 
-    treesitter._test.highlight_var_refs(buf)
+    treesitter.highlight_var_refs(buf)
 
     local groups = extmark_groups(buf, 0)
     assert.is_true(vim.tbl_contains(groups, "PosteImportRefAlias"),
@@ -74,7 +74,7 @@ describe("treesitter Lua import var ref highlights", function()
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@first_tag = m.tags[1]" })
 
-    treesitter._test.highlight_var_refs(buf)
+    treesitter.highlight_var_refs(buf)
 
     local groups = extmark_groups(buf, 0)
     assert.is_true(vim.tbl_contains(groups, "PosteImportRefIndex"),
@@ -86,7 +86,7 @@ describe("treesitter Lua import var ref highlights", function()
     local buf = vim.api.nvim_create_buf(false, true)
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "@plain = hello world" })
 
-    treesitter._test.highlight_var_refs(buf)
+    treesitter.highlight_var_refs(buf)
 
     local groups = extmark_groups(buf, 0)
     assert.is_false(vim.tbl_contains(groups, "PosteImportRefAlias"))

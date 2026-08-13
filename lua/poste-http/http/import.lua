@@ -1096,18 +1096,13 @@ function M.resolve_lua_keypath(keypath, content, buf_dir)
   return nil
 end
 
--- Test interface
-M._test = {
-  parse_import_line = parse_import_line,
-  parse_run_line = parse_run_line,
-  resolve_path = resolve_path,
-  extract_request_names = extract_request_names,
-  resolve_reference = resolve_reference,
-  resolve_path_for_export = resolve_path_for_export,
-  value_to_http_string = value_to_http_string,
-  execute_import_via_curl = execute_import_via_curl,
-}
-
 M.parse_import_line = parse_import_line
+M.parse_run_line = parse_run_line
+M.resolve_path = resolve_path
+M.extract_request_names = extract_request_names
+M.resolve_reference = resolve_reference
+M.resolve_path_for_export = resolve_path_for_export
+M.value_to_http_string = value_to_http_string
+M.execute_import_via_curl = execute_import_via_curl
 
 return M

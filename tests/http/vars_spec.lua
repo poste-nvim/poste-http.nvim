@@ -1,7 +1,7 @@
 local vars = require("poste-http.http.vars")
 
 describe("collect_var_defs", function()
-  local collect = vars._test.collect_var_defs
+  local collect = vars.collect_var_defs
 
   it("collects single-line @var = value", function()
     local lines = { "@host = http://localhost:8888", "@token = abc123" }

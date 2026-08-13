@@ -285,8 +285,6 @@ function M.inject_global_vars(content, block_start, global_vars)
   return table.concat(result, "\n"), count
 end
 
-local inject_global_vars = M.inject_global_vars
-
 ---------------------------------------------------------------------------
 -- Scan script set calls
 ---------------------------------------------------------------------------
@@ -315,9 +313,6 @@ function M.scan_script_set_calls(buf_lines, block_start, block_end)
   end
   return map
 end
-
-local scan_script_set_calls = M.scan_script_set_calls
-
 ---------------------------------------------------------------------------
 -- Format script logs for display
 ---------------------------------------------------------------------------
@@ -340,14 +335,5 @@ function M.format_script_logs(logs)
 
   return lines
 end
-
----------------------------------------------------------------------------
--- Test helpers
----------------------------------------------------------------------------
-
-M._test = {
-  inject_global_vars = inject_global_vars,
-  scan_script_set_calls = scan_script_set_calls,
-}
 
 return M

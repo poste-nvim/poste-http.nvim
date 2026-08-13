@@ -1,7 +1,7 @@
 local parser = require("poste-http.http.response_parser")
 
 describe("parse_headers_file", function()
-  local parse = parser._test.parse_headers_file
+  local parse = parser.parse_headers_file
 
   it("parses headers with LF line endings", function()
     local text = "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 42\n"

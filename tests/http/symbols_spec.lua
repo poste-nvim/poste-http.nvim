@@ -4,7 +4,7 @@ local symbols = require("poste-http.http.symbols")
 local function collect(lines)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  local requests = symbols._test.collect_requests(buf)
+  local requests = symbols.collect_requests(buf)
   vim.api.nvim_buf_delete(buf, { force = true })
   return requests
 end

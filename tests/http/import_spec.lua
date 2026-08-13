@@ -1,85 +1,85 @@
 --- Tests for the import/run cross-file reference resolution module.
 local import_mod = require("poste-http.http.import")
 local state = require("poste-http.state")
-local _test = import_mod._test
+local imp = import_mod
 
 describe("parse_import_line", function()
   it("parses bare import", function()
-    local r = _test.parse_import_line("import ./auth.http")
+    local r = imp.parse_import_line("import ./auth.http")
     assert.are_equal("bare", r.type)
     assert.are_equal("./auth.http", r.path)
   end)
 
   it("parses aliased import", function()
-    local r = _test.parse_import_line("import ./orders.http as orders")
+    local r = imp.parse_import_line("import ./orders.http as orders")
     assert.are_equal("aliased", r.type)
     assert.are_equal("./orders.http", r.path)
     assert.are_equal("orders", r.alias)
   end)
 
   it("rejects non-import lines", function()
-    assert.is_nil(_test.parse_import_line("### Request"))
-    assert.is_nil(_test.parse_import_line("@var = value"))
-    assert.is_nil(_test.parse_import_line(""))
-    assert.is_nil(_test.parse_import_line("run #Login"))
+    assert.is_nil(imp.parse_import_line("### Request"))
+    assert.is_nil(imp.parse_import_line("@var = value"))
+    assert.is_nil(imp.parse_import_line(""))
+    assert.is_nil(imp.parse_import_line("run #Login"))
   end)
 
   it("handles leading whitespace", function()
-    local r = _test.parse_import_line("  import ./auth.http")
+    local r = imp.parse_import_line("  import ./auth.http")
     assert.are_equal("bare", r.type)
   end)
 end)
 
 describe("parse_run_line", function()
   it("parses run #Name", function()
-    local r = _test.parse_run_line("run #Login")
+    local r = imp.parse_run_line("run #Login")
     assert.are_equal("by_name", r.type)
     assert.are_equal("Login", r.name)
     assert.is_true(next(r.vars) == nil)
   end)
 
   it("parses run #alias.Name", function()
-    local r = _test.parse_run_line("run #orders.ListOrders")
+    local r = imp.parse_run_line("run #orders.ListOrders")
     assert.are_equal("by_alias", r.type)
     assert.are_equal("orders", r.alias)
     assert.are_equal("ListOrders", r.name)
   end)
 
   it("parses run ./path", function()
-    local r = _test.parse_run_line("run ./batch.http")
+    local r = imp.parse_run_line("run ./batch.http")
     assert.are_equal("by_path", r.type)
     assert.are_equal("./batch.http", r.path)
   end)
 
   it("parses run with variable overrides", function()
-    local r = _test.parse_run_line("run #Login (@token=xyz)")
+    local r = imp.parse_run_line("run #Login (@token=xyz)")
     assert.are_equal("by_name", r.type)
     assert.are_equal("Login", r.name)
     assert.are_equal("xyz", r.vars.token)
   end)
 
   it("parses run with multiple variable overrides", function()
-    local r = _test.parse_run_line("run #Login (@token=xyz, @env=staging)")
+    local r = imp.parse_run_line("run #Login (@token=xyz, @env=staging)")
     assert.are_equal("by_name", r.type)
     assert.are_equal("xyz", r.vars.token)
     assert.are_equal("staging", r.vars.env)
   end)
 
   it("rejects non-run lines", function()
-    assert.is_nil(_test.parse_run_line("### Request"))
-    assert.is_nil(_test.parse_run_line(""))
-    assert.is_nil(_test.parse_run_line("import ./auth.http"))
+    assert.is_nil(imp.parse_run_line("### Request"))
+    assert.is_nil(imp.parse_run_line(""))
+    assert.is_nil(imp.parse_run_line("import ./auth.http"))
   end)
 end)
 
 describe("resolve_path", function()
   it("keeps absolute paths", function()
-    local r = _test.resolve_path("/absolute/path.http", "/dir")
+    local r = imp.resolve_path("/absolute/path.http", "/dir")
     assert.are_equal("/absolute/path.http", r)
   end)
 
   it("resolves relative paths", function()
-    local r = _test.resolve_path("./sub/file.http", "/base/dir")
+    local r = imp.resolve_path("./sub/file.http", "/base/dir")
     assert.are_equal("/base/dir/sub/file.http", r)
   end)
 end)
@@ -87,7 +87,7 @@ end)
 describe("extract_request_names", function()
   it("extracts named blocks", function()
     local content = "### Login\nGET /api/login\n\n### Logout\nGET /api/logout\n"
-    local names = _test.extract_request_names(content)
+    local names = imp.extract_request_names(content)
     assert.are_equal(2, #names)
     assert.are_equal("Login", names[1].name)
     assert.are_equal(1, names[1].line)
@@ -97,13 +97,13 @@ describe("extract_request_names", function()
 
   it("returns empty for no blocks", function()
     local content = "@var = value\n"
-    local names = _test.extract_request_names(content)
+    local names = imp.extract_request_names(content)
     assert.are_equal(0, #names)
   end)
 
   it("ignores nameless ###", function()
     local content = "###\nGET /api\n"
-    local names = _test.extract_request_names(content)
+    local names = imp.extract_request_names(content)
     assert.are_equal(0, #names)
   end)
 end)
@@ -127,37 +127,37 @@ describe("resolve_reference", function()
   }
 
   it("resolves bare reference", function()
-    local r = _test.resolve_reference("Login", index)
+    local r = imp.resolve_reference("Login", index)
     assert.are_equal("/dir/auth.http", r.path)
     assert.are_equal(1, r.line)
   end)
 
   it("resolves aliased reference", function()
-    local r = _test.resolve_reference("orders.ListOrders", index)
+    local r = imp.resolve_reference("orders.ListOrders", index)
     assert.are_equal("/dir/orders.http", r.path)
     assert.are_equal(1, r.line)
   end)
 
   it("returns nil for unknown reference", function()
-    assert.is_nil(_test.resolve_reference("Unknown", index))
+    assert.is_nil(imp.resolve_reference("Unknown", index))
   end)
 
   it("returns nil for unknown alias", function()
-    assert.is_nil(_test.resolve_reference("bad.Name", index))
+    assert.is_nil(imp.resolve_reference("bad.Name", index))
   end)
 end)
 
 describe("Lua import support", function()
   describe("parse_import_line with .lua", function()
     it("parses import ./variables.lua as m", function()
-      local r = _test.parse_import_line("import ./variables.lua as m")
+      local r = imp.parse_import_line("import ./variables.lua as m")
       assert.are_equal("aliased", r.type)
       assert.are_equal("./variables.lua", r.path)
       assert.are_equal("m", r.alias)
     end)
 
     it("parses import ./vars.lua (bare)", function()
-      local r = _test.parse_import_line("import ./vars.lua")
+      local r = imp.parse_import_line("import ./vars.lua")
       assert.are_equal("bare", r.type)
       assert.are_equal("./vars.lua", r.path)
     end)
@@ -242,47 +242,47 @@ describe("Lua import support", function()
   describe("resolve_path_for_export", function()
     it("resolves top-level key", function()
       local exports = { name = "lex", age = 23 }
-      assert.are_equal("lex", _test.resolve_path_for_export(exports, "name"))
-      assert.are_equal(23, _test.resolve_path_for_export(exports, "age"))
+      assert.are_equal("lex", imp.resolve_path_for_export(exports, "name"))
+      assert.are_equal(23, imp.resolve_path_for_export(exports, "age"))
     end)
 
     it("resolves nested key", function()
       local exports = { person = { name = "lex", age = 23 } }
-      assert.are_equal("lex", _test.resolve_path_for_export(exports, "person.name"))
-      assert.are_equal(23, _test.resolve_path_for_export(exports, "person.age"))
+      assert.are_equal("lex", imp.resolve_path_for_export(exports, "person.name"))
+      assert.are_equal(23, imp.resolve_path_for_export(exports, "person.age"))
     end)
 
     it("resolves array index", function()
       local exports = { tags = { "rust", "lua", "neovim" } }
-      assert.are_equal("rust", _test.resolve_path_for_export(exports, "tags[1]"))
-      assert.are_equal("lua", _test.resolve_path_for_export(exports, "tags[2]"))
-      assert.are_equal("neovim", _test.resolve_path_for_export(exports, "tags[3]"))
+      assert.are_equal("rust", imp.resolve_path_for_export(exports, "tags[1]"))
+      assert.are_equal("lua", imp.resolve_path_for_export(exports, "tags[2]"))
+      assert.are_equal("neovim", imp.resolve_path_for_export(exports, "tags[3]"))
     end)
 
     it("resolves deeply nested path", function()
       local exports = { data = { items = { { id = 1, name = "alice" } } } }
-      assert.are_equal(1, _test.resolve_path_for_export(exports, "data.items[1].id"))
-      assert.are_equal("alice", _test.resolve_path_for_export(exports, "data.items[1].name"))
+      assert.are_equal(1, imp.resolve_path_for_export(exports, "data.items[1].id"))
+      assert.are_equal("alice", imp.resolve_path_for_export(exports, "data.items[1].name"))
     end)
 
     it("returns nil for unknown key", function()
       local exports = { name = "lex" }
-      assert.is_nil(_test.resolve_path_for_export(exports, "unknown"))
-      assert.is_nil(_test.resolve_path_for_export(exports, "name.unknown"))
+      assert.is_nil(imp.resolve_path_for_export(exports, "unknown"))
+      assert.is_nil(imp.resolve_path_for_export(exports, "name.unknown"))
     end)
   end)
 
   describe("value_to_http_string", function()
     it("converts number to string", function()
-      assert.are_equal("100", _test.value_to_http_string(100))
+      assert.are_equal("100", imp.value_to_http_string(100))
     end)
 
     it("keeps string as-is", function()
-      assert.are_equal("hello", _test.value_to_http_string("hello"))
+      assert.are_equal("hello", imp.value_to_http_string("hello"))
     end)
 
     it("encodes table as JSON", function()
-      local result = _test.value_to_http_string({ name = "lex", age = 23 })
+      local result = imp.value_to_http_string({ name = "lex", age = 23 })
       -- vim.json.encode may order keys differently; check structure
       local ok, decoded = pcall(vim.json.decode, result)
       assert.is_true(ok)
@@ -291,11 +291,11 @@ describe("Lua import support", function()
     end)
 
     it("converts boolean to string", function()
-      assert.are_equal("true", _test.value_to_http_string(true))
+      assert.are_equal("true", imp.value_to_http_string(true))
     end)
 
     it("returns empty for nil", function()
-      assert.are_equal("", _test.value_to_http_string(nil))
+      assert.are_equal("", imp.value_to_http_string(nil))
     end)
   end)
 
@@ -489,7 +489,7 @@ describe("execute_import_via_curl", function()
 GET /api/users/42
 Authorization: Bearer token123
 ]]
-    import_mod._test.execute_import_via_curl(content, "/tmp/test.http", 1, "default", function(response) end)
+    import_mod.execute_import_via_curl(content, "/tmp/test.http", 1, "default", function(response) end)
 
     assert.is_not_nil(state.pending_request)
     assert.is_not_nil(state.pending_request.headers_str)
@@ -546,7 +546,7 @@ Authorization: Bearer token123
 
     local import_mod = require("poste-http.http.import")
     local got
-    import_mod._test.execute_import_via_curl([[
+    import_mod.execute_import_via_curl([[
 ### Login
 POST /api/login
 Content-Type: application/json

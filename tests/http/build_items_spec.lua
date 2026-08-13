@@ -1,8 +1,8 @@
 -- Unit tests for build_items()
 -- Tests completion item generation from word lists
 
-local completion = require("poste-http.http.completion")
-local build_items = completion._test.build_items
+local item_builder = require("poste-http.http.item_builder")
+local build_items = item_builder.build_items
 
 describe("build_items", function()
   it("returns empty table for empty input", function()

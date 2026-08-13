@@ -84,9 +84,4 @@ function M.parse_path_segments(path)
   return parse_path_segments(path)
 end
 
-M._test = {
-  parse_path_segments = parse_path_segments,
-  resolve_segments = resolve_segments,
-}
-
 return M

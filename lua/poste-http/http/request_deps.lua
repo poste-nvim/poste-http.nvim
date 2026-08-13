@@ -675,17 +675,14 @@ resolve_content_dependencies_impl = function(buf, file_path, env_name, content, 
   })
 end
 
+M.find_request_variable_refs = find_request_variable_refs
+M.find_dynamic_prompt_refs = find_dynamic_prompt_refs
+M.execute_dependent_request_async = execute_dependent_request_async
+M.run_dep_post_scripts = run_dep_post_scripts
+
 M._dep_chain = nil
 M._resolve_request_variable = resolve_request_variable
 M.value_to_http_string = value_to_http_string
-
-M._test = {
-  find_request_variable_refs = find_request_variable_refs,
-  find_dynamic_prompt_refs = find_dynamic_prompt_refs,
-  collect_requests_from_content = M.collect_requests_from_content,
-  execute_dependent_request_async = execute_dependent_request_async,
-  run_dep_post_scripts = run_dep_post_scripts,
-}
 
 M._resolve_request_variables_impl = resolve_request_variables_impl
 M._resolve_content_dependencies_impl = resolve_content_dependencies_impl

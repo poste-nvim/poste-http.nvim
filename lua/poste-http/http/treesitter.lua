@@ -246,10 +246,14 @@ function M.disable(bufnr)
   end
 end
 
-M._test = {
-  ns = ns,
-  highlight_var_refs = highlight_var_refs,
-}
+--- Namespace used for variable-reference extmarks in source buffers.
+M.ns = ns
+
+--- (Re-)highlight variable references in a buffer with the var-ref namespace.
+--- @param bufnr number
+function M.highlight_var_refs(bufnr)
+  highlight_var_refs(bufnr)
+end
 
 --- Inspect the treesitter parse tree for the current buffer.
 --- Displays as a notification for debugging highlight issues.

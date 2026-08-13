@@ -2,7 +2,14 @@
 -- Covers gaps: status_code, import/run directives, build_keyword_items, M.register, M.status
 
 local completion = require("poste-http.http.completion")
-local test = completion._test
+local item_builder = require("poste-http.http.item_builder")
+local context_detector = require("poste-http.http.context_detector")
+
+local test = {
+  build_keyword_items = item_builder.build_keyword_items,
+  detect_context = context_detector.detect_context,
+  get_items_for_context = item_builder.get_items_for_context,
+}
 
 ---------------------------------------------------------------------------
 -- build_keyword_items unit tests

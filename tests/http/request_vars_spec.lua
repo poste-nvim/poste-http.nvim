@@ -1,7 +1,7 @@
 local rv = require("poste-http.http.request_vars")
 
 describe("find_request_variable_refs", function()
-  local find = rv._test.find_request_variable_refs
+  local find = rv.find_request_variable_refs
 
   it("finds simple {{Name.response.body}} ref", function()
     local refs = find("GET {{jq.response.body}}/path")
@@ -50,7 +50,7 @@ describe("find_request_variable_refs", function()
 end)
 
 describe("find_dynamic_prompt_refs", function()
-  local find = rv._test.find_dynamic_prompt_refs
+  local find = rv.find_dynamic_prompt_refs
 
   it("finds ref inside <<var [{{...}}] prompt", function()
     local text = '<<method [ {{jq.response.body | {name: .[].commit.author.name} }} ]'
@@ -66,7 +66,7 @@ describe("find_dynamic_prompt_refs", function()
 end)
 
 describe("collect_requests_from_content", function()
-  local collect = rv._test.collect_requests_from_content
+  local collect = rv.collect_requests_from_content
 
   it("finds named requests in content", function()
     local content = "### jq\nGET https://api.example.com/jq\n\n### prompt_enhance\nGET /get\n"

@@ -308,10 +308,4 @@ function M.build_resolver_from_state(opts)
   return resolver
 end
 
-M._test = {
-  collect_var_defs = M.collect_var_defs,
-  collect_var_defs_with_lines = M.collect_var_defs_with_lines,
-  load_env_vars_with_lines = M.load_env_vars_with_lines,
-}
-
 return M

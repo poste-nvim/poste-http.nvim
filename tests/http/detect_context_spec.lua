@@ -1,8 +1,8 @@
 -- Unit tests for detect_context()
 -- Tests all completion context types: method, method_or_header, header_value, variable, nil
 
-local completion = require("poste-http.http.completion")
-local detect_context = completion._test.detect_context
+local context_detector = require("poste-http.http.context_detector")
+local detect_context = context_detector.detect_context
 
 local function block_buf(lines)
   local buf = vim.api.nvim_create_buf(false, true)

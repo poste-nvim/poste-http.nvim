@@ -203,8 +203,11 @@ function M.show_symbols()
   show_snacks_picker(requests)
 end
 
-M._test = {
-  collect_requests = collect_requests,
-}
+--- Collect request list for the outline/symbol method column.
+--- @param bufnr number
+--- @return table  list of { name, method, url_path }
+function M.collect_requests(bufnr)
+  return collect_requests(bufnr)
+end
 
 return M

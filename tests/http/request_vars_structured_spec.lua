@@ -1,15 +1,13 @@
 --- Tests for structured prompt options (name|key|description tuples)
 --- and dynamic jq-style mapping.
 ---
---- These test the parsing functions directly by requiring request_vars.lua
---- and calling its internal functions via the _test interface.
+--- The parsing helpers live in the jq_mapping module; tests call its public API.
 
-local request_vars = require("poste-http.http.request_vars")
+local jq_mapping = require("poste-http.http.jq_mapping")
 
--- Access internal functions exposed for testing
-local parse_structured_options = request_vars._test.parse_structured_options
-local parse_dynamic_mapping   = request_vars._test.parse_dynamic_mapping
-local apply_jq_mapping        = request_vars._test.apply_jq_mapping
+local parse_structured_options = jq_mapping.parse_structured_options
+local parse_dynamic_mapping   = jq_mapping.parse_dynamic_mapping
+local apply_jq_mapping        = jq_mapping.apply_jq_mapping
 
 describe("parse_structured_options", function()
   -----------------------------------------------------------------------

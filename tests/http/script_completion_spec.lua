@@ -1,7 +1,16 @@
 --- Tests for pre/post script keyword completion.
 
-local completion = require("poste-http.http.completion")
-local test = completion._test
+local item_builder = require("poste-http.http.item_builder")
+local context_detector = require("poste-http.http.context_detector")
+local data = require("poste-http.http.data")
+
+local test = {
+  detect_script_context = context_detector.detect_script_context,
+  detect_context = context_detector.detect_context,
+  get_items_for_context = item_builder.get_items_for_context,
+  pre_script_keywords = data.pre_script_keywords,
+  post_script_keywords = data.post_script_keywords,
+}
 
 describe("detect_script_context", function()
   local buf

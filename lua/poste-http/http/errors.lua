@@ -173,8 +173,4 @@ function M.get_jump_targets(buf)
   return jump_targets[buf]
 end
 
-M._test = {
-  ns = ns,
-}
-
 return M

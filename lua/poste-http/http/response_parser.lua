@@ -274,8 +274,11 @@ function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, meth
   }
 end
 
-M._test = {
-  parse_headers_file = parse_headers_file,
-}
+--- Parse an HTTP response status line + header block text.
+--- @param headers_text string
+--- @return table  { status, status_text, headers }
+function M.parse_headers_file(headers_text)
+  return parse_headers_file(headers_text)
+end
 
 return M

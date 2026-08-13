@@ -2,8 +2,8 @@
 -- Tests the full completion flow through get_completions() and get_items_for_context()
 
 local completion = require("poste-http.http.completion")
-local test = completion._test
-local get_items_for_context = test.get_items_for_context
+local item_builder = require("poste-http.http.item_builder")
+local get_items_for_context = item_builder.get_items_for_context
 
 local function block_buf(lines)
   local buf = vim.api.nvim_create_buf(false, true)
@@ -208,7 +208,7 @@ describe("get_items_for_context", function()
 
   describe("namespace-aware variable completion", function()
     it("get_namespace_items returns namespace items for top-level prefix", function()
-      local items = test.get_namespace_items("GetUser", "", { "GetUser", "CreateUser" })
+      local items = item_builder.get_namespace_items("GetUser", "", { "GetUser", "CreateUser" })
 
       assert.is_true(#items > 0)
       local labels = {}
@@ -220,7 +220,7 @@ describe("get_items_for_context", function()
     end)
 
     it("get_namespace_items returns leaf items for nested prefix", function()
-      local items = test.get_namespace_items("GetUser.response", "", { "GetUser" })
+      local items = item_builder.get_namespace_items("GetUser.response", "", { "GetUser" })
 
       local labels = {}
       for _, item in ipairs(items) do
@@ -232,19 +232,19 @@ describe("get_items_for_context", function()
     end)
 
     it("get_namespace_items filters children by partial match", function()
-      local items = test.get_namespace_items("GetUser.response", "bo", { "GetUser" })
+      local items = item_builder.get_namespace_items("GetUser.response", "bo", { "GetUser" })
 
       assert.equals(1, #items)
       assert.equals("body", items[1].label)
     end)
 
     it("get_namespace_items returns nil for unknown prefix", function()
-      local items = test.get_namespace_items("Unknown", "", { "GetUser" })
+      local items = item_builder.get_namespace_items("Unknown", "", { "GetUser" })
       assert.is_nil(items)
     end)
 
     it("namespace items have correct kind and sortText", function()
-      local items = test.get_namespace_items("GetUser", "", { "GetUser" })
+      local items = item_builder.get_namespace_items("GetUser", "", { "GetUser" })
 
       for _, item in ipairs(items) do
         if item.label == "response." then
@@ -255,7 +255,7 @@ describe("get_items_for_context", function()
     end)
 
     it("leaf items have correct kind and sortText", function()
-      local items = test.get_namespace_items("GetUser.response", "", { "GetUser" })
+      local items = item_builder.get_namespace_items("GetUser.response", "", { "GetUser" })
 
       for _, item in ipairs(items) do
         assert.equals(6, item.kind) -- Variable

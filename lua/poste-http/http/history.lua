@@ -614,11 +614,12 @@ function M.show()
   pcall(vim.api.nvim_set_current_win, list_win)
 end
 
-M._test = {
-  format_list_line = format_list_line,
-  entry_method = entry_method,
-  format_elapsed = format_elapsed,
-  status_hl = status_hl,
-}
+--- Build the history list line for an entry (pure, window-free).
+--- @param entry table
+--- @param width number  Available display width
+--- @return string, table  rendered line, { status_hl, method, doc_id }
+function M.format_list_line(entry, width)
+  return format_list_line(entry, width)
+end
 
 return M

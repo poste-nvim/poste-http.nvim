@@ -870,12 +870,9 @@ function M.run_request()
   end)
 end
 
-M._test = {
-  make_script_response = make_script_response,
-  make_error_response = make_error_response,
-  choose_view_tab = choose_view_tab,
-  inject_global_vars = scripts.inject_global_vars,
-  render_orchestration_result = render_orchestration_result,
-}
+M.make_script_response = make_script_response
+M.make_error_response = make_error_response
+M.choose_view_tab = choose_view_tab
+M.render_orchestration_result = render_orchestration_result
 
 return M

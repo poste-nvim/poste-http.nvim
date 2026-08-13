@@ -3,9 +3,10 @@
 --- and runs each through get_items_for_context.
 
 local completion = require("poste-http.http.completion")
+local item_builder = require("poste-http.http.item_builder")
 local cache = require("poste-http.http.cache")
 local state = require("poste-http.state")
-local get_items = completion._test.get_items_for_context
+local get_items = item_builder.get_items_for_context
 
 local fixtures = require("tests.http.fixtures.http_completion.fixtures")
 

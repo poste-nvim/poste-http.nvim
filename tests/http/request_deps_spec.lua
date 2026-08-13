@@ -106,14 +106,14 @@ describe("request_deps dep post-scripts", function()
       '> {% client.global.set("assetId", response.body.info.assetId) %}',
       '> {% client.global.set("moderationId", response.body.info.moderationId) %}',
     }, "\n")
-    request_deps._test.run_dep_post_scripts(response, block)
+    request_deps.run_dep_post_scripts(response, block)
     assert.equal("A-1", state.global_vars.assetId)
     assert.equal("M-1", state.global_vars.moderationId)
   end)
 
   it("leaves globals untouched when a dep has no post-script", function()
     local response = { status = 200, body = "{}" }
-    request_deps._test.run_dep_post_scripts(response, "GET /plain")
+    request_deps.run_dep_post_scripts(response, "GET /plain")
     assert.same({}, state.global_vars)
   end)
 
@@ -127,7 +127,7 @@ describe("request_deps dep post-scripts", function()
       "GET {{base_url}}/cloth/recolor",
       '> {% client.global.set("derived", variables.base_url .. "/x") %}',
     }, "\n")
-    request_deps._test.run_dep_post_scripts(response, block)
+    request_deps.run_dep_post_scripts(response, block)
     assert.equal("https://api.example.com/x", state.global_vars.derived)
   end)
 end)

@@ -5,8 +5,17 @@
 --- - Cookie completion
 --- - HTTP status code completion in assertions
 
-local completion = require("poste-http.http.completion")
-local test = completion._test
+local item_builder = require("poste-http.http.item_builder")
+local context_detector = require("poste-http.http.context_detector")
+local data = require("poste-http.http.data")
+
+local test = {
+  header_names = data.header_names,
+  header_values = data.header_values,
+  mime_types = data.mime_types,
+  detect_context = context_detector.detect_context,
+  get_items_for_context = item_builder.get_items_for_context,
+}
 
 describe("expanded HTTP headers", function()
   it("includes security headers", function()
