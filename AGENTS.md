@@ -20,10 +20,11 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
 - **HTTP grammar ↔ tree-sitter sync**: Any change to HTTP grammar (parser, syntax)
   must be mirrored in the tree-sitter grammar (`tree-sitter-http/grammar.js`) and
   its query files (`highlights.scm`, `injections.scm`, `locals.scm`).
-- **Single source of truth for HTTP methods**: `grammar.js` defines the method tokens.
-  `lua/poste-http/http/_methods.lua` is auto-generated from it. After adding/removing
-  a method in `grammar.js`, run `npm run generate-data` in `tree-sitter-poste-http/`
-  to regenerate. The `check-data` script is used in CI to catch staleness.
+- **HTTP method list sync**: `tree-sitter-poste-http/grammar.js` defines the
+  `method_*` tokens and `lua/poste-http/http/data.lua` keeps its own copy of the
+  method names. When adding/removing a method in `grammar.js`, update
+  `data.lua`'s `http_methods` too — `tests/http/methods_spec.lua` fails if they
+  drift.
 
 ## Lua Patterns ≠ Regex
 

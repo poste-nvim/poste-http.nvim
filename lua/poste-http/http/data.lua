@@ -1,14 +1,23 @@
 --- Data tables for HTTP completion.
---- HTTP methods sourced from grammar.js via tree-sitter-poste-http/tools/extract-methods.js
---- Run `npm run generate-data` in tree-sitter-poste-http/ to regenerate _methods.lua.
 
 local M = {}
-local grammar_methods = require("poste-http.http._methods")
 
 ---------------------------------------------------------------------------
--- HTTP methods (from grammar.js — single source of truth)
+-- HTTP methods
+-- Kept in sync with the `method_*` tokens in tree-sitter-poste-http/grammar.js
 ---------------------------------------------------------------------------
-M.http_methods = grammar_methods
+M.http_methods = {
+  "CONNECT",
+  "DELETE",
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "PATCH",
+  "POST",
+  "PUT",
+  "SCRIPT",
+  "TRACE",
+}
 
 ---------------------------------------------------------------------------
 -- Common HTTP header names
