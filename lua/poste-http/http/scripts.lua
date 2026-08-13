@@ -1,6 +1,7 @@
 --- Pre-request scripts (< {% ... %} syntax): extraction, sandboxed execution, variable injection.
 --- Also handles external script references (< ./path.lua).
 local state = require("poste-http.state")
+local script_block = require("poste-http.http.script_block")
 
 local M = {}
 
@@ -128,86 +129,9 @@ end
 
 --- Extract `< {% ... %}` inline pre-script blocks and `< ./path.lua` external
 --- script references from request content.
---- Always strips ALL matching blocks (replacing with empty lines to preserve line count).
---- Only collects script code within the optional start_line/end_line range (1-indexed).
---- When start_line/end_line are nil, collects from all blocks.
 --- Returns (stripped_content, script_code_or_nil).
 function M.extract_pre_script_blocks(content, start_line, end_line)
-  local lines = vim.split(content, "\n", { plain = true })
-  local result = {}
-  local code_parts = {}
-  local in_block = false
-  local block_lines = {}
-  local block_start_line = 0
-
-  -- Determine the .http file directory for resolving external scripts
-  local file_dir = vim.fn.expand("%:p:h")
-
-  for i, line in ipairs(lines) do
-    local trimmed = vim.trim(line)
-
-    if not in_block then
-      -- Single-line inline: < {% code %}
-      local code = trimmed:match("^<%s*{%%(.-)%%}$")
-      if code then
-        if not start_line or (i >= start_line and i <= end_line) then
-          table.insert(code_parts, code)
-        end
-        table.insert(result, "")  -- preserve line count
-
-      -- External script: < ./path.lua or < ../path.lua
-      elseif trimmed:match("^<%s*%.?%.") and trimmed:match("%.lua%s*$") then
-        local path = trimmed:match("^<%s*(%S+)%s*$")
-        if path and (not start_line or (i >= start_line and i <= end_line)) then
-          -- Resolve relative path against .http file directory
-          if path:sub(1, 1) == "." then
-            path = file_dir .. "/" .. path
-          end
-          -- Read external script file
-          local f = io.open(path, "r")
-          if f then
-            local script_content = f:read("*a")
-            f:close()
-            table.insert(code_parts, "-- external: " .. path .. "\n" .. script_content)
-            state.log("INFO", "Loaded external pre-script: " .. path)
-          else
-            state.log("ERROR", "Cannot open pre-script file: " .. path)
-            table.insert(code_parts, 'error("Cannot open pre-script file: ' .. path .. '")')
-          end
-        end
-        table.insert(result, "")  -- preserve line count
-
-      -- Multi-line start: < {%
-      elseif trimmed:match("^<%s*{%%") then
-        in_block = true
-        block_lines = {}
-        block_start_line = i
-        table.insert(result, "")  -- preserve line count
-
-      else
-        table.insert(result, line)
-      end
-    else
-      -- Inside multi-line block
-      if trimmed == "%}" then
-        -- End of block
-        if not start_line or (block_start_line >= start_line and i <= end_line) then
-          table.insert(code_parts, table.concat(block_lines, "\n"))
-        end
-        in_block = false
-        block_lines = {}
-      else
-        table.insert(block_lines, line)
-      end
-      table.insert(result, "")  -- preserve line count
-    end
-  end
-
-  if #code_parts == 0 then
-    return table.concat(result, "\n"), nil
-  end
-
-  return table.concat(result, "\n"), table.concat(code_parts, "\n")
+  return script_block.extract_script_blocks(content, "<", start_line, end_line)
 end
 
 ---------------------------------------------------------------------------
