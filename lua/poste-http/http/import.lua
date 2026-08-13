@@ -575,31 +575,6 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
   end)
 end
 
---- Inject global vars as @var lines after block_start.
---- Mirrors run.lua:inject_global_vars logic.
---- @param buf_content string
---- @param block_start number  ### marker line (1-indexed)
---- @param global_vars table  { name = value, ... }
---- @return string, number  Modified content, lines injected
-local function inject_global_vars(buf_content, block_start, global_vars)
-  if not block_start or not global_vars or not next(global_vars) then
-    return buf_content, 0
-  end
-  local glines = vim.split(buf_content, "\n", { plain = true })
-  local result = {}
-  local gcount = 0
-  for _ in pairs(global_vars) do gcount = gcount + 1 end
-  for i, line_text in ipairs(glines) do
-    table.insert(result, line_text)
-    if i == block_start then
-      for name, value in pairs(global_vars) do
-        table.insert(result, string.format("@%s = %s", name, value))
-      end
-    end
-  end
-  return table.concat(result, "\n"), gcount
-end
-
 --- Process target block's pre-script: extract, run in sandbox, inject vars into content.
 --- Handles both request.variables.set() and client.global.set() from pre-scripts.
 --- @param content string  Target file content
@@ -613,7 +588,7 @@ local function process_target_pre_script(content, block_start, block_end)
   local modified_content, pre_code = scripts.extract_pre_script_blocks(content, block_start, block_end)
   if not pre_code then
     -- No pre-script, but still inject any existing global vars
-    return inject_global_vars(content, block_start, state.global_vars)
+  return scripts.inject_global_vars(content, block_start, state.global_vars)
   end
 
   local script_vars = scripts.collect_script_variables(modified_content, block_start, block_end)
@@ -645,7 +620,7 @@ local function process_target_pre_script(content, block_start, block_end)
   -- Inject client.global.set() vars (set during run_pre_script above)
   if state.global_vars and next(state.global_vars) then
     local gcount
-    modified_content, gcount = inject_global_vars(modified_content, block_start, state.global_vars)
+    modified_content, gcount = scripts.inject_global_vars(modified_content, block_start, state.global_vars)
     total_injected = total_injected + gcount or 0
   end
 

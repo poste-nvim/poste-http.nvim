@@ -211,7 +211,7 @@ function M.format_verbose(r, pending)
 
   if #general_rows > 0 then
     local general_lines, _ = columns.render(general_rows, {
-      { max = 16, gap = 2 },
+      { max = 20, gap = 2 },
       { flex = true, pad = false },
     }, { width = 80, gap = 1 })
     for _, line in ipairs(general_lines) do

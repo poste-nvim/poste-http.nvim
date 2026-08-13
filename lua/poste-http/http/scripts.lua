@@ -249,6 +249,71 @@ function M.inject_pre_script_vars(content, block_start, variables)
 end
 
 ---------------------------------------------------------------------------
+-- Inject global variables into content
+---------------------------------------------------------------------------
+
+--- Inject global variables as @var = value lines after the given line.
+--- Mirrors inject_pre_script_vars but for client.global.set() values.
+--- @param content string
+--- @param block_start number  1-indexed line to inject after
+--- @param global_vars table  { name = value, ... }
+--- @return string, number  modified content, count injected
+function M.inject_global_vars(content, block_start, global_vars)
+  if not block_start or not global_vars or not next(global_vars) then
+    return content, 0
+  end
+
+  local lines = vim.split(content, "\n", { plain = true })
+  local result = {}
+  local count = 0
+  for _ in pairs(global_vars) do count = count + 1 end
+
+  for i, line in ipairs(lines) do
+    table.insert(result, line)
+    if i == block_start then
+      for name, value in pairs(global_vars) do
+        table.insert(result, string.format("@%s = %s", name, value))
+      end
+    end
+  end
+
+  return table.concat(result, "\n"), count
+end
+
+local inject_global_vars = M.inject_global_vars
+
+---------------------------------------------------------------------------
+-- Scan script set calls
+---------------------------------------------------------------------------
+
+--- Scan buf_lines in [block_start, block_end] for client.global.set() and
+--- request.variables.set() calls and return a map of name -> line.
+function M.scan_script_set_calls(buf_lines, block_start, block_end)
+  local map = {}
+  for i = block_start or 1, block_end or #buf_lines do
+    local line = buf_lines[i]
+    if line then
+      local name = line:match('client%.global%.set%s*%(%s*"([^"]+)"')
+      if not name then
+        name = line:match("client%.global%.set%s*%(%s*'([^']+)'")
+      end
+      if not name then
+        name = line:match('request%.variables%.set%s*%(%s*"([^"]+)"')
+      end
+      if not name then
+        name = line:match("request%.variables%.set%s*%(%s*'([^']+)'")
+      end
+      if name then
+        map[name] = i
+      end
+    end
+  end
+  return map
+end
+
+local scan_script_set_calls = M.scan_script_set_calls
+
+---------------------------------------------------------------------------
 -- Format script logs for display
 ---------------------------------------------------------------------------
 
@@ -270,5 +335,14 @@ function M.format_script_logs(logs)
 
   return lines
 end
+
+---------------------------------------------------------------------------
+-- Test helpers
+---------------------------------------------------------------------------
+
+M._test = {
+  inject_global_vars = inject_global_vars,
+  scan_script_set_calls = scan_script_set_calls,
+}
 
 return M

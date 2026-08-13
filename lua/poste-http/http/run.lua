@@ -22,29 +22,6 @@ local uv = vim.uv or vim.loop
 
 local M = {}
 
-local function scan_script_set_calls(buf_lines, block_start, block_end)
-  local map = {}
-  for i = block_start or 1, block_end or #buf_lines do
-    local line = buf_lines[i]
-    if line then
-      local name = line:match('client%.global%.set%s*%(%s*"([^"]+)"')
-      if not name then
-        name = line:match("client%.global%.set%s*%(%s*'([^']+)'")
-      end
-      if not name then
-        name = line:match('request%.variables%.set%s*%(%s*"([^"]+)"')
-      end
-      if not name then
-        name = line:match("request%.variables%.set%s*%(%s*'([^']+)'")
-      end
-      if name then
-        map[name] = i
-      end
-    end
-  end
-  return map
-end
-
 ---------------------------------------------------------------------------
 -- Pipeline helpers
 ---------------------------------------------------------------------------
@@ -281,7 +258,7 @@ local function handle_curl_response(response, ctx)
     emit_response(response, current_req_name, file, nil, nil)
 
     local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
-    state._exec_context = { file = file, line = req_line + 1, set_lines = scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
+    state._exec_context = { file = file, line = req_line + 1, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
     local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
     local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
     state._exec_context = nil
@@ -516,27 +493,6 @@ local function handle_orchestration_result(result, ctx)
   end)
 end
 
---- Inject global variables into buf_content after the block start line.
-local function inject_global_vars(buf_content, block_start, global_vars)
-  if not block_start or not global_vars or not next(global_vars) then
-    return buf_content, 0
-  end
-  local glines = vim.split(buf_content, "\n", { plain = true })
-  local result = {}
-  local gcount = 0
-  for _ in pairs(global_vars) do gcount = gcount + 1 end
-  for i, line_text in ipairs(glines) do
-    table.insert(result, line_text)
-    if i == block_start then
-      for name, value in pairs(global_vars) do
-        table.insert(result, string.format("@%s = %s", name, value))
-      end
-    end
-  end
-  return table.concat(result, "\n"), gcount
-end
-
---- Resolve the current request name from collected requests.
 local function resolve_current_req_name(src_buf, line)
   local requests = request_vars.collect_requests(src_buf)
   for _, req in ipairs(requests) do
@@ -608,7 +564,7 @@ local function execute_request(ctx, callback)
   end
 
   if pre_script_code then
-    local set_lines = scan_script_set_calls(vim.split(buf_content, "\n", { plain = true }), block_start, block_end)
+    local set_lines = scripts.scan_script_set_calls(vim.split(buf_content, "\n", { plain = true }), block_start, block_end)
     state._exec_context = { file = file, line = block_start, set_lines = set_lines }
     local pre_result = scripts.run_pre_script(pre_script_code, script_vars)
     state._exec_context = nil
@@ -639,7 +595,7 @@ local function execute_request(ctx, callback)
 
   -- Inject global vars
   local global_count
-  buf_content, global_count = inject_global_vars(buf_content, block_start, state.global_vars)
+  buf_content, global_count = scripts.inject_global_vars(buf_content, block_start, state.global_vars)
   block_end = block_end + global_count
 
   -- Process form data and extract assertion blocks
@@ -919,7 +875,7 @@ M._test = {
   make_script_response = make_script_response,
   make_error_response = make_error_response,
   choose_view_tab = choose_view_tab,
-  inject_global_vars = inject_global_vars,
+  inject_global_vars = scripts.inject_global_vars,
   render_orchestration_result = render_orchestration_result,
 }
 

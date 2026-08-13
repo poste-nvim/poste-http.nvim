@@ -213,22 +213,22 @@ describe("run._test.choose_view_tab", function()
   end)
 end)
 
-describe("run._test.inject_global_vars", function()
-  local run
+describe("scripts._test.inject_global_vars", function()
+  local scripts
 
   before_each(function()
-    package.loaded["poste-http.http.run"] = nil
-    run = require("poste-http.http.run")
+    package.loaded["poste-http.http.scripts"] = nil
+    scripts = require("poste-http.http.scripts")
   end)
 
   after_each(function()
-    package.loaded["poste-http.http.run"] = nil
+    package.loaded["poste-http.http.scripts"] = nil
   end)
 
   it("injects @var = value lines after block_start", function()
     local content = "GET /test\nHost: example.com"
     local vars = { host = "example.com", token = "abc123" }
-    local result, count = run._test.inject_global_vars(content, 1, vars)
+    local result, count = scripts._test.inject_global_vars(content, 1, vars)
     assert.equal(2, count)
     local lines = vim.split(result, "\n", { plain = true })
     assert.equal(4, #lines)
@@ -240,28 +240,28 @@ describe("run._test.inject_global_vars", function()
 
   it("returns content unchanged and count 0 when global_vars is empty", function()
     local content = "GET /test\nHost: example.com"
-    local result, count = run._test.inject_global_vars(content, 1, {})
+    local result, count = scripts._test.inject_global_vars(content, 1, {})
     assert.equal(0, count)
     assert.equal("GET /test\nHost: example.com", result)
   end)
 
   it("returns content unchanged and count 0 when global_vars is nil", function()
     local content = "GET /test\nHost: example.com"
-    local result, count = run._test.inject_global_vars(content, 1, nil)
+    local result, count = scripts._test.inject_global_vars(content, 1, nil)
     assert.equal(0, count)
     assert.equal("GET /test\nHost: example.com", result)
   end)
 
   it("returns content unchanged and count 0 when block_start is nil", function()
     local content = "GET /test\nHost: example.com"
-    local result, count = run._test.inject_global_vars(content, nil, { key = "val" })
+    local result, count = scripts._test.inject_global_vars(content, nil, { key = "val" })
     assert.equal(0, count)
     assert.equal("GET /test\nHost: example.com", result)
   end)
 
   it("returns content unchanged and count 0 when block_start is nil and global_vars is empty", function()
     local content = "GET /test"
-    local result, count = run._test.inject_global_vars(content, nil, {})
+    local result, count = scripts._test.inject_global_vars(content, nil, {})
     assert.equal(0, count)
     assert.equal("GET /test", result)
   end)
@@ -269,7 +269,7 @@ describe("run._test.inject_global_vars", function()
   it("injects after a later block_start line, not just line 1", function()
     local content = "GET /a\nHost: a\n\n###\n\nGET /b\nHost: b"
     local vars = { env = "staging" }
-    local result, count = run._test.inject_global_vars(content, 5, vars)
+    local result, count = scripts._test.inject_global_vars(content, 5, vars)
     assert.equal(1, count)
     local lines = vim.split(result, "\n", { plain = true })
     -- block_start=5 is the empty line before "GET /b"
@@ -282,11 +282,63 @@ describe("run._test.inject_global_vars", function()
   it("handles single-line content correctly", function()
     local content = "GET /ping"
     local vars = { debug = "true" }
-    local result, count = run._test.inject_global_vars(content, 1, vars)
+    local result, count = scripts._test.inject_global_vars(content, 1, vars)
     assert.equal(1, count)
     local lines = vim.split(result, "\n", { plain = true })
     assert.equal(2, #lines)
     assert.equal("GET /ping", lines[1])
     assert.matches("@debug = true", lines[2])
+  end)
+end)
+
+describe("scripts._test.scan_script_set_calls", function()
+  local scripts
+
+  before_each(function()
+    package.loaded["poste-http.http.scripts"] = nil
+    scripts = require("poste-http.http.scripts")
+  end)
+
+  after_each(function()
+    package.loaded["poste-http.http.scripts"] = nil
+  end)
+
+  it("returns empty map when no set calls", function()
+    local lines = { "GET /test", "Host: example.com" }
+    local result = scripts._test.scan_script_set_calls(lines, 1, 2)
+    assert.equal(0, vim.tbl_count(result))
+  end)
+
+  it("finds client.global.set calls with double quotes", function()
+    local lines = { 'client.global.set("token", "abc")' }
+    local result = scripts._test.scan_script_set_calls(lines, 1, 1)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(1, result.token)
+  end)
+
+  it("finds client.global.set calls with single quotes", function()
+    local lines = { "client.global.set('token', 'abc')" }
+    local result = scripts._test.scan_script_set_calls(lines, 1, 1)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(1, result.token)
+  end)
+
+  it("finds request.variables.set calls", function()
+    local lines = { 'request.variables.set("user_id", "123")' }
+    local result = scripts._test.scan_script_set_calls(lines, 1, 1)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(1, result.user_id)
+  end)
+
+  it("scans only within block_start and block_end", function()
+    local lines = {
+      "GET /a",
+      'client.global.set("first", "1")',
+      "GET /b",
+      'client.global.set("second", "2")',
+    }
+    local result = scripts._test.scan_script_set_calls(lines, 2, 3)
+    assert.equal(1, vim.tbl_count(result))
+    assert.equal(2, result.first)
   end)
 end)
