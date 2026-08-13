@@ -26,4 +26,6 @@ tree-sitter-poste-json/Cargo.lock
 parser/node-types.json
 *.so
 examples/**/generated/
+# Generated from tree-sitter grammar — single source of truth
+/lua/poste-http/http/_methods.lua
 .codebase-memory
