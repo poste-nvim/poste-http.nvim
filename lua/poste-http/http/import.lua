@@ -13,6 +13,7 @@
 ---   - Aliased requests only accessible via #alias.Name, not bare #Name
 ---   - Bare import name collisions: later overrides earlier (warning)
 local state = require("poste-http.state")
+local util = require("poste-http.util")
 local request_vars = require("poste-http.http.request_vars")
 local resolve = require("poste-http.http.resolve")
 local curl_exec = require("poste-http.http.curl_exec")
@@ -529,7 +530,7 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
     table.insert(h_parts, h[1] .. ": " .. h[2])
   end
   local headers_str = #h_parts > 0 and table.concat(h_parts, "\n") or ""
-  local timestamp = os.date("%Y-%m-%d %H:%M:%S")
+  local timestamp = util.timestamp()
   local req_env = env_name or state.current_env
   state.set_pending_request({
     method = method,

@@ -55,6 +55,20 @@ function M.ensure_job_data(data)
   return data
 end
 
+--- Current wall-clock timestamp with milliseconds: "YYYY-MM-DD HH:MM:SS.mmm".
+--- Falls back to second precision when gettimeofday is unavailable.
+function M.timestamp()
+  local uv = vim.uv or vim.loop
+  if uv and uv.gettimeofday then
+    local sec, usec = uv.gettimeofday()
+    if sec then
+      local ms = math.floor((usec or 0) / 1000)
+      return os.date("%Y-%m-%d %H:%M:%S", sec) .. string.format(".%03d", ms)
+    end
+  end
+  return os.date("%Y-%m-%d %H:%M:%S")
+end
+
 --- Open a markdown doc preview in a floating window.
 --- Returns float_buf, win, reused (boolean — true if an existing tracked window was re-focused).
 --- opts:

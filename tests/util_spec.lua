@@ -81,6 +81,24 @@ describe("clean_nil", function()
 end)
 
 ---------------------------------------------------------------------------
+-- timestamp
+---------------------------------------------------------------------------
+
+describe("timestamp", function()
+  it("returns wall-clock with milliseconds (.mmm)", function()
+    local t = util.timestamp()
+    assert.matches("^%d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d%.%d%d%d$", t)
+  end)
+
+  it("millisecond field is within range", function()
+    local t = util.timestamp()
+    local ms = t:match("(%d%d%d)$")
+    assert.truthy(ms)
+    assert.truthy(tonumber(ms) >= 0 and tonumber(ms) <= 999)
+  end)
+end)
+
+---------------------------------------------------------------------------
 -- find_file_upwards
 ---------------------------------------------------------------------------
 

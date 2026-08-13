@@ -186,7 +186,7 @@ local function handle_curl_response(response, ctx)
       state.pending_request = vim.tbl_extend("keep", {
         method = (response.metadata and response.metadata.method) or "",
         url = response.url or "",
-        timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+        timestamp = util.timestamp(),
       }, state.pending_request)
     end
 
@@ -376,7 +376,7 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     body = body,
     name = name,
     env = state.current_env,
-    timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+    timestamp = util.timestamp(),
     start_hires = uv.hrtime(),
   })
 end
