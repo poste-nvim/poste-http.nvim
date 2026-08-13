@@ -525,6 +525,26 @@ end
 -- Semantic block metadata (single parse authority)
 -- method / path / headers come from tree-sitter describe, not Lua scanning.
 --------------------------------------------------------------------------
+--- Normalize buffer-cache block shape to semantic block shape.
+--- Buffer cache blocks use start_line; semantic blocks use line.
+--- This lets describe.block_at_line and boundary_indicator work on fallback blocks.
+local function normalize_to_semantic(blocks)
+  local out = {}
+  for _, b in ipairs(blocks or {}) do
+    table.insert(out, {
+      name = b.name,
+      line = b.start_line,
+      end_line = b.end_line,
+      last_content_line = b.last_content_line,
+      block_vars = b.block_vars,
+      has_pre = b.has_pre,
+      has_post = b.has_post,
+      has_run = b.has_run,
+    })
+  end
+  return out
+end
+
 
 --- Get structured block metadata for a buffer via tree-sitter describe.
 --- Cached by changedtick. Returns empty table if the parser is unavailable.
@@ -549,13 +569,20 @@ function M.get_semantic_blocks(buf)
   local describe = require("poste-http.http.describe")
   local blocks, err = describe.describe_content(content, file)
   if not blocks then
-    -- Binary missing or parse error: empty semantic index (UI cache still works)
     if err then
       pcall(function()
         require("poste-http.state").log("WARN", "describe failed: " .. tostring(err))
       end)
     end
     blocks = {}
+  end
+
+  -- If tree-sitter returned no blocks, fall back to buffer cache blocks.
+  -- This avoids a divergence where semantic_caches holds [] while
+  -- buffer_caches holds populated blocks from the text scan.
+  if #blocks == 0 then
+    local buffer_cache = M.get_buffer_cache(buf)
+    blocks = normalize_to_semantic(buffer_cache.blocks)
   end
 
   semantic_caches[buf] = { changedtick = ct, blocks = blocks }

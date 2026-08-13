@@ -434,3 +434,106 @@ describe("cache query functions", function()
     end)
   end)
 end)
+
+describe("get_semantic_blocks with no tree-sitter fallback", function()
+  local function create_buf(lines)
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    return buf
+  end
+
+  local sample_lines = {
+    "### Get Users",
+    "GET /users",
+    "Authorization: Bearer token",
+    "",
+    '{"page":1}',
+    "",
+    "### Create User",
+    "POST /users",
+    "Content-Type: application/json",
+    "",
+    '{"name":"doge"}',
+  }
+
+  it("returns block array (not empty) when TS is unavailable", function()
+    local buf = create_buf(sample_lines)
+
+    local describe = require("poste-http.http.describe")
+    local orig_describe = describe.describe_content
+    describe.describe_content = function()
+      return {}, "tree-sitter unavailable"
+    end
+
+    local blocks = cache.get_semantic_blocks(buf)
+
+    describe.describe_content = orig_describe
+
+    assert.is_true(
+      type(blocks) == "table" and #blocks > 0,
+      "get_semantic_blocks must not return empty table when TS is unavailable"
+    )
+    assert.equals(2, #blocks, "should have 2 blocks")
+    assert.equals("Get Users", blocks[1].name)
+    assert.equals("Create User", blocks[2].name)
+  end)
+
+  it("block_at_line works on fallback blocks", function()
+    local buf = create_buf(sample_lines)
+
+    local describe = require("poste-http.http.describe")
+    local orig_describe = describe.describe_content
+    describe.describe_content = function()
+      return {}, "tree-sitter unavailable"
+    end
+
+    local b = cache.get_semantic_block_at_line(buf, 2)
+
+    describe.describe_content = orig_describe
+
+    assert.is_not_nil(b, "get_semantic_block_at_line should find block via fallback")
+    assert.equals("Get Users", b.name)
+  end)
+
+  it("cached fallback is reused on subsequent calls", function()
+    local buf = create_buf(sample_lines)
+
+    local describe = require("poste-http.http.describe")
+    local orig_describe = describe.describe_content
+    describe.describe_content = function()
+      return {}, "tree-sitter unavailable"
+    end
+
+    local blocks1 = cache.get_semantic_blocks(buf)
+    local blocks2 = cache.get_semantic_blocks(buf)
+
+    describe.describe_content = orig_describe
+
+    assert.equals(blocks1, blocks2, "fallback blocks should be cached")
+    assert.equals(2, #blocks2)
+  end)
+
+  it("buffer_caches and semantic_caches return same block data", function()
+    local buf = create_buf(sample_lines)
+
+    local describe = require("poste-http.http.describe")
+    local orig_describe = describe.describe_content
+    describe.describe_content = function()
+      return {}, "tree-sitter unavailable"
+    end
+
+    local buffer_cache = cache.get_buffer_cache(buf)
+    local sem_blocks = cache.get_semantic_blocks(buf)
+
+    describe.describe_content = orig_describe
+
+    assert.equals(#buffer_cache.blocks, #sem_blocks)
+    for i = 1, #buffer_cache.blocks do
+      local bc = buffer_cache.blocks[i]
+      local sm = sem_blocks[i]
+      assert.equals(bc.name, sm.name, "block " .. i .. " name mismatch")
+      assert.equals(bc.start_line, sm.line, "block " .. i .. " line mismatch")
+      assert.equals(bc.end_line, sm.end_line, "block " .. i .. " end_line mismatch")
+    end
+  end)
+end)
