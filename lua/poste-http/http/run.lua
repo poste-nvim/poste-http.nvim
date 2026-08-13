@@ -429,10 +429,9 @@ end
 --- Render the result of an orchestration script (SCRIPT block with > {% %}).
 --- Reuses the multi-response chain view for client.run calls and the
 --- Assertions tab for script errors; logs go to the Script Logs tab.
---- Runs on the main loop via vim.schedule (see handle_orchestration_result).
 local function render_orchestration_result(result, ctx)
-  local src_buf = ctx.src_buf
   local req_line = ctx.req_line
+  local src_buf = ctx.src_buf
   local current_req_name = ctx.current_req_name
   local file = ctx.file
 
@@ -559,7 +558,7 @@ local function execute_request(ctx, callback)
   local pre_script_code
   local script_vars = nil
   if block_start then
-    buf_content, pre_script_code = scripts.extract_pre_script_blocks(buf_content, block_start, block_end)
+    buf_content, pre_script_code = scripts.extract_pre_script_blocks(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
     script_vars = scripts.collect_script_variables(buf_content, block_start, block_end)
   end
 
@@ -601,7 +600,7 @@ local function execute_request(ctx, callback)
   -- Process form data and extract assertion blocks
   buf_content = request_vars.process_form_data(src_buf, line, buf_content)
   local assertion_code
-  buf_content, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end)
+  buf_content, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
 
   local current_req_name = resolve_current_req_name(src_buf, line)
 

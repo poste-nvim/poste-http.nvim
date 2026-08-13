@@ -19,15 +19,16 @@ end
 --- Extract `< {% ... %}`/`> {% ... %}` inline script blocks and external
 --- `./path.lua` script references from request content.
 --- Always strips ALL matching blocks (replacing with empty lines to preserve line count).
---- Only collects script code within the optional start_line/end_line range (1-indexed).
---- When start_line/end_line are nil, collects from all blocks.
 --- @param content string  Full buffer content
 --- @param marker string  Block prefix: "<" for pre-scripts, ">" for assertions
 --- @param start_line integer|nil  1-indexed lower bound (inclusive)
 --- @param end_line integer|nil    1-indexed upper bound (inclusive)
+--- @param file_dir string|nil     Directory of the .http file for resolving
+--- @                            external scripts. Falls back to
+--- @                            expand("%:p:h") when nil.
 --- @return string stripped_content
 --- @return string|nil script_code  Concatenated collected code, nil when no blocks match
-function M.extract_script_blocks(content, marker, start_line, end_line)
+function M.extract_script_blocks(content, marker, start_line, end_line, file_dir)
   local lines = vim.split(content, "\n", { plain = true })
   local result = {}
   local code_parts = {}
@@ -36,8 +37,11 @@ function M.extract_script_blocks(content, marker, start_line, end_line)
   local block_start_line = 0
   local label = script_label(marker)
 
-  -- Determine the .http file directory for resolving external scripts
-  local file_dir = vim.fn.expand("%:p:h")
+  -- Determine the .http file directory for resolving external scripts.
+  -- Accept an explicit file_dir from callers (needed when the current buffer
+  -- may not be the .http file, e.g. during import pipeline processing).
+  -- Fall back to expand("%:p:h") for backwards compatibility.
+  file_dir = file_dir or vim.fn.expand("%:p:h")
 
   for i, line in ipairs(lines) do
     local trimmed = vim.trim(line)

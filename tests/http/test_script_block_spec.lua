@@ -101,6 +101,141 @@ describe("script_block external script loading", function()
     local _, code = script_block.extract_script_blocks("GET /x\n> ./external.lua\n", ">")
     assert.equals("-- external: " .. dir .. "/./external.lua\nlocal x = 42\n", code)
   end)
+
+describe("script_block file_dir resolves external scripts regardless of current buffer", function()
+  local http_dir
+  local wrong_dir
+  local external_file
+  before_each(function()
+    http_dir = vim.fn.tempname()
+    vim.fn.mkdir(http_dir, "p")
+    local scripts_dir = http_dir .. "/scripts"
+    vim.fn.mkdir(scripts_dir, "p")
+    wrong_dir = vim.fn.tempname()
+    vim.fn.mkdir(wrong_dir, "p")
+    external_file = scripts_dir .. "/auth.lua"
+    local f, err = io.open(external_file, "w")
+    assert.is_true(f ~= nil, "Failed to open temp file: " .. tostring(err))
+    f:write("local token = 'secret'\n")
+    f:close()
+
+    -- Buffer is set to a DIFFERENT directory than where the .http file lives.
+    -- This simulates the import.lua import-pipeline case where a scratch buffer
+    -- or the caller's buffer may not match the file being processed.
+    buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, wrong_dir .. "/other.http")
+    vim.api.nvim_set_current_buf(buf)
+  end)
+
+  after_each(function()
+    pcall(os.remove, external_file)
+    pcall(vim.fn.delete, http_dir, "rf")
+    pcall(vim.fn.delete, wrong_dir, "rf")
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end)
+
+  it("resolves < ./scripts/auth.lua against file_dir, not current buffer", function()
+    local _, code = script_block.extract_script_blocks(
+      "GET /x\n< ./scripts/auth.lua\n",
+      "<",
+      nil,
+      nil,
+      http_dir
+    )
+    assert.equals("-- external: " .. http_dir .. "/./scripts/auth.lua\nlocal token = 'secret'\n", code)
+  end)
+
+  it("resolves > ./scripts/auth.lua assertion against file_dir", function()
+    local _, code = script_block.extract_script_blocks(
+      "GET /x\n> ./scripts/auth.lua\n",
+      ">",
+      nil,
+      nil,
+      http_dir
+    )
+    assert.equals("-- external: " .. http_dir .. "/./scripts/auth.lua\nlocal token = 'secret'\n", code)
+  end)
+
+  it("falls back to expand(%:p:h) when file_dir is nil", function()
+    -- Current buffer is wrong_dir, so expand(%:p:h) resolves there.
+    -- We don't have the script there, so it should NOT be loaded.
+    local _, code = script_block.extract_script_blocks(
+      "GET /x\n< ./scripts/auth.lua\n",
+      "<"
+    )
+    assert.equals(
+      'error("Cannot open pre-script file: ' .. wrong_dir .. '/./scripts/auth.lua")',
+      code
+    )
+  end)
+end)
+
+describe("wrapper extract functions pass file_dir to script_block", function()
+  local http_dir
+  local wrong_dir
+  local external_file
+  local buf
+  local scripts
+  local assertions
+
+  before_each(function()
+    http_dir = vim.fn.tempname()
+    vim.fn.mkdir(http_dir, "p")
+    local scripts_dir = http_dir .. "/scripts"
+    vim.fn.mkdir(scripts_dir, "p")
+    wrong_dir = vim.fn.tempname()
+    vim.fn.mkdir(wrong_dir, "p")
+    external_file = scripts_dir .. "/auth.lua"
+    local f, err = io.open(external_file, "w")
+    assert.is_true(f ~= nil, "Failed to open temp file: " .. tostring(err))
+    f:write("local token = 'secret'\n")
+    f:close()
+
+    buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, wrong_dir .. "/other.http")
+    vim.api.nvim_set_current_buf(buf)
+
+    scripts = require("poste-http.http.scripts")
+    assertions = require("poste-http.http.assertions")
+  end)
+
+  after_each(function()
+    pcall(os.remove, external_file)
+    pcall(vim.fn.delete, http_dir, "rf")
+    pcall(vim.fn.delete, wrong_dir, "rf")
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end)
+
+  it("extract_pre_script_blocks uses file_dir for external script resolution", function()
+    local _, code = scripts.extract_pre_script_blocks(
+      "GET /x\n< ./scripts/auth.lua\n",
+      0,
+      99,
+      http_dir
+    )
+    assert.equals("-- external: " .. http_dir .. "/./scripts/auth.lua\nlocal token = 'secret'\n", code)
+  end)
+
+  it("extract_assertion_blocks uses file_dir for external script resolution", function()
+    local _, code = assertions.extract_assertion_blocks(
+      "GET /x\n> ./scripts/auth.lua\n",
+      0,
+      99,
+      http_dir
+    )
+    assert.equals("-- external: " .. http_dir .. "/./scripts/auth.lua\nlocal token = 'secret'\n", code)
+  end)
+
+  it("wrappers still work without file_dir (fallback)", function()
+    -- No external script, just inline — should be unaffected.
+    local _, code = scripts.extract_pre_script_blocks(
+      "GET /x\n< {% local x = 1 %}\n",
+      0,
+      99
+    )
+    assert.equals(" local x = 1 ", code)
+  end)
+end)
 end)
 
 describe("legacy wrappers delegate to the shared implementation", function()

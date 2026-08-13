@@ -11,9 +11,14 @@ local M = {}
 ---------------------------------------------------------------------------
 
 --- Extract `> {% ... %}` assertion blocks from request content.
---- Returns (stripped_content, assertion_code_or_nil).
-function M.extract_assertion_blocks(content, start_line, end_line)
-  return script_block.extract_script_blocks(content, ">", start_line, end_line)
+--- @param content string  Full buffer content
+--- @param start_line integer|nil  1-indexed lower bound (inclusive)
+--- @param end_line integer|nil    1-indexed upper bound (inclusive)
+--- @param file_dir string|nil     Directory of the .http file (for external script resolution)
+--- @return string stripped_content
+--- @return string|nil script_code
+function M.extract_assertion_blocks(content, start_line, end_line, file_dir)
+  return script_block.extract_script_blocks(content, ">", start_line, end_line, file_dir)
 end
 
 ---------------------------------------------------------------------------

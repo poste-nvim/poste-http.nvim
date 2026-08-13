@@ -52,8 +52,11 @@ local handle_prompt_fn = nil
 --- Run a dependency's post-script/assertion blocks against its response so
 --- side effects like `client.global.set(...)` populate globals the same way a
 --- manual run of the dependency would.
-local function run_dep_post_scripts(response, dep_block_text)
-  local _, assertion_code = assertions.extract_assertion_blocks(dep_block_text)
+--- @param response table
+--- @param dep_block_text string  The dependency block's content
+--- @param file_dir string|nil    Directory of the .http file
+local function run_dep_post_scripts(response, dep_block_text, file_dir)
+  local _, assertion_code = assertions.extract_assertion_blocks(dep_block_text, nil, nil, file_dir)
   if assertion_code then
     assertions.run_assertions(response, assertion_code)
   end
@@ -225,7 +228,7 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
     end
     request_response_cache[dep_req.name] = response
     response.request_name = dep_req.name
-    run_dep_post_scripts(response, dep_block_text)
+    run_dep_post_scripts(response, dep_block_text, buf_dir)
     state.log("INFO", string.format("Cached response for '%s'", dep_req.name))
     on_complete(response)
   end)

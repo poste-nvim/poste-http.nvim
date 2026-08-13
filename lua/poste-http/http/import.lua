@@ -580,15 +580,16 @@ end
 --- @param content string  Target file content
 --- @param block_start number  ### marker line (1-indexed)
 --- @param block_end number  End line of target block
+--- @param file_dir string|nil  Directory of the target .http file
 --- @return string  Modified content with pre-script vars + global vars injected
 --- @return number  Total number of lines injected
-local function process_target_pre_script(content, block_start, block_end)
+local function process_target_pre_script(content, block_start, block_end, file_dir)
   local scripts = require("poste-http.http.scripts")
 
-  local modified_content, pre_code = scripts.extract_pre_script_blocks(content, block_start, block_end)
+  local modified_content, pre_code = scripts.extract_pre_script_blocks(content, block_start, block_end, file_dir)
   if not pre_code then
     -- No pre-script, but still inject any existing global vars
-  return scripts.inject_global_vars(content, block_start, state.global_vars)
+    return scripts.inject_global_vars(content, block_start, state.global_vars)
   end
 
   local script_vars = scripts.collect_script_variables(modified_content, block_start, block_end)
@@ -634,11 +635,12 @@ end
 --- @param content string  Target file content (original, before pre-script injection)
 --- @param block_start number  ### marker line (1-indexed)
 --- @param block_end number  End line
-local function process_target_post_script(response, content, block_start, block_end)
+--- @param file_dir string|nil  Directory of the target .http file
+local function process_target_post_script(response, content, block_start, block_end, file_dir)
   local assertions = require("poste-http.http.assertions")
   local scripts = require("poste-http.http.scripts")
 
-  local _, assertion_code = assertions.extract_assertion_blocks(content, block_start, block_end)
+  local _, assertion_code = assertions.extract_assertion_blocks(content, block_start, block_end, file_dir)
   if not assertion_code then return end
 
   local script_vars = scripts.collect_script_variables(content, block_start, block_end)
@@ -686,8 +688,10 @@ function M.execute_run_directive(opts, callback)
         return
       end
 
+      local file_dir = vim.fn.fnamemodify(opts.path, ":h")
+
       -- Process pre-script from target block (on prompt-resolved content)
-      local modified_content, injected_count = process_target_pre_script(prompt_resolved, opts.line, block_end)
+      local modified_content, injected_count = process_target_pre_script(prompt_resolved, opts.line, block_end, file_dir)
       block_end = block_end + injected_count
 
       -- Apply variable overrides if specified
@@ -702,7 +706,7 @@ function M.execute_run_directive(opts, callback)
           return
         end
         -- Run target block's post-script (so client.global.set() persists)
-        process_target_post_script(response, content, opts.line, orig_block_end)
+        process_target_post_script(response, content, opts.line, orig_block_end, file_dir)
         -- Cache the response for cross-request variable resolution
         request_vars.cache_response(opts.request_name, response)
         if callback then callback(true, response) end
@@ -742,7 +746,8 @@ function M.execute_all_requests(file_path, content, vars, callback)
 
     resolve_import_content(content, req.line, file_path, state.current_env, "import", function(dep_resolved_content)
       local block_end = find_block_end(dep_resolved_content, req.line)
-      local modified_content, _ = process_target_pre_script(dep_resolved_content, req.line, block_end)
+      local file_dir = vim.fn.fnamemodify(file_path, ":h")
+      local modified_content, _ = process_target_pre_script(dep_resolved_content, req.line, block_end, file_dir)
 
       if vars and next(vars) then
         modified_content = M.apply_variable_overrides(modified_content, req.line, vars)
@@ -750,7 +755,7 @@ function M.execute_all_requests(file_path, content, vars, callback)
 
       execute_import_via_curl(modified_content, file_path, req.line, state.current_env, function(response)
         if response then
-          process_target_post_script(response, content, req.line, block_end)
+          process_target_post_script(response, content, req.line, block_end, file_dir)
           request_vars.cache_response(req.name, response)
           table.insert(results, { name = req.name, response = response })
         else
