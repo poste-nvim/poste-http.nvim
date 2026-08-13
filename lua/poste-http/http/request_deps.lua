@@ -3,6 +3,7 @@ local util = require("poste-http.util")
 local curl_exec = require("poste-http.http.curl_exec")
 local describe = require("poste-http.http.describe")
 local assertions = require("poste-http.http.assertions")
+local scripts = require("poste-http.http.scripts")
 local vars = require("poste-http.http.vars")
 local nested_access = require("poste-http.http.nested_access")
 local jq_mapping = require("poste-http.http.jq_mapping")
@@ -58,7 +59,9 @@ local handle_prompt_fn = nil
 local function run_dep_post_scripts(response, dep_block_text, file_dir)
   local _, assertion_code = assertions.extract_assertion_blocks(dep_block_text, nil, nil, file_dir)
   if assertion_code then
-    assertions.run_assertions(response, assertion_code)
+    local dep_lines = vim.split(dep_block_text, "\n", { plain = true })
+    local script_vars = scripts.collect_script_variables(dep_block_text, 1, #dep_lines)
+    assertions.run_assertions(response, assertion_code, script_vars)
   end
 end
 

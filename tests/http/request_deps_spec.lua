@@ -115,6 +115,20 @@ describe("request_deps dep post-scripts", function()
     request_deps._test.run_dep_post_scripts(response, "GET /plain")
     assert.same({}, state.global_vars)
   end)
+
+  it("exposes block-local vars to the dep post-script", function()
+    local response = {
+      status = 200,
+      body = vim.json.encode({ ok = true }),
+    }
+    local block = table.concat({
+      "@base_url = https://api.example.com",
+      "GET {{base_url}}/cloth/recolor",
+      '> {% client.global.set("derived", variables.base_url .. "/x") %}',
+    }, "\n")
+    request_deps._test.run_dep_post_scripts(response, block)
+    assert.equal("https://api.example.com/x", state.global_vars.derived)
+  end)
 end)
 
 describe("request_deps file-level @var referencing a response", function()
