@@ -2,10 +2,9 @@
 local state = require("poste-http.state")
 local util = require("poste-http.util")
 local script_block = require("poste-http.http.script_block")
+local script_sandbox = require("poste-http.http.script_sandbox")
 
 local M = {}
-
-local md5 = require("poste-http.http.md5").md5
 
 ---------------------------------------------------------------------------
 -- Extract assertion blocks from request content
@@ -143,28 +142,14 @@ function M.run_assertions(response_data, code, script_vars)
   end
 
   -- Build sandbox environment
-  local sandbox_env = {
-    response = response,
+  local sandbox_env = script_sandbox.build_sandbox_env({
     request = request,
     client = client,
+    response = response,
     assert = assert_fn,
     variables = script_vars.variables,
     env = script_vars.env,
-    error = error,
-    pcall = pcall,
-    tostring = tostring,
-    tonumber = tonumber,
-    next = next,
-    type = type,
-    string = string,
-    table = table,
-    math = math,
-    os = os,
-    io = io,
-    ipairs = ipairs,
-    pairs = pairs,
-    md5 = md5,
-  }
+  })
 
   -- Execute code in sandbox
   local fn, load_err = load(code, "assertions", "t", sandbox_env)

@@ -2,10 +2,9 @@
 --- Also handles external script references (< ./path.lua).
 local state = require("poste-http.state")
 local script_block = require("poste-http.http.script_block")
+local script_sandbox = require("poste-http.http.script_sandbox")
 
 local M = {}
-
-local md5 = require("poste-http.http.md5").md5
 
 ---------------------------------------------------------------------------
 -- Variable and env collection for sandbox injection
@@ -187,26 +186,12 @@ function M.run_pre_script(code, script_vars)
   }
 
   -- Build sandbox environment
-  local sandbox_env = {
+  local sandbox_env = script_sandbox.build_sandbox_env({
     request = request,
     client = client,
     variables = script_vars.variables,
     env = script_vars.env,
-    error = error,
-    pcall = pcall,
-    tostring = tostring,
-    tonumber = tonumber,
-    next = next,
-    type = type,
-    string = string,
-    table = table,
-    math = math,
-    os = os,
-    io = io,
-    ipairs = ipairs,
-    pairs = pairs,
-    md5 = md5,
-  }
+  })
 
   -- Execute code in sandbox
   local fn, load_err = load(code, "pre_script", "t", sandbox_env)
