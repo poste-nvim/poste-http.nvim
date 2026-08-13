@@ -87,7 +87,9 @@ local function parse_headers_file(headers_text)
       if code then
         status = tonumber(code) or 0
         local reason_text = vim.trim(reason or "")
-        status_text = tostring(status) .. (reason_text ~= "" and " " .. reason_text or "")
+        if reason_text ~= "" then
+          status_text = tostring(status) .. " " .. reason_text
+        end
       end
     end
     if status == 0 then

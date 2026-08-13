@@ -132,6 +132,47 @@ describe("request_deps dep post-scripts", function()
   end)
 end)
 
+describe("request_deps execute_dependent_request_async", function()
+  local orig_execute
+  local orig_describe
+
+  before_each(function()
+    local curl_exec = require("poste-http.http.curl_exec")
+    local describe = require("poste-http.http.describe")
+    orig_execute = curl_exec.execute
+    orig_describe = describe.describe_content
+    curl_exec.execute = function(_, callback)
+      vim.schedule(function()
+        callback({ status = 200, status_text = "200 OK", body = "ok", headers = {}, metadata = { method = "GET" } })
+      end)
+    end
+    describe.describe_content = function()
+      return { { method = "GET", path = "https://example.com/x", headers = {}, body = "" } }
+    end
+    request_deps.cache_response("dep_a", nil)
+  end)
+
+  after_each(function()
+    local curl_exec = require("poste-http.http.curl_exec")
+    local describe = require("poste-http.http.describe")
+    if orig_execute then curl_exec.execute = orig_execute end
+    if orig_describe then describe.describe_content = orig_describe end
+    request_deps.cache_response("dep_a", nil)
+  end)
+
+  it("records request timestamp metadata on the cached dependency response", function()
+    local got
+    request_deps.execute_dependent_request_async(0, "/tmp/test.http", "dev", { name = "dep_a", start_line = 1, end_line = 1 }, "GET https://example.com/x", function(response)
+      got = response
+    end)
+    vim.wait(100, function() return got ~= nil end)
+    assert.truthy(got)
+    assert.truthy(got.metadata.timestamp, "dependency response should carry metadata.timestamp")
+    assert.matches("^%d%d%d%d%-%d%d%-%d%d ", got.metadata.timestamp)
+    assert.truthy(request_deps.is_response_cached("dep_a"))
+  end)
+end)
+
 describe("request_deps file-level @var referencing a response", function()
   after_each(function()
     request_deps.cache_response("request_a", nil)

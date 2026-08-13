@@ -75,4 +75,18 @@ describe("parse_headers_file", function()
     assert.equals(404, r.status)
     assert.equals("404 Not Found", r.status_text)
   end)
+
+  it("fills in the reason phrase when the status line omits it (HTTP/2)", function()
+    local text = "HTTP/2 200\nContent-Type: application/json\n"
+    local r = parse(text)
+    assert.equals(200, r.status)
+    assert.equals("200 OK", r.status_text)
+  end)
+
+  it("maps unknown codes via reason table when status line omits reason", function()
+    local text = "HTTP/2 503\nContent-Type: text/plain\n"
+    local r = parse(text)
+    assert.equals(503, r.status)
+    assert.equals("503 Service Unavailable", r.status_text)
+  end)
 end)

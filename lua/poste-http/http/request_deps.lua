@@ -229,6 +229,10 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
       on_complete(nil)
       return
     end
+    response.metadata = response.metadata or {}
+    if not response.metadata.timestamp then
+      response.metadata.timestamp = os.date("%Y-%m-%d %H:%M:%S")
+    end
     request_response_cache[dep_req.name] = response
     response.request_name = dep_req.name
     run_dep_post_scripts(response, dep_block_text, buf_dir)
