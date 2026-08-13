@@ -500,6 +500,68 @@ name={{name}}&age={{age}}&city=NewYork
   (form_body))
 
 ===============================================================================
+POST with URL-encoded form body - multi-line (& at start of continuation lines)
+===============================================================================
+
+### URL Encoded Form
+POST https://httpbin.org/post
+Content-Type: application/x-www-form-urlencoded
+Accept: application/json
+
+name=John
+&age=30
+&city=NewYork
+
+-------------------------------------------------------------------------------
+
+(document
+  (request_block
+    (separator)
+    (request_name))
+  (request_line
+    (method
+      (method_post))
+    (url
+      (url_path)))
+  (header
+    (header_key)
+    (header_value))
+  (header
+    (header_key)
+    (header_value))
+  (form_body))
+
+===============================================================================
+POST with URL-encoded form body - multi-line with {{var}} references
+===============================================================================
+
+### URL Encoded Form
+POST {{base_url}}/post
+Content-Type: application/x-www-form-urlencoded
+
+name={{name}}
+&age={{age}}
+&city=NewYork
+
+-------------------------------------------------------------------------------
+
+(document
+  (request_block
+    (separator)
+    (request_name))
+  (request_line
+    (method
+      (method_post))
+    (url
+      (url_path
+        (variable
+          (identifier)))))
+  (header
+    (header_key)
+    (header_value))
+  (form_body))
+
+===============================================================================
 Comment with embedded # hash
 ===============================================================================
 

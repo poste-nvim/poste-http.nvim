@@ -364,6 +364,7 @@ module.exports = grammar({
       '=',
       /[^&\n]*/,
       repeat(seq(
+        optional(/[ \t]*\n[ \t]*/),
         '&',
         /[a-zA-Z_][a-zA-Z0-9_]*/,
         '=',
