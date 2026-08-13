@@ -2,14 +2,34 @@ local state = require("poste-http.state")
 
 describe("run_request busy-flag reset", function()
   local run
+  local orig_execute
 
   before_each(function()
+    package.loaded["poste-http.http.curl_exec"] = nil
     package.loaded["poste-http.http.run"] = nil
     run = require("poste-http.http.run")
     state._busy = false
+
+    local curl_exec = require("poste-http.http.curl_exec")
+    orig_execute = curl_exec.execute
+    curl_exec.execute = function(_, callback)
+      vim.schedule(function()
+        callback({
+          status = 200,
+          status_text = "OK",
+          body = "mocked",
+          headers = {},
+          metadata = {},
+        })
+      end)
+    end
   end)
 
   after_each(function()
+    if orig_execute then
+      package.loaded["poste-http.http.curl_exec"] = nil
+      orig_execute = nil
+    end
     package.loaded["poste-http.http.run"] = nil
     state._busy = false
   end)
