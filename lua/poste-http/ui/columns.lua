@@ -97,7 +97,6 @@ function M.render(rows, cols, opts)
   opts = opts or {}
   local gap = opts.gap or 1
   local pad = opts.pad or " "
-  local pad_byte = #pad
   local ncols = #cols
 
   -- Normalize specs.
@@ -190,18 +189,17 @@ function M.render(rows, cols, opts)
       local lead_sp = string.rep(" ", spec.lead)
       local pad_sp = string.rep(pad, padn)
       local cell = { text = vis, width = w }
-      -- Precedence: per-cell override > column default > nil
       cell.hl = cell_hl or spec.hl
       if spec.align == "right" then
         segs[#segs + 1] = lead_sp .. pad_sp .. vis
-        cell.col = byte_offset + spec.lead + pad_byte * padn
+        cell.col = byte_offset + #lead_sp + #pad_sp
       else
         segs[#segs + 1] = lead_sp .. vis .. pad_sp
-        cell.col = byte_offset + spec.lead
+        cell.col = byte_offset + #lead_sp
       end
       cell.end_col = cell.col + #vis
       row_cells[c] = cell
-      byte_offset = byte_offset + spec.lead + pad_byte * padn + #vis
+      byte_offset = byte_offset + #lead_sp + #pad_sp + #vis
     end
     lines[r] = table.concat(segs)
     cells[r] = row_cells
