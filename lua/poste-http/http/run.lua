@@ -454,7 +454,7 @@ local function execute_request(ctx, callback)
   local script_vars = nil
   if block_start then
     buf_content, pre_script_code = scripts.extract_pre_script_blocks(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
-    script_vars = scripts.collect_script_variables(buf_content, block_start, block_end)
+    script_vars = scripts.collect_script_variables(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
   end
 
   if pre_script_code then
@@ -697,7 +697,7 @@ function M.run_request()
     local script_vars
     local assertion_code
     if block_start then
-      script_vars = scripts.collect_script_variables(buf_content, block_start, block_end)
+      script_vars = scripts.collect_script_variables(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
       _, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end)
     end
 

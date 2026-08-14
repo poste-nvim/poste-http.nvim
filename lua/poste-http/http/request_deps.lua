@@ -62,7 +62,7 @@ local function run_dep_post_scripts(response, dep_block_text, file_dir)
   local _, assertion_code = assertions.extract_assertion_blocks(dep_block_text, nil, nil, file_dir)
   if assertion_code then
     local dep_lines = vim.split(dep_block_text, "\n", { plain = true })
-    local script_vars = scripts.collect_script_variables(dep_block_text, 1, #dep_lines)
+    local script_vars = scripts.collect_script_variables(dep_block_text, 1, #dep_lines, file_dir)
     assertions.run_assertions(response, assertion_code, script_vars)
   end
 end

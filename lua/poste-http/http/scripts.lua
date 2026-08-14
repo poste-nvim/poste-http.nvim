@@ -35,15 +35,20 @@ end
 
 --- Find and read env.json, returning the current env's variables.
 --- @param env_name string|nil  Current env name (nil = use state.current_env)
+--- @param file_dir string|nil  Directory of the .http file being executed
+---                             (nil = derive from current buffer)
 --- @return table  { key = value, ... }
-local function read_env_vars(env_name)
+local function read_env_vars(env_name, file_dir)
   env_name = env_name or state.current_env
   if not env_name then return {} end
 
-  local bufname = vim.api.nvim_buf_get_name(0)
-  if bufname == "" then return {} end
+  local dir = file_dir
+  if not dir or dir == "" then
+    local bufname = vim.api.nvim_buf_get_name(0)
+    if bufname == "" then return {} end
+    dir = vim.fn.fnamemodify(bufname, ":h")
+  end
 
-  local dir = vim.fn.fnamemodify(bufname, ":h")
   while dir and dir ~= "" and dir ~= "/" do
     local candidate = vim.fs.joinpath(dir, "env.json")
     local f = io.open(candidate, "r")
@@ -64,8 +69,13 @@ end
 
 --- Collect all script-available variables: file-level vars, block-level vars,
 --- and env vars. Block-level vars override file-level vars.
+--- @param content string     Full buffer content
+--- @param block_start number|nil  Start line of block (1-indexed)
+--- @param block_end number|nil    End line of block
+--- @param file_dir string|nil  Directory of the .http file being executed
+---                             (nil = derive env.json location from current buffer)
 --- Returns { variables = { name = value, ... }, env = { key = value, ... } }
-function M.collect_script_variables(content, block_start, block_end)
+function M.collect_script_variables(content, block_start, block_end, file_dir)
   local lines = vim.split(content, "\n", { plain = true })
   local file_vars = vars.collect_file_vars(lines)
   local block_vars = block_start and vars.collect_block_vars(lines, block_start, block_end) or {}
@@ -80,7 +90,7 @@ function M.collect_script_variables(content, block_start, block_end)
 
   resolve_var_refs(variables)
 
-  local env = read_env_vars()
+  local env = read_env_vars(nil, file_dir)
 
   return { variables = variables, env = env }
 end

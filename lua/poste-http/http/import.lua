@@ -595,7 +595,7 @@ local function process_target_pre_script(content, block_start, block_end, file_d
     return scripts.inject_global_vars(content, block_start, state.global_vars)
   end
 
-  local script_vars = scripts.collect_script_variables(modified_content, block_start, block_end)
+  local script_vars = scripts.collect_script_variables(modified_content, block_start, block_end, file_dir)
   local pre_result = scripts.run_pre_script(pre_code, script_vars)
 
   if pre_result.error then
@@ -646,7 +646,7 @@ local function process_target_post_script(response, content, block_start, block_
   local _, assertion_code = assertions.extract_assertion_blocks(content, block_start, block_end, file_dir)
   if not assertion_code then return end
 
-  local script_vars = scripts.collect_script_variables(content, block_start, block_end)
+  local script_vars = scripts.collect_script_variables(content, block_start, block_end, file_dir)
   local results = assertions.run_assertions(response, assertion_code, script_vars)
 
   if results and results.logs and #results.logs > 0 then

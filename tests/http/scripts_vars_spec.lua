@@ -71,4 +71,22 @@ describe("collect_script_variables", function()
     local result = scripts.collect_script_variables(content, 2, 5)
     assert.equals('{"a": 1}', result.variables.payload)
   end)
+
+  it("reads env vars from the target file dir, not the current buffer", function()
+    local env_dir = vim.fn.tempname()
+    vim.fn.mkdir(env_dir, "p")
+    local env_path = vim.fs.joinpath(env_dir, "env.json")
+    local f = io.open(env_path, "w")
+    f:write(vim.json.encode({ dev = { token = "dev-token" } }))
+    f:close()
+
+    buf = with_buf("/tmp/other_dir/unrelated.http")
+    state.current_env = "dev"
+
+    local result = scripts.collect_script_variables("@token = {{token}}", 1, 1, env_dir)
+    assert.equals("dev-token", result.env.token)
+
+    os.remove(env_path)
+    vim.fn.delete(env_dir, "d")
+  end)
 end)
