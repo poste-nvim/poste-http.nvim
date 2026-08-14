@@ -446,13 +446,17 @@ function M.open()
   }
 
   -- Autocommands
+  local outline_debounce
   vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
     group = active.augroup,
     buffer = src_buf,
     callback = function()
       if not active then return end
-      render()
-      highlight_current()
+      if outline_debounce then outline_debounce:stop() end
+      outline_debounce = vim.defer_fn(function()
+        render()
+        highlight_current()
+      end, 150)
     end,
   })
 

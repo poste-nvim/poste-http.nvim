@@ -25,6 +25,12 @@ local function start_verbose_timer()
     if state.current_view ~= "verbose" then return end
     local buf = buffer.get_buf()
     if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+    local wins = vim.api.nvim_list_wins()
+    local buf_visible = false
+    for _, w in ipairs(wins) do
+      if vim.api.nvim_win_get_buf(w) == buf then buf_visible = true; break end
+    end
+    if not buf_visible then return end
     local lines = format.format_view("verbose", nil, { pending_request = state.pending_request })
     lines = buffer.sanitize_lines(lines)
     vim.api.nvim_set_option_value("modifiable", true, { buf = buf })

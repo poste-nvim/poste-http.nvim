@@ -111,9 +111,13 @@ function M.setup_buffer_keymaps(buf)
   end
   refresh_fileref_marks()
   local frg = vim.api.nvim_create_augroup("PosteFileref_" .. buf, { clear = true })
+  local fileref_debounce
   vim.api.nvim_create_autocmd("TextChanged", {
     group = frg, buffer = buf,
-    callback = refresh_fileref_marks,
+    callback = function()
+      if fileref_debounce then fileref_debounce:stop() end
+      fileref_debounce = vim.defer_fn(refresh_fileref_marks, 150)
+    end,
   })
   vim.api.nvim_create_autocmd("BufDelete", {
     group = frg, buffer = buf,
