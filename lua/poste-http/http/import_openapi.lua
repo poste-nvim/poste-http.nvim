@@ -26,7 +26,7 @@ local function parse_request_body(operation, spec)
   local json_content = content["application/json"]
   if json_content and json_content.schema then
     local example = import_parser.schema_to_example(json_content.schema, spec)
-    if example and next(example) then
+    if type(example) == "table" and next(example) then
       return vim.json.encode(example)
     end
   end

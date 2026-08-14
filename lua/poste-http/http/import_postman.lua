@@ -26,7 +26,8 @@ local function parse_url(request_url)
     end
   end
   if #query_parts > 0 then
-    return raw .. "?" .. table.concat(query_parts, "&"), query_parts
+    local sep = raw:find("?") and "&" or "?"
+    return raw .. sep .. table.concat(query_parts, "&"), query_parts
   end
   return raw, {}
 end
@@ -141,7 +142,7 @@ function M.import_spec(spec_path, out_dir)
   local http_content = file_vars_str .. table.concat(blocks, "\n")
   local env_vars = {}
   for k, v in pairs(vars) do
-    env_vars[k] = v:gsub("^\"(.*)\"$", "%1")
+    env_vars[k] = tostring(v):gsub("^\"(.*)\"$", "%1")
   end
   local env_json = import_parser.generate_env_json("dev", env_vars)
 

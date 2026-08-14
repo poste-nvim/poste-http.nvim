@@ -65,7 +65,8 @@ local function parse_operation(spec, path, method, operation)
       end
     end
     if body_param and body_param.schema then
-      body = import_parser.schema_to_example(body_param.schema, spec)
+      local example = import_parser.schema_to_example(body_param.schema, spec)
+      body = type(example) == "table" and vim.json.encode(example) or tostring(example)
     end
   end
 

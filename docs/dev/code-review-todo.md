@@ -34,7 +34,7 @@
 ## 第五优先级（P0 正确性缺陷）
 
 - [x] F04: 依赖链状态跨请求泄漏 — `_chain_dep_set`/`_chain_dep_order`/`request_response_cache` 在 `M.resolve_content_dependencies` 入口重置
-- [ ] F07: 三个 importer 真实崩溃 — `next(example)` 对标量 schema、`table.concat` 接表、Postman `?` 翻倍、`gsub` 接数字
+- [x] F07: 三个 importer 真实崩溃 — `next(example)` 对标量 schema、`table.concat` 接表、Postman `?` 翻倍、`gsub` 接数字
 
 ## 第六优先级（P1 功能损坏/性能）
 
