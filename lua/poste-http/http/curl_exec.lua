@@ -94,10 +94,18 @@ function M.execute(opts, callback)
   local resp_body_file = tmp_dir .. "/resp_body"
 
   if expanded_body and expanded_body ~= "" then
-    local fd = io.open(req_body_file, "w")
-    if fd then
-      fd:write(expanded_body)
-      fd:close()
+    local fd, werr = io.open(req_body_file, "w")
+    if not fd then
+      cleanup_temp_dir(tmp_dir)
+      callback({ error = "Failed to write request body temp file: " .. tostring(werr) })
+      return
+    end
+    local ok, werr2 = fd:write(expanded_body)
+    fd:close()
+    if not ok then
+      cleanup_temp_dir(tmp_dir)
+      callback({ error = "Failed to write request body temp file: " .. tostring(werr2) })
+      return
     end
   end
 
@@ -107,6 +115,7 @@ function M.execute(opts, callback)
     "-L",
     "--compressed",
     "--globoff",
+    "--max-time", tostring(math.max(1, math.ceil(timeout / 1000))),
     "-X", method,
     "-D", headers_file,
     "-o", resp_body_file,

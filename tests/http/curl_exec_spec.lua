@@ -136,4 +136,45 @@ describe("curl_exec.execute", function()
     assert.matches("X%-Api%-Key: %[REDACTED%]", logged)
     assert.matches("Content%-Type: application/json", logged)
   end)
+
+  it("adds --max-time from opts.timeout in seconds", function()
+    curl_exec.execute({
+      method = "GET",
+      url = "https://api.example.com/slow",
+      timeout = 5000,
+    }, function() end)
+
+    assert.matches("--max%-time 5", captured_args)
+  end)
+
+  it("defaults --max-time when no timeout given", function()
+    curl_exec.execute({
+      method = "GET",
+      url = "https://api.example.com/slow",
+    }, function() end)
+
+    assert.matches("--max%-time 30", captured_args)
+  end)
+
+  it("returns error when request body temp file cannot be written", function()
+    local orig_open = io.open
+    io.open = function(path, mode)
+      if path:find("body$") then
+        return nil, "permission denied"
+      end
+      return orig_open(path, mode)
+    end
+
+    local result
+    curl_exec.execute({
+      method = "POST",
+      url = "https://api.example.com",
+      body = '{"a": 1}',
+    }, function(r) result = r end)
+
+    io.open = orig_open
+
+    assert.is_not_nil(result)
+    assert.matches("Failed to write request body", result.error)
+  end)
 end)
