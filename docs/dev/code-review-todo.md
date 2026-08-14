@@ -50,7 +50,7 @@
 ## 第七优先级（P2 测试体系）
 
 - [x] F26: 空测试与假测试 — indicators_spec 5 个空 `it()` 全部实现；variable_ref_spec 改用真实 `request_deps.find_request_variable_refs`
-- [ ] F28: 覆盖缺口 — 21+ 模块零测试引用
+- [ ] F28: 覆盖缺口 — 21+ 模块零测试引用（本轮已新增 `zero_coverage_smoke_spec.lua`，覆盖 nested_access/import_parser/三个 import_*/multipart/md5/file_include/prompt_vars/var_collector/format_file/constants 共 34 项冒烟测试，含 F07 崩溃回归；GUI 强耦合模块待后续 harness）
 - [ ] F29: 测试卫生 — 临时文件泄漏、`mock_nvim` 浅实现、无 CI、`grammar_spec.sh` 不在 `run.sh`
 
 ## 第八优先级（P3 安全与健壮性）
