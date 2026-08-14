@@ -11,9 +11,9 @@
 
 ## 第二优先级（文档/配置对齐）
 
-- [ ] F09+D01: `require("poste")` → `require("poste-http")`（README + keymaps.md）
-- [ ] F10: 修 `default_env` 同步，删 `poste_binary`/`split_size`
-- [ ] D02-D17: 文档漂移清单逐项修
+- [x] F09+D01: `require("poste")` → `require("poste-http")`（README + keymaps.md）
+- [x] F10: 修 `default_env` 同步，删 `poste_binary`/`split_size`
+- [x] D02-D17: 文档漂移清单逐项修
 
 ## 第三优先级（测试基建）
 

@@ -18,7 +18,7 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
   Never create files under `lua/poste/sql/` — they would shadow `poste-sql.nvim`'s
   modules silently.
 - **HTTP grammar ↔ tree-sitter sync**: Any change to HTTP grammar (parser, syntax)
-  must be mirrored in the tree-sitter grammar (`tree-sitter-http/grammar.js`) and
+  must be mirrored in the tree-sitter grammar (`tree-sitter-poste-http/grammar.js`) and
   its query files (`highlights.scm`, `injections.scm`, `locals.scm`).
 - **HTTP method list sync**: `tree-sitter-poste-http/grammar.js` defines the
   `method_*` tokens and `lua/poste-http/http/data.lua` keeps its own copy of the

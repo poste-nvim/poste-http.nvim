@@ -10,7 +10,7 @@ local block_boundary = require("poste-http.http.block_boundary")
 
 -- Buffer-level caches (invalidated on text change via changedtick)
 local buffer_caches = {}     -- bufnr → { changedtick, file_vars, req_names, import_index }
-local semantic_caches = {}   -- bufnr → { changedtick, blocks }  -- from CLI describe
+local semantic_caches = {}   -- bufnr → { changedtick, blocks }  -- from describe
 local env_cache = {}         -- path → { mtime, env_name, vars }
 local cache_autocmds = {}    -- bufnr → true
 

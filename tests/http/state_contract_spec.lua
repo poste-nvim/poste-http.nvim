@@ -21,8 +21,8 @@ describe("state.config defaults", function()
     assert.equals("vertical", state.config.split_direction)
   end)
 
-  it("split_size is 80", function()
-    assert.equals(80, state.config.split_size)
+  it("split_size is nil (removed dead config)", function()
+    assert.is_nil(state.config.split_size)
   end)
 
   it("highlights is an empty table", function()

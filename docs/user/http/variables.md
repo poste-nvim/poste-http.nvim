@@ -290,7 +290,7 @@ GET https://api.example.com/step3?token={{Step 2.response.body.token}}
 2. **Response caching**: Executed responses are cached in memory. Subsequent
    requests referencing the same request will use the cached response.
 3. **Variable substitution**: Variables are substituted before the request is
-   sent to the CLI.
+   executed.
 4. **JSON navigation**: For JSON response bodies, you can navigate nested
    structures using dot notation (`body.user.name`) or array indexing
    (`body.items[0].id`).

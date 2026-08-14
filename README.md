@@ -1,17 +1,17 @@
 # Poste HTTP
 
-**HTTP request execution for Neovim.
+**HTTP request execution for Neovim.**
 
 ## Features
 
 - **File-based requests** — Define requests in `.http`/`.rest` files
 - **Environment variables** — JetBrains-style `env.json` with `{{var}}` substitution
 - **Assertions & scripts** — Inline `> {% ... %}` assertions, pre/post-request scripts
-- **Request chaining** — `{{RequestName.res.body.X}}` to extract values from prior responses
+- **Request chaining** — `{{RequestName.response.body.X}}` to extract values from prior responses
 - **Request orchestration** — `SCRIPT` blocks call imported requests sequentially via `client.run()`: chain tokens, loop, and assert across requests
 - **Prompt variables** — Interactive `<<var` prompts with picker/text input
 - **Completion** — HTTP methods, headers, values, env vars (blink.cmp / nvim-cmp)
-- **jq filtering** — `:PosteJqFilter` for interactive JSON exploration
+- **jq filtering** — Interactive JSON exploration in response view
 - **Multi-tab response** — Body, verbose, request, assertions, script logs
 - **History** — Request history with quick re-runs
 - **Import** — Convert OpenAPI 3.x, Swagger 2.0, and Postman collections to `.http` files
@@ -66,7 +66,7 @@ chain. Full docs: [Scripts](https://github.com/beyondlex/poste-http.nvim/wiki/Sc
     "beyondlex/finder",
   },
   config = function()
-    require("poste").setup()
+    require("poste-http").setup()
   end,
 }
 ```
@@ -147,12 +147,9 @@ Open a `.http` file. With cursor on a request block, press `<CR>` to execute. Re
 ## Configuration
 
 ```lua
-require("poste").setup({
-  -- Binary path
-  poste_binary = vim.fn.stdpath("data") .. "/poste/bin/poste",
+require("poste-http").setup({
   default_env = "dev",
   split_direction = "vertical",
-  split_size = 80,
   log_file = vim.fn.stdpath("cache") .. "/poste.log",
 
   keymaps = {

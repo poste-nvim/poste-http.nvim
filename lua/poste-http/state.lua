@@ -1,10 +1,8 @@
 local M = {}
 
 M.config = {
-  poste_binary = vim.fn.stdpath("data") .. "/poste/bin/poste",
   default_env = "dev",
   split_direction = "vertical",
-  split_size = 80,
   log_file = vim.fn.stdpath("cache") .. "/poste.log",
   import_chunk_size = 100,
   response_cache_dir = vim.fn.stdpath("cache") .. "/poste_res",

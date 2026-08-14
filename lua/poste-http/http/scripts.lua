@@ -253,7 +253,7 @@ end
 ---------------------------------------------------------------------------
 
 --- Inject pre-script variables as @var = value lines after the ### header.
---- This ensures the Rust parser picks them up as request-scoped variables
+--- This ensures the tree-sitter parser picks them up as request-scoped variables
 --- with highest substitution priority.
 --- Returns modified content (line count increases by number of variables).
 function M.inject_pre_script_vars(content, block_start, variables)

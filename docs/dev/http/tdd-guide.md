@@ -13,7 +13,7 @@
 
 | Layer | Tool | Location |
 |-------|------|----------|
-| Lua unit | busted (`tests/run.sh`) | `tests/http_*_spec.lua` |
+| Lua unit | busted (`tests/run.sh`) | `tests/http/<name>_spec.lua` |
 | Lua integration | busted (`tests/run.sh`) | `tests/` |
 
 ## Workflow
@@ -30,7 +30,7 @@ describe("module_name", function()
 end)
 ```
 
-Add to `tests/http_*_spec.lua` or create a new `tests/` file. Run:
+Add to `tests/http/<name>_spec.lua` or create a new `tests/` file. Run:
 
 ```bash
 tests/run.sh

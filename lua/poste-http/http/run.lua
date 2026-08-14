@@ -305,7 +305,7 @@ local function build_pending_request(src_buf, buf_content, req_block, block_star
     resolved_content = resolver:substitute(buf_content)
   end
 
-  -- 2. Describe resolved (or raw) content via CLI — single parse authority
+  -- 2. Describe resolved (or raw) content via tree-sitter — single parse authority
   local content = resolved_content or buf_content
   local req_method = ""
   local req_url = ""

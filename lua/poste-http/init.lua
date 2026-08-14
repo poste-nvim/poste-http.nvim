@@ -32,6 +32,9 @@ M.run_request = run.run_request
 function M.setup(opts)
   opts = opts or {}
   state.config = vim.tbl_deep_extend("force", state.config, opts)
+  if opts.default_env then
+    state.current_env = opts.default_env
+  end
 
   state.config.use_treesitter = vim.tbl_deep_extend("force", {
     nav = false,

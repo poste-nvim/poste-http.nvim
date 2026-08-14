@@ -16,7 +16,7 @@
 | `indicators.lua` | Spinner/✓/✘ indicators |
 | `buffer_setup.lua` | Buffer boilerplate creation |
 | `constants.lua` | Shared constants |
-| `error.lua` | Error handling |
+| `errors.lua` | Structured error collection |
 | `help.lua` | Help window |
 
 ### UI Components (`lua/poste-http/ui/`)
@@ -43,12 +43,12 @@ library. Pure functions, unit-tested without windows.
 
 | File | Description |
 |------|-------------|
-| `describe.lua` | Single parse authority — tree-sitter based block metadata (with CLI fallback) |
+| `describe.lua` | Single parse authority — tree-sitter based block metadata |
 | `vars.lua` | `VarResolver` — 7-layer priority chain for `{{var}}` substitution |
 | `cache.lua` | UI-level buffer index (line types, block bounds) |
 | `var_collector.lua` | Variable collection/rollup for completion |
 | `resolve.lua` | Shared async resolution pipeline for prompts/deps |
-| `request_vars.lua` | Cross-request variable chaining (`{{Name.res.body.X}}`), prompt vars, form data |
+| `request_vars.lua` | Cross-request variable chaining (`{{Name.response.body.X}}`), prompt vars, form data |
 
 #### UI & Rendering
 
@@ -119,8 +119,8 @@ library. Pure functions, unit-tested without windows.
 | File | Description |
 |------|-------------|
 | `env.lua` | Environment switching UI |
-| `history.lua` | HTTP request history UI + persistence |
-| `format_file.lua` | `.http` file formatter (pure Lua, tree-sitter based) |
+| `history.lua` | HTTP request history UI (in-memory) |
+| `format_file.lua` | `.http` file formatter (pure Lua, string-based) |
 
 ## VimScript
 

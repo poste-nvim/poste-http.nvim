@@ -1,5 +1,7 @@
 # OpenAPI / Swagger / Postman Import Plan
 
+> ⚠️ Outdated — the Rust CLI was removed. Import is now pure Lua (see `lua/poste-http/http/import_openapi.lua`, `import_swagger.lua`, `import_postman.lua`). This plan is retained for reference only.
+
 > TDD-driven import feature: convert OpenAPI 3.x, Swagger 2.0, and Postman Collection exports to Poste-native `.http` file trees.
 
 ## Overall Architecture

@@ -3,7 +3,7 @@
 > All Poste keybindings are customizable. Pass a `keymaps` table to `setup()` to override.
 
 ```lua
-require("poste").setup({
+require("poste-http").setup({
   keymaps = {
     -- Only specify what you want to change; the rest stay at defaults
     http_source = {
@@ -106,7 +106,7 @@ UI labels (winbar) and the help window display keys according to these rules:
 Set to `false` to disable:
 
 ```lua
-require("poste").setup({
+require("poste-http").setup({
   keymaps = {
     sql_dataset = {
       sort_column = false,
@@ -134,7 +134,7 @@ a starting point for customization. SQL keymap defaults are in the
 [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) plugin.
 
 ```lua
-require("poste").setup({
+require("poste-http").setup({
   keymaps = {
     http_source = {
       run = "<CR>",
