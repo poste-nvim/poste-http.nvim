@@ -48,14 +48,9 @@
 ; Comment
 (comment) @PosteComment
 
-; Pre/Post scripts - just the prefix markers
-(pre_script
-  "<" @PostePreScript)
-(post_script
-  ">" @PosteAssertion)
-
-; Script block delimiters
-(script_block) @PosteScriptMarker
+; Pre/Post scripts
+(pre_script) @PostePreScript
+(post_script) @PosteAssertion
 
 ; External scripts
 (external_script) @PosteExternalScript
@@ -91,7 +86,5 @@
 
 ; URL-encoded form body
 (form_body) @PosteRequestBody
-
-; File operations
 (file_upload) @PosteFileUpload
 (file_upload_token) @PosteFileUpload

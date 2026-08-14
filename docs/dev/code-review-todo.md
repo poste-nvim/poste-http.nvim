@@ -39,7 +39,7 @@
 ## 第六优先级（P1 功能损坏/性能）
 
 - [x] F11: `:PosteJqFilter` 已从文档移除；`{{Name.res.body.X}}` 添加 `.res.` → `.response.` 别名
-- [ ] F13: 高亮四套实现漂移 — `queries/` 与 `tree-sitter-poste-http/queries/` 的 `.scm` 不一致
+- [x] F13: 高亮四套实现漂移 — 已同步 `queries/` ← `tree-sitter-poste-http/queries/` 的 `highlights.scm`
 - [ ] F14: `select.lua` 浮窗无 `WinClosed` 兜底 — 调用方可能永久挂起
 - [ ] F16: 渲染层全量重渲染 — pending 定时器、切 tab、outline 逐击键
 - [ ] F17: `columns.lua` CJK 字节偏移混算 — history 高亮错位
