@@ -1,8 +1,6 @@
-local state = require("poste-http.state")
 local cache = require("poste-http.http.cache")
 local context_detector = require("poste-http.http.context_detector")
 local request_vars = require("poste-http.http.request_vars")
-local util = require("poste-http.util")
 local nav_util = require("poste-http.http.nav.util")
 
 local M = {}
@@ -81,15 +79,7 @@ function M.goto_definition()
     if path then
       local path_pos = line_text:find(vim.pesc(path))
       if path_pos and col >= path_pos - 1 and col <= path_pos - 1 + #path then
-        local buf_name = vim.api.nvim_buf_get_name(buf)
-        local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-        local full_path = vim.fn.simplify(buf_dir .. "/" .. path)
-        if vim.fn.filereadable(full_path) == 1 then
-          vim.cmd("normal! m'")
-          vim.cmd("edit " .. vim.fn.fnameescape(full_path))
-        else
-          vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
-        end
+        nav_util.open_relative_file(path, buf)
         return
       end
     end
@@ -98,15 +88,7 @@ function M.goto_definition()
     if path then
       local path_pos = line_text:find(vim.pesc(path))
       if path_pos and col >= path_pos - 1 and col <= path_pos - 1 + #path then
-        local buf_name = vim.api.nvim_buf_get_name(buf)
-        local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-        local full_path = vim.fn.simplify(buf_dir .. "/" .. path)
-        if vim.fn.filereadable(full_path) == 1 then
-          vim.cmd("normal! m'")
-          vim.cmd("edit " .. vim.fn.fnameescape(full_path))
-        else
-          vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
-        end
+        nav_util.open_relative_file(path, buf)
         return
       end
     end
@@ -115,15 +97,7 @@ function M.goto_definition()
     if path then
       local path_pos = line_text:find(vim.pesc(path))
       if path_pos and col >= path_pos - 1 and col <= path_pos - 1 + #path then
-        local buf_name = vim.api.nvim_buf_get_name(buf)
-        local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-        local full_path = vim.fn.simplify(buf_dir .. "/" .. path)
-        if vim.fn.filereadable(full_path) == 1 then
-          vim.cmd("normal! m'")
-          vim.cmd("edit " .. vim.fn.fnameescape(full_path))
-        else
-          vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
-        end
+        nav_util.open_relative_file(path, buf)
         return
       end
     end
@@ -132,15 +106,7 @@ function M.goto_definition()
     if path then
       local path_start = line_text:find(vim.pesc(path))
       if path_start and col >= path_start - 1 and col <= path_start - 1 + #path then
-        local buf_name = vim.api.nvim_buf_get_name(buf)
-        local buf_dir = buf_name ~= "" and vim.fn.fnamemodify(buf_name, ":h") or vim.fn.getcwd()
-        local full_path = vim.fn.simplify(buf_dir .. "/" .. path)
-        if vim.fn.filereadable(full_path) == 1 then
-          vim.cmd("normal! m'")
-          vim.cmd("edit " .. vim.fn.fnameescape(full_path))
-        else
-          vim.notify("File not found: " .. full_path, vim.log.levels.WARN)
-        end
+        nav_util.open_relative_file(path, buf)
         return
       end
     end
@@ -351,87 +317,7 @@ function M.goto_definition()
     return
   end
 
-  local buf_path = vim.api.nvim_buf_get_name(buf)
-  if buf_path == "" then
-    vim.notify("Definition not found: " .. req_name, vim.log.levels.WARN)
-    return
-  end
-
-  local search_dir = vim.fn.fnamemodify(buf_path, ":h")
-  local env_file = util.find_file_upwards("env.json", search_dir)
-
-  if not env_file then
-    vim.notify("Definition not found: " .. req_name, vim.log.levels.WARN)
-    return
-  end
-
-  local env_lines = vim.fn.readfile(env_file)
-  if not env_lines or #env_lines == 0 then
-    vim.notify("Cannot read env.json", vim.log.levels.WARN)
-    return
-  end
-
-  local env_content = table.concat(env_lines, "\n")
-  local ok, env_data = pcall(vim.json.decode, env_content)
-  if not ok or type(env_data) ~= "table" then
-    vim.notify("Cannot parse env.json", vim.log.levels.WARN)
-    return
-  end
-
-  local current_env = state.current_env
-  local env_vars = env_data[current_env]
-  if not env_vars or type(env_vars) ~= "table" then
-    vim.notify(string.format("Environment '%s' not found in env.json", current_env), vim.log.levels.WARN)
-    return
-  end
-
-  if env_vars[req_name] then
-    local env_section_start = nil
-    local env_pattern = '^%s*"' .. vim.pesc(current_env) .. '"%s*:'
-    for i, l in ipairs(env_lines) do
-      if l:match(env_pattern) then
-        env_section_start = i
-        break
-      end
-    end
-
-    local env_section_end = #env_lines
-    if env_section_start then
-      local depth = 0
-      local started = false
-      for i = env_section_start, #env_lines do
-        local l = env_lines[i]
-        local opens = (l:match("{") and 1 or 0) - (l:match("}") and 1 or 0)
-        if i == env_section_start then
-          depth = depth + opens
-          started = true
-        elseif started then
-          depth = depth + opens
-          if depth <= 0 then
-            env_section_end = i
-            break
-          end
-        end
-      end
-    end
-
-    local target_line = nil
-    local start_search = (env_section_start or 0) + 1
-    for i = start_search, env_section_end do
-      local l = env_lines[i]
-      if l:match('^%s*"' .. vim.pesc(req_name) .. '"%s*:') then
-        target_line = i
-        break
-      end
-    end
-
-    if target_line then
-      vim.cmd("normal! m'")
-      vim.cmd("edit " .. vim.fn.fnameescape(env_file))
-      vim.api.nvim_win_set_cursor(0, { target_line, 0 })
-      return
-    end
-  end
+  if nav_util.goto_env_var(buf, req_name) then return end
 
   vim.notify("Definition not found: " .. req_name, vim.log.levels.WARN)
 end
@@ -443,7 +329,6 @@ function M.goto_references()
   local col = cursor[2]
 
   local line_text = vim.api.nvim_buf_get_lines(buf, line_num - 1, line_num, false)[1] or ""
-  local total = vim.api.nvim_buf_line_count(buf)
 
   local symbol_name = nil
   local is_request = false
@@ -539,96 +424,11 @@ function M.goto_references()
     return
   end
 
-  local results = {}
-  local seen = {}
-
-  local all_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-
-  local function add(line_i, text, ref_col)
-    if not seen[line_i] and line_i ~= line_num then
-      seen[line_i] = true
-      table.insert(results, { line = line_i, text = text, col = ref_col })
-    end
-  end
-
-  local esc = vim.pesc(symbol_name)
-  local comment_pat = "^%s*[#%-]"
-
-  if is_request then
-    local def_pat = "^%s*###%s*" .. esc .. "%s*$"
-    local ref_pat = "{{" .. esc .. "[%}%.]"
-    for i = 1, total do
-      local text = all_lines[i] or ""
-      if text:match(def_pat) then
-        add(i, vim.trim(text), 0)
-      elseif not text:match(comment_pat) then
-        local ref_col = text:find(ref_pat)
-        if ref_col then
-          add(i, vim.trim(text), ref_col - 1)
-        end
-      end
-    end
-  else
-    local def_pat = "^%s*@" .. esc .. "[%s=]"
-    local prompt_def_pat = "^%s*<<" .. esc .. "%s"
-    local prompt_def_comment_pat = "^%s*#%s*<<" .. esc .. "%s"
-    local ref_pat = "{{" .. esc .. "[%}%.]"
-
-    local function find_script_ref(text)
-      for _, prefix in ipairs({ "variables", "env" }) do
-        local s = text:find(prefix .. "%." .. esc)
-        if s then
-          local after = s + #prefix + 1 + #symbol_name
-          local next_char = text:sub(after, after)
-          if next_char == "" or not next_char:match("[%w_]") then
-            return s + #prefix
-          end
-        end
-      end
-      return nil
-    end
-
-    for i = 1, total do
-      local text = all_lines[i] or ""
-      if text:match(def_pat) or text:match(prompt_def_pat) or text:match(prompt_def_comment_pat) then
-        add(i, vim.trim(text), 0)
-      elseif not text:match(comment_pat) then
-        local ref_col = text:find(ref_pat)
-        if ref_col then
-          add(i, vim.trim(text), ref_col - 1)
-        else
-          local script_col = find_script_ref(text)
-          if script_col then
-            add(i, vim.trim(text), script_col)
-          end
-        end
-      end
-    end
-
-    local local_def_pat = "^%s*local%s+" .. esc .. "%s*[=%n]"
-    local assign_def_pat = "^%s*" .. esc .. "%s*="
-    for i = 1, total do
-      local text = all_lines[i] or ""
-      if text:match(local_def_pat) or text:match(assign_def_pat) then
-        add(i, vim.trim(text), 0)
-      else
-        local s = 1
-        while s <= #text do
-          local pos = text:find(symbol_name, s, true)
-          if not pos then break end
-          local before = pos > 1 and text:sub(pos - 1, pos - 1) or ""
-          local after = text:sub(pos + #symbol_name, pos + #symbol_name)
-          if not before:match("[%w_]") and not after:match("[%w_]") then
-            add(i, vim.trim(text), pos - 1)
-            break
-          end
-          s = pos + 1
-        end
-      end
-    end
-  end
+  local results = nav_util.collect_references(buf, symbol_name, is_request, line_num)
 
   if is_import_ref and symbol_name then
+    local total = vim.api.nvim_buf_line_count(buf)
+    local all_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local esc_alias = vim.pesc(symbol_name)
     local as_marker = " as " .. esc_alias .. "%s*$"
     local hash_marker = "#" .. esc_alias .. "%."
@@ -637,98 +437,21 @@ function M.goto_references()
       local def_raw = text:find("^%s*import%s+%S+%s+as%s+" .. esc_alias .. "%s*$")
       if def_raw then
         local as_pos = text:find(as_marker)
-        if as_pos then add(i, text, as_pos + 3) end
+        if as_pos then
+          table.insert(results, { line = i, col = as_pos + 3, text = vim.trim(text) })
+        end
       end
       local ref_raw = text:find("^%s*run%s+#" .. esc_alias .. "%.")
       if ref_raw then
         local hash_pos = text:find(hash_marker)
-        if hash_pos then add(i, text, hash_pos) end
+        if hash_pos then
+          table.insert(results, { line = i, col = hash_pos, text = vim.trim(text) })
+        end
       end
     end
   end
 
-  local filtered_results = {}
-  for _, r in ipairs(results) do
-    if r.line ~= line_num then
-      table.insert(filtered_results, r)
-    end
-  end
-  results = filtered_results
-
-  if #results == 0 then
-    vim.notify("No other references found for: " .. symbol_name, vim.log.levels.INFO)
-    return
-  end
-
-  table.sort(results, function(a, b) return a.line < b.line end)
-
-  if #results == 1 then
-    local r = results[1]
-    vim.cmd("normal! m'")
-    vim.api.nvim_win_set_cursor(0, { r.line, r.col })
-    return
-  end
-
-  local items = {}
-  local filetype = vim.api.nvim_get_option_value("filetype", {buf = buf})
-
-  for idx, r in ipairs(results) do
-    table.insert(items, string.format("L%d:%d: %s", r.line, r.col, r.text))
-  end
-
-  local preview_data = setmetatable({}, {
-    __index = function(_, idx)
-      local r = results[idx]
-      if not r then return nil end
-
-      local ctx = 5
-      local start_l = math.max(1, r.line - ctx)
-      local end_l = math.min(total, r.line + ctx)
-      local preview_lines = {}
-      for i = start_l, end_l do
-        local ltext = all_lines[i] or ""
-        local prefix = (i == r.line) and "▶ " .. i .. " " or "  " .. i .. " "
-        preview_lines[i - start_l + 1] = prefix .. ltext
-      end
-
-      return {
-        lines = preview_lines,
-        filetype = filetype,
-        highlight_line = r.line - start_l + 1,
-      }
-    end
-  })
-
-  local function jump_to(item)
-    xpcall(function()
-      local target_line, target_col = item:match("^L(%d+):(%d+):")
-      if not target_line then return end
-
-      local line = tonumber(target_line)
-      local target_col_num = tonumber(target_col)
-      if not line or not target_col_num then return end
-
-      line = math.floor(line)
-      target_col_num = math.floor(target_col_num)
-
-      local line_count = vim.fn.line("$")
-      if line < 1 or line > line_count then return end
-
-      local lines2 = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)
-      local goto_line_text = (lines2 and lines2[1]) or ""
-      if target_col_num < 0 or target_col_num > #goto_line_text then target_col_num = 0 end
-
-      vim.cmd("normal! m'")
-      vim.api.nvim_win_set_cursor(0, { line, target_col_num })
-    end, function(err) end)
-  end
-
-  local selector = require("poste-http.select")
-  selector.select(items, "References to '" .. symbol_name .. "'", function(selected)
-    if selected then
-      jump_to(selected)
-    end
-  end)
+  nav_util.show_references(buf, results, symbol_name)
 end
 
 return M
