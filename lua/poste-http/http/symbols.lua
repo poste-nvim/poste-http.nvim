@@ -22,15 +22,15 @@ local function extract_url_path(line)
 end
 
 local function truncate_middle(s, max)
-  if not s or #s <= max then return s or "" end
+  if not s or vim.fn.strchars(s) <= max then return s or "" end
   local half = math.floor((max - 1) / 2)
-  return s:sub(1, half) .. "…" .. s:sub(#s - half + 1)
+  return vim.fn.strcharpart(s, 0, half) .. "…" .. vim.fn.strcharpart(s, -half)
 end
 
 local function truncate(s, max)
   if not s then return "" end
-  if #s <= max then return s end
-  return s:sub(1, max - 1) .. "…"
+  if vim.fn.strchars(s) <= max then return s end
+  return vim.fn.strcharpart(s, 0, max - 1) .. "…"
 end
 
 local function short_name(name)
@@ -68,7 +68,7 @@ local function collect_requests(bufnr)
       local method = nil
       local url_path = nil
       local in_pre_script = false
-      local scan_end = math.min(block.start_line + 20, math.min(block.end_line, #lines))
+      local scan_end = math.min(block.end_line, #lines)
 
       for j = block.start_line + 1, scan_end do
         local next_line = lines[j]

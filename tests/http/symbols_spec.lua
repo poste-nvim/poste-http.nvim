@@ -69,4 +69,27 @@ describe("symbols.collect_requests method column", function()
     -- extract_url_path strips {{var}} wrappers, leaving just the path
     assert.are_equal("/anything/multiline-var", requests[1].url_path)
   end)
+
+  it("finds the request line beyond 20 lines into the block", function()
+    local lines = { "### Deep block" }
+    for i = 1, 30 do
+      lines[#lines + 1] = "@var" .. i .. " = " .. i
+    end
+    lines[#lines + 1] = "POST /deep"
+    local requests = collect(lines)
+    assert.are_equal(1, #requests)
+    assert.are_equal("POST", requests[1].method)
+    assert.are_equal("/deep", requests[1].url_path)
+  end)
+
+  it("survives long CJK request names without truncation errors", function()
+    local long_name = string.rep("请求", 20)
+    local requests = collect({
+      "### " .. long_name,
+      "GET /cjk",
+    })
+    assert.are_equal(1, #requests)
+    assert.are_equal("GET", requests[1].method)
+    assert.are_equal(long_name, requests[1].name)
+  end)
 end)
