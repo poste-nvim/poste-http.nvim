@@ -81,11 +81,13 @@ local function collect_matches(root, buf, query_string, start_row, end_row)
   local results = {}
   for pattern, match in query:iter_matches(root, buf, start_row, end_row) do
     local captures = {}
-    for id, node in pairs(match) do
-      if type(id) == "number" and node then
+    for id, nodes in pairs(match) do
+      if type(id) == "number" and nodes then
         local name = capture_names[id] or query.captures[id] or query.captures[id + 1]
         if name then
-          table.insert(captures, { name = name, node = node })
+          for _, node in ipairs(nodes) do
+            table.insert(captures, { name = name, node = node })
+          end
         end
       end
     end

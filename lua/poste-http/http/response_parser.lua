@@ -62,7 +62,7 @@ end
 
 local function parse_headers_file(headers_text)
   if not headers_text or headers_text == "" then
-    return { status = 200, status_text = "200 OK", headers = {}, content_type = "" }
+    return { status = 0, status_text = "No Response", headers = {}, content_type = "" }
   end
   local blocks = {}
   local text = headers_text .. "\n\n"
@@ -73,7 +73,7 @@ local function parse_headers_file(headers_text)
     end
   end
   if #blocks == 0 then
-    return { status = 200, status_text = "200 OK", headers = {}, content_type = "" }
+    return { status = 0, status_text = "No Response", headers = {}, content_type = "" }
   end
   local final = blocks[#blocks]
   local lines = vim.split(final, "\n", { plain = true })
@@ -259,7 +259,7 @@ function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, meth
 
   return {
     protocol = "error",
-    status = parsed.status,
+    status = 0,
     status_text = "Failed (exit " .. tostring(exit_code) .. ")",
     latency_ms = latency_ms,
     url = "",

@@ -170,104 +170,109 @@ end
 ---                   assertion_code, script_vars, current_req_name, file, start_hires
 local function handle_curl_response(response, ctx)
   vim.schedule(function()
-    state._json.query = nil
-    state._json.original_lines = nil
-    state._json.is_filtered = false
+    local ok, err = pcall(function()
+      state._json.query = nil
+      state._json.original_lines = nil
+      state._json.is_filtered = false
 
-    local src_buf = ctx.src_buf
-    local req_line = ctx.req_line
-    local current_req_name = ctx.current_req_name
-    local file = ctx.file
-    local assertion_code = ctx.assertion_code
-    local script_vars = ctx.script_vars
-    local req_block = ctx.req_block
-    local req_text = ctx.req_text
+      local src_buf = ctx.src_buf
+      local req_line = ctx.req_line
+      local current_req_name = ctx.current_req_name
+      local file = ctx.file
+      local assertion_code = ctx.assertion_code
+      local script_vars = ctx.script_vars
+      local req_block = ctx.req_block
+      local req_text = ctx.req_text
 
-    if state.pending_request then
-      state.pending_request = vim.tbl_extend("keep", {
-        method = (response.metadata and response.metadata.method) or "",
-        url = response.url or "",
-        timestamp = util.timestamp(),
-      }, state.pending_request)
-    end
+      if state.pending_request then
+        state.pending_request = vim.tbl_extend("keep", {
+          method = (response.metadata and response.metadata.method) or "",
+          url = response.url or "",
+          timestamp = util.timestamp(),
+        }, state.pending_request)
+      end
 
-    if response.error then
-      indicators.set_indicator(src_buf, req_line, "error")
-      local error_response = {
-        protocol = "error", status = 0, status_text = response.error,
-        latency_ms = 0, url = "", content_type = "text/plain",
-        headers = {}, body = response.error, cookies = {},
-        metadata = { method = "", error = response.error, exit_code = "1" },
-      }
-      state.set_response(error_response)
-      response_buf.reset_multi_response()
-      emit_response(error_response, current_req_name, file, nil, nil)
-      view.show_view("verbose")
-      local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-      add_to_history(err_name, state.last_response, file)
-      state._busy = false
-      return
-    end
+      if response.error then
+        indicators.set_indicator(src_buf, req_line, "error")
+        local error_response = {
+          protocol = "error", status = 0, status_text = response.error,
+          latency_ms = 0, url = "", content_type = "text/plain",
+          headers = {}, body = response.error, cookies = {},
+          metadata = { method = "", error = response.error, exit_code = "1" },
+        }
+        state.set_response(error_response)
+        response_buf.reset_multi_response()
+        emit_response(error_response, current_req_name, file, nil, nil)
+        view.show_view("verbose")
+        local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+        add_to_history(err_name, state.last_response, file)
+        return
+      end
 
-    if response.status == 0 and response.protocol == "error" then
-      indicators.set_indicator(src_buf, req_line, "error")
+      if response.status == 0 and response.protocol == "error" then
+        indicators.set_indicator(src_buf, req_line, "error")
+        state.set_response(response)
+        response_buf.reset_multi_response()
+        emit_response(response, current_req_name, file, nil, nil)
+        view.show_view("verbose")
+        local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+        add_to_history(err_name, state.last_response, file)
+        return
+      end
+
       state.set_response(response)
-      response_buf.reset_multi_response()
+      if state.pending_request then
+        response.metadata = response.metadata or {}
+        if not response.metadata.request_headers then
+          response.metadata.request_headers = state.pending_request.headers_str or ""
+        end
+        if not response.metadata.request_body then
+          response.metadata.request_body = state.pending_request.body or ""
+        end
+        if not response.metadata.timestamp then
+          response.metadata.timestamp = state.pending_request.timestamp or ""
+        end
+        if not response.metadata.env then
+          response.metadata.env = state.pending_request.env or ""
+        end
+      end
+      response.request_name = current_req_name
+      request_vars.cache_response(current_req_name, response)
+
+      local dep_chain = request_vars.get_dep_chain()
+      if dep_chain and #dep_chain > 0 then
+        local chain = {}
+        for _, item in ipairs(dep_chain) do
+          table.insert(chain, {name = item.name, response = item.response})
+          history.add_entry(item.name, item.response, nil, nil, file)
+        end
+        table.insert(chain, {name = current_req_name or "Request", response = response})
+        response_buf.reset_multi_response()
+        state.set_responses(chain, #chain)
+        request_vars.clear_dep_chain()
+        pcall(response_buf.prepare_multi_responses, chain)
+      else
+        response_buf.reset_multi_response()
+      end
+
       emit_response(response, current_req_name, file, nil, nil)
-      view.show_view("verbose")
-      local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-      add_to_history(err_name, state.last_response, file)
-      state._busy = false
-      return
+
+      if vim.api.nvim_buf_is_valid(src_buf) then
+        local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
+        state._exec_context = { file = file, line = req_line + 1, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
+        local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
+        local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
+        state._exec_context = nil
+        local view_name = choose_view_tab(response, assertion_results)
+        view.show_view(view_name)
+        set_result_indicator(src_buf, req_line, response, assertion_results)
+        local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+        add_to_history(hist_name, state.last_response, file)
+      end
+    end)
+    if not ok then
+      vim.notify("Poste: " .. tostring(err), vim.log.levels.ERROR)
     end
-
-    state.set_response(response)
-    if state.pending_request then
-      response.metadata = response.metadata or {}
-      if not response.metadata.request_headers then
-        response.metadata.request_headers = state.pending_request.headers_str or ""
-      end
-      if not response.metadata.request_body then
-        response.metadata.request_body = state.pending_request.body or ""
-      end
-      if not response.metadata.timestamp then
-        response.metadata.timestamp = state.pending_request.timestamp or ""
-      end
-      if not response.metadata.env then
-        response.metadata.env = state.pending_request.env or ""
-      end
-    end
-    response.request_name = current_req_name
-    request_vars.cache_response(current_req_name, response)
-
-    local dep_chain = request_vars.get_dep_chain()
-    if dep_chain and #dep_chain > 0 then
-      local chain = {}
-      for _, item in ipairs(dep_chain) do
-        table.insert(chain, {name = item.name, response = item.response})
-        history.add_entry(item.name, item.response, nil, nil, file)
-      end
-      table.insert(chain, {name = current_req_name or "Request", response = response})
-      response_buf.reset_multi_response()
-      state.set_responses(chain, #chain)
-      request_vars.clear_dep_chain()
-      pcall(response_buf.prepare_multi_responses, chain)
-    else
-      response_buf.reset_multi_response()
-    end
-
-    emit_response(response, current_req_name, file, nil, nil)
-
-    local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
-    state._exec_context = { file = file, line = req_line + 1, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
-    local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
-    local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
-    state._exec_context = nil
-    local view_name = choose_view_tab(response, assertion_results)
-    view.show_view(view_name)
-    set_result_indicator(src_buf, req_line, response, assertion_results)
-    local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-    add_to_history(hist_name, state.last_response, file)
     state._busy = false
   end)
 end
@@ -385,43 +390,48 @@ end
 --- Handle the import/run directive response callback.
 local function handle_directive_response(success, response, src_buf, indicator_line, assertion_code, script_vars, resolved, file)
   vim.schedule(function()
-    if not (success and response) then
-      indicators.set_indicator(src_buf, indicator_line, "error")
-      state._busy = false
-      return
-    end
-
-    -- Batch execution: response is an array of {name, response}
-    if type(response) == "table" and response[1] and response[1].response then
-      response_buf.reset_multi_response()
-      state.set_responses(response, #response)
-      state.last_response = response[#response].response
-      pcall(response_buf.prepare_multi_responses, response)
-    else
-      state.set_response(response)
-    end
-
-    emit_response(state.last_response, resolved.request_name, resolved.path or file, nil, nil)
-
-    if assertion_code then
-      local ass_line = find_assertion_line(src_buf, indicator_line + 1, indicator_line + 50)
-      run_and_store_assertions(state.last_response, assertion_code, script_vars, resolved.path or file, ass_line)
-      local view_name = choose_view_tab(state.last_response, state.last_assertion_results)
-      view.show_view(view_name)
-      set_result_indicator(src_buf, indicator_line, state.last_response, state.last_assertion_results)
-    else
-      local view_name = choose_view_tab(state.last_response, nil)
-      view.show_view(view_name)
-      set_result_indicator(src_buf, indicator_line, state.last_response, nil)
-    end
-
-    if type(response) == "table" and response[1] and response[1].response then
-      for _, item in ipairs(response) do
-        local item_name = (item.name or "") ~= "" and item.name or ("Request #" .. (item.line or ""))
-        add_to_history(item_name, item.response, resolved.path or file)
+    local ok, err = pcall(function()
+      if not (success and response) then
+        indicators.set_indicator(src_buf, indicator_line, "error")
+        return
       end
-    else
-      add_to_history(resolved.request_name or "Import", response, resolved.path or file)
+
+      if not vim.api.nvim_buf_is_valid(src_buf) then return end
+
+      if type(response) == "table" and response[1] and response[1].response then
+        response_buf.reset_multi_response()
+        state.set_responses(response, #response)
+        state.last_response = response[#response].response
+        pcall(response_buf.prepare_multi_responses, response)
+      else
+        state.set_response(response)
+      end
+
+      emit_response(state.last_response, resolved.request_name, resolved.path or file, nil, nil)
+
+      if assertion_code then
+        local ass_line = find_assertion_line(src_buf, indicator_line + 1, indicator_line + 50)
+        run_and_store_assertions(state.last_response, assertion_code, script_vars, resolved.path or file, ass_line)
+        local view_name = choose_view_tab(state.last_response, state.last_assertion_results)
+        view.show_view(view_name)
+        set_result_indicator(src_buf, indicator_line, state.last_response, state.last_assertion_results)
+      else
+        local view_name = choose_view_tab(state.last_response, nil)
+        view.show_view(view_name)
+        set_result_indicator(src_buf, indicator_line, state.last_response, nil)
+      end
+
+      if type(response) == "table" and response[1] and response[1].response then
+        for _, item in ipairs(response) do
+          local item_name = (item.name or "") ~= "" and item.name or ("Request #" .. (item.line or ""))
+          add_to_history(item_name, item.response, resolved.path or file)
+        end
+      else
+        add_to_history(resolved.request_name or "Import", response, resolved.path or file)
+      end
+    end)
+    if not ok then
+      vim.notify("Poste: " .. tostring(err), vim.log.levels.ERROR)
     end
     state._busy = false
   end)
@@ -489,7 +499,13 @@ end
 
 local function handle_orchestration_result(result, ctx)
   vim.schedule(function()
-    render_orchestration_result(result, ctx)
+    local ok, err = pcall(function()
+      render_orchestration_result(result, ctx)
+    end)
+    if not ok then
+      vim.notify("Poste: " .. tostring(err), vim.log.levels.ERROR)
+    end
+    state._busy = false
   end)
 end
 

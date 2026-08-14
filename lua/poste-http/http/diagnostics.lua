@@ -33,21 +33,25 @@ local function check_semantic_rules(root, diagnostics, buf)
   local ok, query = pcall(vim.treesitter.query.parse, "poste_http", var_query)
   if ok then
     for _, match in query:iter_matches(root, buf, 0, -1) do
-      for id, node in pairs(match) do
-        local name = ts_query.get_node_text(node, buf)
-        if seen_vars[name] then
-          local sr, sc = node:start()
-          table.insert(diagnostics, {
-            lnum = sr,
-            col = sc,
-            end_lnum = sr,
-            end_col = sc + #name,
-            severity = vim.diagnostic.severity.WARN,
-            message = "Duplicate variable definition: @" .. name,
-            source = "poste-http",
-          })
+      for id, nodes in pairs(match) do
+        if type(id) == "number" and nodes then
+          for _, node in ipairs(nodes) do
+            local name = ts_query.node_text(node, buf)
+            if seen_vars[name] then
+              local sr, sc = node:start()
+              table.insert(diagnostics, {
+                lnum = sr,
+                col = sc,
+                end_lnum = sr,
+                end_col = sc + #name,
+                severity = vim.diagnostic.severity.WARN,
+                message = "Duplicate variable definition: @" .. name,
+                source = "poste-http",
+              })
+            end
+            seen_vars[name] = true
+          end
         end
-        seen_vars[name] = true
       end
     end
   end
@@ -61,19 +65,23 @@ local function check_semantic_rules(root, diagnostics, buf)
   local ok2, query2 = pcall(vim.treesitter.query.parse, "poste_http", empty_header_query)
   if ok2 then
     for _, match in query2:iter_matches(root, buf, 0, -1) do
-      for id, node in pairs(match) do
-        if query2.captures[id] == "key" then
-          local sr, sc = node:start()
-          local key_text = ts_query.get_node_text(node, buf)
-          table.insert(diagnostics, {
-            lnum = sr,
-            col = sc,
-            end_lnum = sr,
-            end_col = sc + #key_text,
-            severity = vim.diagnostic.severity.HINT,
-            message = "Empty header value: " .. key_text,
-            source = "poste-http",
-          })
+      for id, nodes in pairs(match) do
+        if type(id) == "number" and nodes then
+          for _, node in ipairs(nodes) do
+            if query2.captures[id] == "key" then
+              local sr, sc = node:start()
+              local key_text = ts_query.node_text(node, buf)
+              table.insert(diagnostics, {
+                lnum = sr,
+                col = sc,
+                end_lnum = sr,
+                end_col = sc + #key_text,
+                severity = vim.diagnostic.severity.HINT,
+                message = "Empty header value: " .. key_text,
+                source = "poste-http",
+              })
+            end
+          end
         end
       end
     end

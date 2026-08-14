@@ -6,6 +6,7 @@
 --- runs inside a coroutine: `client.run` yields and is resumed when the
 --- request completes, so scripts read as sequential code.
 local import = require("poste-http.http.import")
+local state = require("poste-http.state")
 local util = require("poste-http.util")
 
 local M = {}
