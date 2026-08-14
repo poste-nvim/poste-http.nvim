@@ -63,7 +63,7 @@ local function read_env_vars(env_name)
 
   local dir = vim.fn.fnamemodify(bufname, ":h")
   while dir and dir ~= "" and dir ~= "/" do
-    local candidate = dir .. "/env.json"
+    local candidate = vim.fs.joinpath(dir, "env.json")
     local f = io.open(candidate, "r")
     if f then
       local content = f:read("*a")

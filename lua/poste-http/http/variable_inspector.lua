@@ -29,7 +29,7 @@ local function find_env_json_path(file_path)
   local dir = vim.fn.fnamemodify(file_path, ":h")
   local seen = {}
   while true do
-    local candidate = dir .. "/env.json"
+    local candidate = vim.fs.joinpath(dir, "env.json")
     if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
       return candidate
     end

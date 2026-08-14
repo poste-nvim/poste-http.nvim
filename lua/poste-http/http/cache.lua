@@ -375,7 +375,7 @@ function M.collect_env_vars()
   local env_file
 
   while dir and dir ~= "" and dir ~= "/" do
-    local candidate = dir .. "/env.json"
+    local candidate = vim.fs.joinpath(dir, "env.json")
     if vim.fn.filereadable(candidate) == 1 then
       env_file = candidate
       break

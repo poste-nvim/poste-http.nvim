@@ -168,6 +168,22 @@ describe("script_block file_dir resolves external scripts regardless of current 
       code
     )
   end)
+
+  it("escapes double quotes in the generated error when the path contains them", function()
+    local quoted_dir = http_dir .. '/with"quote'
+    vim.fn.mkdir(quoted_dir, "p")
+    local _, code = script_block.extract_script_blocks(
+      "GET /x\n< ./scripts/auth.lua\n",
+      "<",
+      nil,
+      nil,
+      quoted_dir
+    )
+    -- The generated error string must escape the quote so the code is valid Lua.
+    assert.matches('with\\"quote', code)
+    assert.is_false(code:find('with"quote', 1, true) ~= nil,
+      "unescaped double quote in generated Lua")
+  end)
 end)
 
 describe("wrapper extract functions pass file_dir to script_block", function()

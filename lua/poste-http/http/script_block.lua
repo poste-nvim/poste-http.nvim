@@ -61,7 +61,7 @@ function M.extract_script_blocks(content, marker, start_line, end_line, file_dir
         if path and (not start_line or (i >= start_line and i <= end_line)) then
           -- Resolve relative path against .http file directory
           if path:sub(1, 1) == "." then
-            path = file_dir .. "/" .. path
+            path = vim.fs.joinpath(file_dir, path)
           end
           -- Read external script file
           local f = io.open(path, "r")
@@ -72,7 +72,7 @@ function M.extract_script_blocks(content, marker, start_line, end_line, file_dir
             state.log("INFO", "Loaded external " .. label .. ": " .. path)
           else
             state.log("ERROR", "Cannot open " .. label .. " file: " .. path)
-            table.insert(code_parts, 'error("Cannot open ' .. label .. ' file: ' .. path .. '")')
+            table.insert(code_parts, 'error("Cannot open ' .. label .. ' file: ' .. string.gsub(path, '"', '\\"') .. '")')
           end
         end
         table.insert(result, "")  -- preserve line count

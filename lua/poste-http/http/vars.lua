@@ -184,7 +184,7 @@ function M.load_env_vars(file_path, env_name)
   local dir = vim.fn.fnamemodify(file_path, ":h")
   local seen = {}
   while true do
-    local candidate = dir .. "/env.json"
+    local candidate = vim.fs.joinpath(dir, "env.json")
     if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
       seen[dir] = true
       local f = io.open(candidate, "r")
@@ -212,7 +212,7 @@ function M.load_env_vars_with_lines(file_path, env_name)
   local seen = {}
   local env_path = nil
   while true do
-    local candidate = dir .. "/env.json"
+    local candidate = vim.fs.joinpath(dir, "env.json")
     if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
       env_path = candidate
       break
