@@ -59,12 +59,12 @@
 - [x] 明文日志 — `curl_exec.lua` 敏感头（Authorization/Cookie/X-Api-Key 等）脱敏 `[REDACTED]`；`util.redact_url_query` 掩码 query 值，`run.lua` 日志改用之
 - [x] shell 转义缺 `[]` — `copy.lua:14` 特字符集合补 `[`/`]`，IPv6 URL 导出单引号包裹；新增 `copy_spec.lua` 4 测试（无修复则 IPv6 用例失败）
 - [x] `<` 路径展开误伤脚本标记 — `file_include.lua:22` 排除 `< {%` 脚本行；冒烟 spec 加回归
-- [ ] 路径拼接用字符串 — `run.lua:772`、`cache.lua:564`、`script_block.lua:64`、`vars.lua:187`；`script_block.lua:75` 未转义
-- [ ] gsub 捕获陷阱 — `format_file.lua:93-99` 还原 `{{var}}` 时 `%1`-`%9` 崩溃
-- [ ] `@var` 解析三套实现 — `scripts.lua` 与 `vars.lua` 模式收敛
-- [ ] 脚本 env 目录错误 — `scripts.lua:57-62` `nvim_buf_get_name(0)`
-- [ ] curl 超时选项未生效 — `curl_exec.lua:41` 无 `--max-time`/job 杀死
-- [ ] body 临时文件写失败静默跳过 — `curl_exec.lua:60-66`
+- [x] 路径拼接用字符串 — `run.lua:772`、`cache.lua:564`、`script_block.lua:64`、`vars.lua:187`；`script_block.lua:75` 未转义
+- [x] gsub 捕获陷阱 — `format_file.lua:93-99` 还原 `{{var}}` 时 `%1`-`%9` 崩溃
+- [x] `@var` 解析三套实现 — `scripts.lua` 与 `vars.lua` 模式收敛（复用 vars.lua 解析器 + 多行支持）
+- [x] 脚本 env 目录错误 — `scripts.lua:57-62` `nvim_buf_get_name(0)`（改传 file_dir，跨文件依赖正确）
+- [x] curl 超时选项未生效 — `curl_exec.lua:41` 无 `--max-time`/job 杀死
+- [x] body 临时文件写失败静默跳过 — `curl_exec.lua:60-66`
 - [ ] `request_deps.lua:74` 请求名含 `.` 无法解析
 - [ ] env.json 缓存按秒级 mtime — `cache.lua:421-423`
 - [ ] 行号 0-based/1-based 混用 — `cache.find_request_line` 等
