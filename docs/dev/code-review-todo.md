@@ -67,8 +67,8 @@
 - [x] body 临时文件写失败静默跳过 — `curl_exec.lua:60-66`
 - [x] `request_deps.lua:74` 请求名含 `.` 无法解析
 - [x] env.json 缓存按秒级 mtime — `cache.lua:421-423`
-- [ ] 行号 0-based/1-based 混用 — `cache.find_request_line` 等
-- [ ] `symbols.lua:71` 只扫 `start_line + 20` 行；`:24-34` 字节截断切碎 CJK
+- [x] 行号 0-based/1-based 混用 — `cache.find_request_line` 等
+- [x] `symbols.lua:71` 只扫 `start_line + 20` 行；`:24-34` 字节截断切碎 CJK
 - [ ] blink keyword pattern 不含 `-` — `completion.lua:39-41`
 - [ ] `context_detector.lua:46-48` 列号约定不一致
 - [ ] `folding.lua:22-33` 缓存不按 buffer 键控
