@@ -137,7 +137,7 @@ local function collect_entries(buf, cursor_line)
   for _, varents in pairs(entries) do
     for _, entry in ipairs(varents) do
       entry.value = entry.value:gsub("{{([^}]+)}}", function(var_name)
-        if var_name:match("%.response%.") or var_name:match("%.request%.") then
+        if var_name:gsub("%.res%.", ".response."):match("%.response%.") or var_name:match("%.request%.") then
           local resolved = request_deps.resolve_single_ref(var_name)
           if resolved ~= nil then
             return request_deps.value_to_http_string(resolved)

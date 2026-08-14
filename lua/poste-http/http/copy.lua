@@ -249,7 +249,7 @@ function M.copy_as_curl()
   -- unresolved refs are left as-is, matching `gi` behavior.
   resolved_content = resolved_content:gsub("{{(.-)}}", function(var_name)
     var_name = vim.trim(var_name)
-    if var_name:match("%.response%.") or var_name:match("%.request%.") then
+    if var_name:gsub("%.res%.", ".response."):match("%.response%.") or var_name:match("%.request%.") then
       local resolved = request_deps.resolve_single_ref(var_name)
       if resolved ~= nil then
         return request_deps.value_to_http_string(resolved)

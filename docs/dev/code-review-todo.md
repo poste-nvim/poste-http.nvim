@@ -38,7 +38,7 @@
 
 ## 第六优先级（P1 功能损坏/性能）
 
-- [ ] F11: `:PosteJqFilter` 命令不存在；`{{Name.res.body.X}}` 代码只认 `.response.` 无 `.res.` 别名
+- [x] F11: `:PosteJqFilter` 已从文档移除；`{{Name.res.body.X}}` 添加 `.res.` → `.response.` 别名
 - [ ] F13: 高亮四套实现漂移 — `queries/` 与 `tree-sitter-poste-http/queries/` 的 `.scm` 不一致
 - [ ] F14: `select.lua` 浮窗无 `WinClosed` 兜底 — 调用方可能永久挂起
 - [ ] F16: 渲染层全量重渲染 — pending 定时器、切 tab、outline 逐击键

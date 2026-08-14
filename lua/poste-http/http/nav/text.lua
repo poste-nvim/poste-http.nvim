@@ -340,7 +340,7 @@ function M.goto_references()
     if col + 1 >= s and col + 1 <= e then
       local ref_text = line_text:sub(s + 2, e - 2)
       symbol_name = vim.trim(ref_text:match("^([^%.]+)%.") or ref_text)
-      if ref_text:match("%.response%.") or ref_text:match("%.request%.") then
+      if ref_text:gsub("%.res%.", ".response."):match("%.response%.") or ref_text:match("%.request%.") then
         is_request = true
       end
       break

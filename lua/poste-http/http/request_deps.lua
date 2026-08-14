@@ -127,7 +127,8 @@ end
 
 local function find_request_variable_refs(block_text)
   local refs = {}
-  for full_ref in block_text:gmatch("{{(.-)}}") do
+  local normalized = block_text:gsub("%.res%.", ".response.")
+  for full_ref in normalized:gmatch("{{(.-)}}") do
     if full_ref:match("%.response%.") or full_ref:match("%.request%.") then
       local req_name = full_ref:match("^([^%.]+)%.")
       if req_name then
@@ -140,7 +141,8 @@ end
 
 local function find_dynamic_prompt_refs(block_text)
   local refs = {}
-  for line in block_text:gmatch("[^\n]+") do
+  local normalized = block_text:gsub("%.res%.", ".response.")
+  for line in normalized:gmatch("[^\n]+") do
     local options_str = line:match("^%s*<<[%a_][%w_]*%s*%[(.+)%]")
     if options_str then
       local full_ref = options_str:match("{{(.+%.response%..+)}}")
