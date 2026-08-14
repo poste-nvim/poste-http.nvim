@@ -21,12 +21,9 @@ Content-Type: application/json
 GET /test
 EOF
 
-nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" +"set rtp+=/opt/homebrew/share/nvim/runtime" \
-  -c "lua << EOF
-local bufnr = vim.api.nvim_create_buf(false, true)
-local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
--- Actually, just load the test file
+cat > "$TEST_DIR/inject.lua" << EOF
 vim.cmd('edit $TEST_DIR/test.http')
+local bufnr = vim.api.nvim_get_current_buf()
 vim.bo[bufnr].filetype = 'poste_http'
 vim.treesitter.start(bufnr, 'poste_http')
 
@@ -39,13 +36,13 @@ local root = vim.treesitter.get_parser(bufnr):parse()[1]:root()
 
 local found_json = false
 for pattern, match, metadata in q:iter_matches(root, bufnr, 0, -1) do
-  if metadata['injection.language'] == 'json' then
+  if metadata['injection.language'] == 'poste_json' then
     for id, nodes in pairs(match) do
       if q.captures[id] == 'injection.content' then
         for _, node in ipairs(nodes) do
-          if node:type() == 'request_body' then
+          if node:type() == 'json_body' then
             found_json = true
-            print('INJECTION_OK: request_body -> json')
+            print('INJECTION_OK: json_body -> poste_json')
           end
         end
       end
@@ -54,16 +51,18 @@ for pattern, match, metadata in q:iter_matches(root, bufnr, 0, -1) do
 end
 
 if not found_json then
-  print('INJECTION_FAIL: no request_body -> json injection found')
-  vim.cmd('cq!')
+  print('INJECTION_FAIL: no json_body -> poste_json injection found')
 end
 vim.cmd('qall!')
-EOF" 2>&1 | grep -E 'INJECTION_'
+EOF
 
-if grep -q 'INJECTION_OK' <<< "$(cat /dev/stdin 2>/dev/null)"; then
+nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" -c "luafile $TEST_DIR/inject.lua" 2>&1 | grep -E 'INJECTION_' > "$TEST_DIR/out.txt" || true
+
+if grep -q 'INJECTION_OK' "$TEST_DIR/out.txt"; then
   echo "PASS: JSON injection works"
   exit 0
 else
   echo "FAIL: JSON injection not working"
+  cat "$TEST_DIR/out.txt"
   exit 1
 fi

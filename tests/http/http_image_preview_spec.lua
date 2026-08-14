@@ -1,4 +1,4 @@
-local mock = dofile("./tests/helpers/mock_nvim.lua")
+local mock = require("helpers.mock_nvim")
 local state = require("poste-http.state")
 
 local function has_call(name)
@@ -15,6 +15,16 @@ describe("http image preview", function()
   local view
   local original_image_preload
   local original_snacks_preload
+  local temp_files = {}
+
+  local function make_tmp_file(content)
+    local tmp = vim.fn.tempname()
+    table.insert(temp_files, tmp)
+    local f = assert(io.open(tmp, "wb"))
+    f:write(content)
+    f:close()
+    return tmp
+  end
 
   before_each(function()
     original_image_preload = package.preload["image"]
@@ -31,6 +41,10 @@ describe("http image preview", function()
 
   after_each(function()
     mock.teardown()
+    for _, tmp in ipairs(temp_files) do
+      pcall(os.remove, tmp)
+    end
+    temp_files = {}
     package.loaded["poste-http.http.format"] = nil
     package.loaded["poste-http.http.view"] = nil
     package.loaded["image"] = nil
@@ -53,10 +67,7 @@ describe("http image preview", function()
     end
     package.loaded["image"] = nil
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("PNG")
-    f:close()
+    local tmp = make_tmp_file("PNG")
 
     local ok = format.render_image_preview(1, tmp, "image/png", 7)
     assert.is_true(ok)
@@ -76,10 +87,7 @@ describe("http image preview", function()
     end
     package.loaded["image"] = nil
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("PNG")
-    f:close()
+    local tmp = make_tmp_file("PNG")
 
     local ok = format.render_image_preview(1, tmp, "image/png")
     assert.is_false(ok)
@@ -116,10 +124,7 @@ describe("http image preview", function()
     end
     package.loaded["image"] = nil
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("PNG")
-    f:close()
+    local tmp = make_tmp_file("PNG")
 
     local ok = format.render_image_preview(1, tmp, "image/png", 7)
     assert.is_true(ok)
@@ -131,10 +136,7 @@ describe("http image preview", function()
   it("renders image responses automatically in body view", function()
     local render_calls = 0
     local clear_calls = 0
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("PNG")
-    f:close()
+    local tmp = make_tmp_file("PNG")
 
     package.preload["image"] = function()
       return {
@@ -188,10 +190,7 @@ describe("http image preview", function()
     end
     package.loaded["image"] = nil
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("<svg></svg>")
-    f:close()
+    local tmp = make_tmp_file("<svg></svg>")
 
     local ok = format.render_image_preview(1, tmp, "image/svg+xml")
     assert.is_false(ok)
@@ -219,10 +218,7 @@ describe("http image preview", function()
     end
     package.loaded["snacks"] = nil
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("<svg></svg>")
-    f:close()
+    local tmp = make_tmp_file("<svg></svg>")
 
     local ok = format.render_image_preview(1, tmp, "image/svg+xml")
     assert.is_true(ok)
@@ -269,10 +265,7 @@ describe("http image preview", function()
     package.loaded["snacks"] = nil
     format = require("poste-http.http.format")
 
-    local tmp = vim.fn.tempname()
-    local f = assert(io.open(tmp, "wb"))
-    f:write("PNG")
-    f:close()
+    local tmp = make_tmp_file("PNG")
 
     format.render_image_preview(1, tmp, "image/png")
     format.close_image_preview()

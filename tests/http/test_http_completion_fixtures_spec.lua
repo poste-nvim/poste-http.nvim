@@ -56,14 +56,6 @@ local function setup_env_json(env_cfg)
   return env_cfg.path
 end
 
---- Clean up env.json and temp dir.
-local function teardown_env_json(env_cfg)
-  if not env_cfg then return end
-  local filepath = env_cfg.path .. "/env.json"
-  os.remove(filepath)
-  os.remove(env_cfg.path)
-end
-
 --- Create helper .http files for import fixture testing.
 local function setup_import_fixtures(import_fixtures, base_dir)
   if not import_fixtures then return end
@@ -78,6 +70,20 @@ local function setup_import_fixtures(import_fixtures, base_dir)
 end
 
 describe("HTTP completion fixtures", function()
+  local created_dirs = {}
+
+  after_each(function()
+    for _, dir in ipairs(created_dirs) do
+      local ok, _ = pcall(function()
+        vim.fn.delete(dir, "rf")
+      end)
+      if not ok then
+        os.execute("rm -rf " .. vim.fn.shellescape(dir))
+      end
+    end
+    created_dirs = {}
+  end)
+
   for _, fixture in ipairs(fixtures) do
     it(fixture.name, function()
       local lines = fixture.lines
@@ -88,6 +94,7 @@ describe("HTTP completion fixtures", function()
 
       if fixture.import_fixtures then
         local import_dir = "/tmp/poste_test_import_" .. math.random(100000)
+        table.insert(created_dirs, import_dir)
         vim.fn.mkdir(import_dir, "p")
         -- Set buffer name to import_dir so import resolution finds files there
         vim.api.nvim_buf_set_name(buf, import_dir .. "/test.http")
@@ -110,6 +117,7 @@ describe("HTTP completion fixtures", function()
       if fixture.env_json then
         local env_dir = setup_env_json(fixture.env_json)
         if env_dir then
+          table.insert(created_dirs, env_dir)
           vim.api.nvim_buf_set_name(buf, env_dir .. "/test.http")
           state.current_env = "dev"
         end
@@ -132,6 +140,7 @@ describe("HTTP completion fixtures", function()
       -- Ensure buffer name is set for env var resolution
       if not fixture.env_json and not fixture.import_fixtures then
         local test_dir = "/tmp/poste_test_" .. math.random(100000)
+        table.insert(created_dirs, test_dir)
         vim.fn.mkdir(test_dir, "p")
         vim.api.nvim_buf_set_name(buf, test_dir .. "/test.http")
       end

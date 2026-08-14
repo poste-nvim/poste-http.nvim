@@ -1,4 +1,4 @@
-local mock = dofile("./tests/helpers/mock_nvim.lua")
+local mock = require("helpers.mock_nvim")
 local state = require("poste-http.state")
 
 describe("content-disposition download handling", function()

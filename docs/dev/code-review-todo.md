@@ -51,7 +51,7 @@
 
 - [x] F26: 空测试与假测试 — indicators_spec 5 个空 `it()` 全部实现；variable_ref_spec 改用真实 `request_deps.find_request_variable_refs`
 - [ ] F28: 覆盖缺口 — 21+ 模块零测试引用（本轮已新增 `zero_coverage_smoke_spec.lua`，覆盖 nested_access/import_parser/三个 import_*/multipart/md5/file_include/prompt_vars/var_collector/format_file/constants 共 34 项冒烟测试，含 F07 崩溃回归；GUI 强耦合模块待后续 harness）
-- [ ] F29: 测试卫生 — 临时文件泄漏、`mock_nvim` 浅实现、无 CI、`grammar_spec.sh` 不在 `run.sh`
+- [x] F29: 测试卫生 — `grammar_spec.sh`（修 `request_body`→`json_body` 陈旧断言）与 `injection_spec.sh`（重写：heredoc-in-`-c` 根本不可用、删硬编码 Homebrew 路径、修空 stdin grep、修 `request_body`→`json_body`/`json`→`poste_json`）已并入 `run.sh`；`dofile("./tests/helpers/mock_nvim.lua")` CWD 依赖改 `require("helpers.mock_nvim")`；`math.randomseed(42)` 固定种子；`test_http_completion_fixtures_spec` 补 `after_each` 清理临时目录（删从不调用的 `teardown_env_json`）；`http_image_preview_spec` 临时文件统一 `make_tmp_file` + `after_each` 删除；新增 `.github/workflows/ci.yml`（tree-sitter CLI + Neovim 0.10 + plenary，跑 `tests/run.sh`）；`vim.wait` 轮询与 `mock_nvim` 浅实现属深层重构，留待后续
 
 ## 第八优先级（P3 安全与健壮性）
 

@@ -57,7 +57,7 @@ check "request_block with ###" \
 
 check "multi-line JSON body" \
 $'### Create\nPOST /users\nContent-Type: application/json\n\n{\n"name": "John"\n}\n\n### Next\nGET /test' \
-  "request_body"
+  "json_body"
 
 check "JSON body stops at ###" \
 $'### A\nPOST /a\n\n{"x":1}\n\n### B\nGET /b' \

@@ -12,5 +12,7 @@ package.path = package.path
   .. ";./tests/?/init.lua"
   .. ";./tests/helpers/?.lua"
 
+-- Deterministic RNG across runs
+math.randomseed(42)
 -- Set up a dummy buffer for tests that need it
 vim.api.nvim_buf_set_option(0, "filetype", "poste_http")

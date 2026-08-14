@@ -5,8 +5,11 @@
 ## Quick Start
 
 ```bash
-# Run all Lua tests
+# Run all tests (tree-sitter grammar + injection + Lua)
 tests/run.sh
+
+# Run Lua tests only against a specific plenary install
+tests/run.sh /path/to/plenary.nvim
 
 # Run contract tests only
 nvim --headless \
@@ -22,8 +25,11 @@ nvim --headless \
 | Layer | Tool | Command | Location |
 |-------|------|---------|----------|
 | Tree-sitter grammar | `tree-sitter parse` | `tests/grammar_spec.sh` | `tests/` |
+| Tree-sitter injection | nvim + treesitter | `tests/injection_spec.sh` | `tests/` |
 | Lua unit | busted | `tests/run.sh` | `tests/*.lua` |
 | Contract | busted | `tests/run.sh` | `tests/contract/` |
+
+CI runs `tests/run.sh` on GitHub Actions (`.github/workflows/ci.yml`): tree-sitter CLI, Neovim 0.10, and plenary.nvim are provisioned automatically.
 
 ## Lua Tests
 

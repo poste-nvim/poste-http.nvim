@@ -15,6 +15,13 @@ fi
 
 echo "Running tests (plenary: $PLENARY_PATH)..."
 
+echo "--- tree-sitter grammar tests ---"
+bash tests/grammar_spec.sh
+
+echo "--- tree-sitter injection tests ---"
+bash tests/injection_spec.sh
+
+echo "--- Lua unit tests ---"
 nvim --headless -u NONE \
   -c "set rtp+=$PLENARY_PATH" \
   -c "set rtp+=." \
