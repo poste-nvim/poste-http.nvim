@@ -28,6 +28,7 @@ local M = {}
 local get_nested_value = nested_access.get_nested_value
 
 local request_response_cache = {}
+local request_response_cache_ct = nil
 
 --- Convert a resolved request-variable value into the text to inject into content.
 --- Strings → as-is, numbers/booleans → tostring, tables → JSON, other → ""
@@ -697,6 +698,9 @@ function M.resolve_request_variables(buf, file, env_name, cursor_line, content, 
 end
 
 function M.resolve_content_dependencies(buf, file_path, env_name, content, block_line, on_complete, deps)
+  _chain_dep_set = {}
+  _chain_dep_order = {}
+  request_response_cache = {}
   resolve_content_dependencies_impl(buf, file_path, env_name, content, block_line, on_complete, nil, deps)
 end
 
