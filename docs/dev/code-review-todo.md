@@ -57,8 +57,8 @@
 
 §6 共 29 项（见报告 §6），子项跟踪：
 - [x] 明文日志 — `curl_exec.lua` 敏感头（Authorization/Cookie/X-Api-Key 等）脱敏 `[REDACTED]`；`util.redact_url_query` 掩码 query 值，`run.lua` 日志改用之
-- [ ] shell 转义缺 `[]` — `copy.lua:14` 特字符集合
-- [ ] `<` 路径展开误伤脚本标记 — `file_include.lua:22` 排除 `{%`
+- [x] shell 转义缺 `[]` — `copy.lua:14` 特字符集合补 `[`/`]`，IPv6 URL 导出单引号包裹；新增 `copy_spec.lua` 4 测试（无修复则 IPv6 用例失败）
+- [x] `<` 路径展开误伤脚本标记 — `file_include.lua:22` 排除 `< {%` 脚本行；冒烟 spec 加回归
 - [ ] 路径拼接用字符串 — `run.lua:772`、`cache.lua:564`、`script_block.lua:64`、`vars.lua:187`；`script_block.lua:75` 未转义
 - [ ] gsub 捕获陷阱 — `format_file.lua:93-99` 还原 `{{var}}` 时 `%1`-`%9` 崩溃
 - [ ] `@var` 解析三套实现 — `scripts.lua` 与 `vars.lua` 模式收敛
