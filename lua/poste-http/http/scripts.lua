@@ -3,6 +3,7 @@
 local state = require("poste-http.state")
 local script_block = require("poste-http.http.script_block")
 local script_sandbox = require("poste-http.http.script_sandbox")
+local vars = require("poste-http.http.vars")
 
 local M = {}
 
@@ -10,45 +11,26 @@ local M = {}
 -- Variable and env collection for sandbox injection
 ---------------------------------------------------------------------------
 
---- Parse @var definitions from content (file-level and block-level).
---- Resolves {{var}} references iteratively within collected vars.
---- Returns a table of { varname = value }
-local function parse_vars_from_content(content)
-  local vars = {}
-  local lines = vim.split(content, "\n", { plain = true })
-  for _, line in ipairs(lines) do
-    -- Stop at first request block (file-level vars only)
-    if line:match("^%s*###") then break end
-    local name, value = line:match("^%s*@(%w[%w_]*)%s*=%s*(.+)%s*$")
-    if not name then
-      name, value = line:match("^%s*@(%w[%w_]*)%s+(%S+)%s*$")
-    end
-    if name then
-      value = vim.trim(value)
-      vars[name] = value
-    end
-  end
-
-  -- Resolve {{var}} references iteratively
+--- Resolve {{var}} references iteratively within collected vars.
+local function resolve_var_refs(vars_table)
   for _ = 1, 20 do
     local changed = false
-    for k, v in pairs(vars) do
+    for k, v in pairs(vars_table) do
       local resolved = v:gsub("{{(%w[%w_]*)}}", function(ref)
-        if vars[ref] ~= nil then
+        if vars_table[ref] ~= nil then
           changed = true
-          return vars[ref]
+          return vars_table[ref]
         end
         return "{{" .. ref .. "}}"
       end)
       if resolved ~= v then
-        vars[k] = resolved
+        vars_table[k] = resolved
         changed = true
       end
     end
     if not changed then break end
   end
-
-  return vars
+  return vars_table
 end
 
 --- Find and read env.json, returning the current env's variables.
@@ -80,34 +62,13 @@ local function read_env_vars(env_name)
   return {}
 end
 
---- Collect block-level @var definitions from a specific request block.
---- @param content string  Full buffer content
---- @param block_start number  1-indexed start line of block
---- @param block_end number    1-indexed end line of block
---- @return table  { varname = value }
-local function collect_block_vars(content, block_start, block_end)
-  local lines = vim.split(content, "\n", { plain = true })
-  local vars = {}
-  for i = block_start, block_end do
-    local line = lines[i] or ""
-    local name, value = line:match("^%s*@(%w[%w_]*)%s*=%s*(.+)%s*$")
-    if not name then
-      name, value = line:match("^%s*@(%w[%w_]*)%s+(%S+)%s*$")
-    end
-    if name then
-      value = vim.trim(value)
-      vars[name] = value
-    end
-  end
-  return vars
-end
-
 --- Collect all script-available variables: file-level vars, block-level vars,
 --- and env vars. Block-level vars override file-level vars.
 --- Returns { variables = { name = value, ... }, env = { key = value, ... } }
 function M.collect_script_variables(content, block_start, block_end)
-  local file_vars = parse_vars_from_content(content)
-  local block_vars = collect_block_vars(content, block_start, block_end)
+  local lines = vim.split(content, "\n", { plain = true })
+  local file_vars = vars.collect_file_vars(lines)
+  local block_vars = block_start and vars.collect_block_vars(lines, block_start, block_end) or {}
 
   local variables = {}
   for k, v in pairs(file_vars) do
@@ -116,6 +77,8 @@ function M.collect_script_variables(content, block_start, block_end)
   for k, v in pairs(block_vars) do
     variables[k] = v
   end
+
+  resolve_var_refs(variables)
 
   local env = read_env_vars()
 
