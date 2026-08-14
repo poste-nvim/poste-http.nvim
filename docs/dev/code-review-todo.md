@@ -40,7 +40,7 @@
 
 - [x] F11: `:PosteJqFilter` 已从文档移除；`{{Name.res.body.X}}` 添加 `.res.` → `.response.` 别名
 - [x] F13: 高亮四套实现漂移 — 已同步 `queries/` ← `tree-sitter-poste-http/queries/` 的 `highlights.scm`
-- [ ] F14: `select.lua` 浮窗无 `WinClosed` 兜底 — 调用方可能永久挂起
+- [x] F14: `select.lua` 浮窗加 `WinClosed` 兜底 + `Snacks` 安全 require
 - [ ] F16: 渲染层全量重渲染 — pending 定时器、切 tab、outline 逐击键
 - [ ] F17: `columns.lua` CJK 字节偏移混算 — history 高亮错位
 - [ ] F18: `sanitize_lines` 按 `gmatch` 拆分丢空行 — 空行后 extmark 错行

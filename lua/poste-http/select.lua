@@ -19,6 +19,11 @@ local function normalize_items(items)
 end
 
 local function pick_snacks(items, prompt, on_select)
+  local ok_snacks, snacks = pcall(require, "snacks")
+  if not ok_snacks or not snacks then
+    on_select(nil)
+    return
+  end
   local picker_items = {}
   for _, item in ipairs(items) do
     picker_items[#picker_items + 1] = {
@@ -28,7 +33,7 @@ local function pick_snacks(items, prompt, on_select)
     }
   end
   local resolved = false
-  Snacks.picker.select(
+  snacks.picker.select(
     picker_items,
     {
       prompt = prompt or 'Select items:',
@@ -135,6 +140,11 @@ local function pick_float(items, prompt, on_select)
   map("n", "<CR>", function() resolve(#filtered > 0 and filtered[selected_idx].key or nil) end)
   map("n", "<Esc>", function() resolve(nil) end)
   map("n", "q",     function() resolve(nil) end)
+  vim.api.nvim_create_autocmd("WinClosed", {
+    buffer = list_buf,
+    once = true,
+    callback = function() resolve(nil) end,
+  })
   map("n", "i",     function() vim.cmd("startinsert!") end)
   map("n", "a",     function() vim.cmd("startinsert!") end)
   map("i", "<CR>",   function() vim.cmd("stopinsert"); resolve(#filtered > 0 and filtered[selected_idx].key or nil) end)
