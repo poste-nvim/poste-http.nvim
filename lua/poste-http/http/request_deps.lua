@@ -71,14 +71,44 @@ function M.set_prompt_handler(fn)
   handle_prompt_fn = fn
 end
 
+--- Split a request variable reference of the form
+--- <req_name>.<source>.<target>[.<path>] where source ∈ {response, request} and
+--- target ∈ {body, headers}. The request name may itself contain dots; the
+--- last .response./.request. marker splits name from the source.
+--- @param pattern string
+--- @return string req_name
+--- @return string|nil source
+--- @return string|nil target
+--- @return string path
+local function split_request_ref(pattern)
+  local rpos = pattern:find(".response.", 1, true)
+  local qpos = pattern:find(".request.", 1, true)
+  local pos = math.max(rpos or 0, qpos or 0)
+  if pos == 0 then
+    return pattern, nil, nil, ""
+  end
+
+  local req_name = pattern:sub(1, pos - 1)
+  local rest = pattern:sub(pos + 1)
+  local source = rest:match("^([^%.]+)")
+  local target, path
+  if source then
+    local after_source = rest:sub(#source + 2)
+    target = after_source:match("^([^%.]+)")
+    if target then
+      path = after_source:sub(#target + 2)
+    end
+  end
+  return req_name, source, target, path or ""
+end
+
 local function resolve_request_variable(pattern, cached_responses)
-  local req_name, source, target = pattern:match("^([^%.]+)%.([^%.]+)%.([^%.]+)")
+  -- Parse as <req_name>.<source>.<target>.<path> where source/target come from a
+  -- fixed vocabulary, so request names may themselves contain dots.
+  local req_name, source, target, path = split_request_ref(pattern)
   if not req_name or not source or not target then
     return nil
   end
-
-  local full_match = req_name .. "." .. source .. "." .. target
-  local path = pattern:sub(#full_match + 2)
 
   local response = cached_responses[req_name]
   if not response then
@@ -130,7 +160,7 @@ local function find_request_variable_refs(block_text)
   local normalized = block_text:gsub("%.res%.", ".response.")
   for full_ref in normalized:gmatch("{{(.-)}}") do
     if full_ref:match("%.response%.") or full_ref:match("%.request%.") then
-      local req_name = full_ref:match("^([^%.]+)%.")
+      local req_name = split_request_ref(full_ref)
       if req_name then
         table.insert(refs, { full = "{{" .. full_ref .. "}}", request_name = req_name })
       end
@@ -147,7 +177,7 @@ local function find_dynamic_prompt_refs(block_text)
     if options_str then
       local full_ref = options_str:match("{{(.+%.response%..+)}}")
       if full_ref then
-        local req_name = full_ref:match("^([^%.]+)%.")
+        local req_name = split_request_ref(full_ref)
         if req_name then
           table.insert(refs, { full = "{{" .. full_ref .. "}}", request_name = req_name })
         end

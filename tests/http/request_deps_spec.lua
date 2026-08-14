@@ -92,6 +92,24 @@ describe("resolve_request_variable with spaced request name", function()
   end)
 end)
 
+describe("resolve_request_variable with dotted request name", function()
+  it("resolves a nested path when the request name contains a dot", function()
+    local cache = {
+      ["order.submit"] = {
+        body = vim.json.encode({ id = "ORD-123" }),
+      },
+    }
+    local v = request_deps._resolve_request_variable("order.submit.response.body.id", cache)
+    assert.equals("ORD-123", v)
+  end)
+
+  it("finds refs when the request name contains a dot", function()
+    local refs = request_deps.find_request_variable_refs("{{order.submit.response.body.id}}")
+    assert.equals(1, #refs)
+    assert.equals("order.submit", refs[1].request_name)
+  end)
+end)
+
 describe("request_deps dep post-scripts", function()
   before_each(function()
     state.global_vars = {}
