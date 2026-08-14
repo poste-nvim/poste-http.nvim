@@ -385,9 +385,11 @@ function M.collect_env_vars()
 
   if not env_file then return {} end
 
-  -- Check cache: skip re-read if mtime and env name unchanged
+  -- Check cache: skip re-read if mtime and env name unchanged.
+  -- Compare at nanosecond granularity so edits within the same second
+  -- still invalidate the cache.
   local info = vim.uv.fs_stat(env_file)
-  local mtime = info and info.mtime and info.mtime.sec or 0
+  local mtime = (info and info.mtime and (info.mtime.sec * 1e9 + (info.mtime.nsec or 0))) or 0
 
   local state = require("poste-http.state")
   local env_name = state.current_env or state.config.default_env
