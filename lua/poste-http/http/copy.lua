@@ -11,7 +11,7 @@ local function shell_escape(s)
     return ""
   end
   -- If contains special chars, wrap in single quotes
-  if s:match("['\"\\$`!#&|;(){}<>*?~]") or s:match("%s") then
+  if s:match("['\"\\$`!#&|;(){}<>*?~%[%]]") or s:match("%s") then
     -- Escape single quotes within the string
     s = s:gsub("'", "'\\''")
     return "'" .. s .. "'"
