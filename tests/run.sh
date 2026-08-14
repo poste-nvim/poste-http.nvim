@@ -1,21 +1,21 @@
 #!/bin/bash
 # Run tests with plenary
-# Usage: ./tests/run.sh
+# Usage: ./tests/run.sh [plenary_path]
 
 set -e
 
 cd "$(dirname "$0")/.."
 
-# Check if plenary is available
-PLENARY_PATH="$HOME/.local/share/nvim/lazy/plenary.nvim"
+PLENARY_PATH="${1:-$HOME/.local/share/nvim/lazy/plenary.nvim}"
 if [ ! -d "$PLENARY_PATH" ]; then
     echo "Error: plenary.nvim not found at $PLENARY_PATH"
+    echo "Usage: $0 [path-to-plenary.nvim]"
     exit 1
 fi
 
-echo "Running tests..."
+echo "Running tests (plenary: $PLENARY_PATH)..."
 
-nvim --headless \
+nvim --headless -u NONE \
   -c "set rtp+=$PLENARY_PATH" \
   -c "set rtp+=." \
   -c "runtime plugin/plenary.vim" \

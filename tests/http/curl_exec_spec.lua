@@ -1,0 +1,107 @@
+local curl_exec = require("poste-http.http.curl_exec")
+
+describe("curl_exec.execute", function()
+  local orig_jobstart
+  local captured_args
+  local captured_opts
+  local fake_job_id
+
+  before_each(function()
+    orig_jobstart = vim.fn.jobstart
+    captured_args = nil
+    captured_opts = nil
+    fake_job_id = 12345
+    vim.fn.jobstart = function(cmd, opts)
+      captured_args = cmd
+      captured_opts = opts
+      return fake_job_id
+    end
+  end)
+
+  after_each(function()
+    vim.fn.jobstart = orig_jobstart
+  end)
+
+  it("builds curl command with method and URL", function()
+    local callback_called = false
+    curl_exec.execute({
+      method = "POST",
+      url = "https://api.example.com/users",
+      headers = { { "Content-Type", "application/json" } },
+      body = '{"name": "test"}',
+    }, function() callback_called = true end)
+
+    assert.is_string(captured_args)
+    assert.matches("curl", captured_args)
+    assert.matches("https://api%.example%.com/users", captured_args)
+    assert.matches("-X POST", captured_args)
+    assert.matches("Content%-Type: application/json", captured_args)
+    assert.matches("--data%-binary", captured_args)
+  end)
+
+  it("returns error when URL is empty", function()
+    local result
+    curl_exec.execute({ method = "GET", url = "" }, function(r) result = r end)
+    assert.is_not_nil(result)
+    assert.matches("No URL", result.error)
+  end)
+
+  it("returns error when jobstart fails", function()
+    vim.fn.jobstart = function() return -1 end
+    local result
+    curl_exec.execute({ method = "GET", url = "https://example.com" }, function(r) result = r end)
+    assert.is_not_nil(result)
+    assert.matches("Failed to start curl", result.error)
+  end)
+
+  it("triggers parse_error on non-zero exit", function()
+    local callback_result
+    curl_exec.execute({ method = "GET", url = "https://example.com/api" }, function(r) callback_result = r end)
+
+    assert.is_not_nil(captured_opts)
+    assert.is_function(captured_opts.on_exit)
+
+    captured_opts.on_exit(fake_job_id, 7)
+
+    vim.wait(100, function() return callback_result ~= nil end)
+    assert.is_not_nil(callback_result)
+    assert.equals("error", callback_result.protocol)
+    assert.equals(0, callback_result.status)
+  end)
+
+  it("triggers parse_response on zero exit with output", function()
+    local callback_result
+    curl_exec.execute({ method = "GET", url = "https://example.com/api" }, function(r) callback_result = r end)
+
+    captured_opts.on_stdout(fake_job_id, { "stdout line 1", "stdout line 2" }, nil)
+    captured_opts.on_stderr(fake_job_id, { "stderr line" }, nil)
+    captured_opts.on_exit(fake_job_id, 0)
+
+    vim.wait(100, function() return callback_result ~= nil end)
+    assert.is_not_nil(callback_result)
+  end)
+
+  it("handles file include errors", function()
+    local file_include = require("poste-http.http.file_include")
+    local orig_expand = file_include.expand_file_includes
+    file_include.expand_file_includes = function()
+      return nil, "File not found: /nonexistent"
+    end
+
+    local result
+    curl_exec.execute({ method = "GET", url = "https://example.com", body = "< /nonexistent" }, function(r) result = r end)
+
+    assert.is_not_nil(result)
+    assert.matches("File not found", result.error)
+
+    file_include.expand_file_includes = orig_expand
+  end)
+
+  it("creates temp directory and cleans up on error", function()
+    vim.fn.jobstart = function() return -1 end
+    local result
+    curl_exec.execute({ method = "GET", url = "https://example.com" }, function(r) result = r end)
+    assert.is_not_nil(result)
+    assert.matches("Failed to start curl", result.error)
+  end)
+end)

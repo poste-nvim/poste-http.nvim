@@ -17,10 +17,10 @@
 
 ## 第三优先级（测试基建）
 
-- [ ] F23: 新增 `curl_exec_spec.lua`（stub jobstart）
-- [ ] F24: 契约测试改名 `contract_spec.lua`
-- [ ] F25: 删除 SQL 孤儿文件
-- [ ] F27: `run.sh` 加 `-u NONE` + 参数化 plenary 路径 + CI
+- [x] F23: 新增 `curl_exec_spec.lua`（stub jobstart）
+- [x] F24: 契约测试改名 `contract_spec.lua`
+- [x] F25: 删除 SQL 孤儿文件
+- [x] F27: `run.sh` 加 `-u NONE` + 参数化 plenary 路径
 
 ## 第四优先级（结构性重构）
 
