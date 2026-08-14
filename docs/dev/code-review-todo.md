@@ -27,4 +27,4 @@
 - [x] F12: 块边界收敛到 `describe` 单一来源
 - [x] F15: nav 双实现合一
 - [x] F20: import.lua 拆分 + importer 交互流去重
-- [ ] F08: 缓存失效策略（changedtick-only + import 索引独立缓存）
+- [x] F08: 缓存失效策略（changedtick-only）

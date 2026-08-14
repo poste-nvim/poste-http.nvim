@@ -19,14 +19,6 @@ function M.ensure_cache_autocmd(buf)
   if cache_autocmds[buf] then return end
   cache_autocmds[buf] = true
   local group = vim.api.nvim_create_augroup("PosteCompletionCache_" .. buf, { clear = true })
-  vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
-    group = group,
-    buffer = buf,
-    callback = function()
-      buffer_caches[buf] = nil
-      semantic_caches[buf] = nil
-    end,
-  })
   vim.api.nvim_create_autocmd("BufDelete", {
     group = group,
     buffer = buf,
