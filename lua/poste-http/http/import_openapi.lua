@@ -1,16 +1,6 @@
 local M = {}
 local import_parser = require("poste-http.http.import_parser")
 
-local function read_spec(path)
-  local fd = io.open(path, "r")
-  if not fd then return nil, "Cannot read file: " .. path end
-  local content = fd:read("*a")
-  fd:close()
-  local ok, spec = pcall(vim.json.decode, content)
-  if not ok then return nil, "Invalid JSON: " .. tostring(spec) end
-  return spec, nil
-end
-
 local function parse_servers(spec)
   local servers = spec.servers or {}
   return servers
@@ -86,7 +76,7 @@ local function parse_operation(path, method, operation, spec, server_url)
 end
 
 function M.import_spec(spec_path, out_dir)
-  local spec, err = read_spec(spec_path)
+  local spec, err = import_parser.read_spec(spec_path)
   if not spec then return nil, err end
 
   if spec.openapi == nil then
@@ -97,7 +87,7 @@ function M.import_spec(spec_path, out_dir)
   local server_url = (#servers > 0 and servers[1].url) or "http://localhost"
 
   local title = (spec.info and spec.info.title) or "api"
-  local filename = title:lower():gsub("%s+", "_"):gsub("[^%w_]", "") .. ".http"
+  local filename = import_parser.make_filename(title)
 
   local file_vars = {}
   table.insert(file_vars, { name = "base_url", value = server_url })
@@ -143,40 +133,13 @@ function M.import_spec(spec_path, out_dir)
 end
 
 function M.run()
-  local ok, finder = pcall(require, "finder")
-  if not ok then
-    vim.notify("beyondlex/finder plugin required for file selection", vim.log.levels.ERROR)
-    return
-  end
-  finder.open({
+  import_parser.run_importer({
     mode = "both",
-    initial_path = vim.fn.getcwd(),
     extensions = { "json", "yaml", "yml" },
-    on_confirm = function(spec_path)
-      if not spec_path then return end
-      local default_dir = vim.fn.fnamemodify(spec_path, ":h")
-      vim.schedule(function()
-        finder.open({
-          mode = "dir",
-          initial_path = default_dir,
-          title = " Select output directory ",
-          on_confirm = function(out_dir)
-            if not out_dir then return end
-            local result, err = M.import_spec(spec_path, out_dir)
-            if result then
-              vim.notify(string.format("OpenAPI import: %d blocks → %s/%s",
-                result.block_count, out_dir, result.filename),
-                vim.log.levels.INFO, { title = "Import OpenAPI" })
-            else
-              vim.notify("OpenAPI import failed: " .. (err or "unknown"),
-                vim.log.levels.ERROR, { title = "Import OpenAPI" })
-            end
-          end,
-          on_cancel = function() end,
-        })
-      end)
+    title = "OpenAPI",
+    import_fn = function(spec_path, out_dir)
+      return M.import_spec(spec_path, out_dir)
     end,
-    on_cancel = function() end,
   })
 end
 

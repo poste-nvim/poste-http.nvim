@@ -1,16 +1,6 @@
 local M = {}
 local import_parser = require("poste-http.http.import_parser")
 
-local function read_collection(path)
-  local fd = io.open(path, "r")
-  if not fd then return nil, "Cannot read file: " .. path end
-  local content = fd:read("*a")
-  fd:close()
-  local ok, spec = pcall(vim.json.decode, content)
-  if not ok then return nil, "Invalid JSON: " .. tostring(spec) end
-  return spec, nil
-end
-
 local function resolve_postman_var(value, vars)
   if not value then return "" end
   if type(value) == "string" then
@@ -120,7 +110,7 @@ local function collect_variables(collection)
 end
 
 function M.import_spec(spec_path, out_dir)
-  local collection, err = read_collection(spec_path)
+  local collection, err = import_parser.read_spec(spec_path)
   if not collection then return nil, err end
 
   if collection.info == nil then
@@ -129,7 +119,7 @@ function M.import_spec(spec_path, out_dir)
 
   local vars = collect_variables(collection)
   local title = (collection.info and collection.info.name) or "collection"
-  local filename = title:lower():gsub("%s+", "_"):gsub("[^%w_]", "") .. ".http"
+  local filename = import_parser.make_filename(title)
 
   local file_vars = {}
   for k, v in pairs(vars) do
@@ -161,40 +151,13 @@ function M.import_spec(spec_path, out_dir)
 end
 
 function M.run()
-  local ok, finder = pcall(require, "finder")
-  if not ok then
-    vim.notify("beyondlex/finder plugin required for file selection", vim.log.levels.ERROR)
-    return
-  end
-  finder.open({
+  import_parser.run_importer({
     mode = "file",
-    initial_path = vim.fn.getcwd(),
     extensions = { "json" },
-    on_confirm = function(spec_path)
-      if not spec_path then return end
-      local default_dir = vim.fn.fnamemodify(spec_path, ":h")
-      vim.schedule(function()
-        finder.open({
-          mode = "dir",
-          initial_path = default_dir,
-          title = " Select output directory ",
-          on_confirm = function(out_dir)
-            if not out_dir then return end
-            local result, err = M.import_spec(spec_path, out_dir)
-            if result then
-              vim.notify(string.format("Postman import: %d blocks → %s/%s",
-                result.block_count, out_dir, result.filename),
-                vim.log.levels.INFO, { title = "Import Postman" })
-            else
-              vim.notify("Postman import failed: " .. (err or "unknown"),
-                vim.log.levels.ERROR, { title = "Import Postman" })
-            end
-          end,
-          on_cancel = function() end,
-        })
-      end)
+    title = "Postman",
+    import_fn = function(spec_path, out_dir)
+      return M.import_spec(spec_path, out_dir)
     end,
-    on_cancel = function() end,
   })
 end
 

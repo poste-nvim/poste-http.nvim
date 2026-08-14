@@ -214,6 +214,66 @@ function M.extract_auth_header(spec)
   return nil
 end
 
+--- Read and parse a JSON spec file.
+--- @param path string
+--- @return table|nil, string|nil
+function M.read_spec(path)
+  local fd = io.open(path, "r")
+  if not fd then return nil, "Cannot read file: " .. path end
+  local content = fd:read("*a")
+  fd:close()
+  local ok, spec = pcall(vim.json.decode, content)
+  if not ok then return nil, "Invalid JSON: " .. tostring(spec) end
+  return spec, nil
+end
+
+--- Sanitize a title into a filename.
+--- @param title string
+--- @return string
+function M.make_filename(title)
+  return title:lower():gsub("%s+", "_"):gsub("[^%w_]", "") .. ".http"
+end
+
+--- Run the shared finder interaction flow for importing specs.
+--- @param opts table  { extensions = string[], mode = string, import_fn = function(spec_path, out_dir), title = string }
+function M.run_importer(opts)
+  local ok, finder = pcall(require, "finder")
+  if not ok then
+    vim.notify("beyondlex/finder plugin required for file selection", vim.log.levels.ERROR)
+    return
+  end
+  finder.open({
+    mode = opts.mode or "file",
+    initial_path = vim.fn.getcwd(),
+    extensions = opts.extensions or { "json" },
+    on_confirm = function(spec_path)
+      if not spec_path then return end
+      local default_dir = vim.fn.fnamemodify(spec_path, ":h")
+      vim.schedule(function()
+        finder.open({
+          mode = "dir",
+          initial_path = default_dir,
+          title = " Select output directory ",
+          on_confirm = function(out_dir)
+            if not out_dir then return end
+            local result, err = opts.import_fn(spec_path, out_dir)
+            if result then
+              vim.notify(string.format("%s: %d blocks → %s/%s",
+                opts.title, result.block_count, out_dir, result.filename),
+                vim.log.levels.INFO, { title = "Import " .. opts.title })
+            else
+              vim.notify(string.format("%s import failed: %s", opts.title, err or "unknown"),
+                vim.log.levels.ERROR, { title = "Import " .. opts.title })
+            end
+          end,
+          on_cancel = function() end,
+        })
+      end)
+    end,
+    on_cancel = function() end,
+  })
+end
+
 function M.write_output(out_dir, http_content, env_json, filename)
   vim.fn.mkdir(out_dir, "p")
   local http_path = out_dir .. "/" .. filename
