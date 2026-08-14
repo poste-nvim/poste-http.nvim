@@ -446,8 +446,9 @@ end
 function M.sanitize_lines(lines)
   local out = {}
   for _, line in ipairs(lines) do
-    if line:find("[\n\r]") then
-      for part in line:gmatch("[^\n\r]+") do
+    if line:find("\n") then
+      local parts = vim.split(line, "\n", { plain = true })
+      for _, part in ipairs(parts) do
         table.insert(out, part)
       end
     else
