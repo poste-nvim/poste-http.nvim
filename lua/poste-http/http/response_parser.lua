@@ -81,15 +81,12 @@ local function parse_headers_file(headers_text)
   local status = 0
   local status_text = ""
   if status_line:match("^HTTP/") then
-    local code_str = status_line:match("^(%S+)%s+(%d+)%s*(.*)")
-    if code_str then
-      local _, code, reason = status_line:match("^(%S+)%s+(%d+)%s*(.*)")
-      if code then
-        status = tonumber(code) or 0
-        local reason_text = vim.trim(reason or "")
-        if reason_text ~= "" then
-          status_text = tostring(status) .. " " .. reason_text
-        end
+    local _, code, reason = status_line:match("^(%S+)%s+(%d+)%s*(.*)")
+    if code then
+      status = tonumber(code) or 0
+      local reason_text = vim.trim(reason or "")
+      if reason_text ~= "" then
+        status_text = tostring(status) .. " " .. reason_text
       end
     end
     if status == 0 then
@@ -208,7 +205,7 @@ function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, m
   if (not response.content_type or response.content_type == "") and body ~= "" then
     if body:match("^%s*[{%[]") then
       response.content_type = "application/json"
-    elseif body:match("^%s*<") then
+    elseif body:match("^%s*<[?a-zA-Z_%-]") then
       response.content_type = "text/xml"
     elseif body:match("^%s*<") then
       response.content_type = "text/html"

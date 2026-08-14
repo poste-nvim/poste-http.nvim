@@ -161,17 +161,18 @@ describe("sanitize_lines", function()
     end)
 
     it("handles trailing newline (empty final segment)", function()
-      -- gmatch pattern "[^\n\r]+" requires at least one non-newline char,
-      -- so a trailing newline is silently dropped (no empty final entry).
+      -- vim.split preserves the trailing empty segment.
       local result = buffer.sanitize_lines({ "hello\n" })
-      assert.equals(1, #result)
+      assert.equals(2, #result)
       assert.equals("hello", result[1])
+      assert.equals("", result[2])
     end)
 
     it("handles leading newline (empty first segment)", function()
       local result = buffer.sanitize_lines({ "\nworld" })
-      assert.equals(1, #result)
-      assert.equals("world", result[1])
+      assert.equals(2, #result)
+      assert.equals("", result[1])
+      assert.equals("world", result[2])
     end)
 
     it("handles mixed \\n and \\r\\n in the same line", function()
@@ -218,19 +219,19 @@ describe("sanitize_lines", function()
     end)
 
     it("preserves a single entry with only a newline", function()
-      -- "\n" has no non-newline segments, so gmatch produces nothing
+      -- vim.split preserves empty segments: "\n" → { "", "" }
       local result = buffer.sanitize_lines({ "\n" })
-      assert.equals(0, #result)
+      assert.equals(2, #result)
     end)
 
     it("preserves a single entry with only carriage return", function()
       local result = buffer.sanitize_lines({ "\r" })
-      assert.equals(0, #result)
+      assert.equals(2, #result)
     end)
 
     it("preserves a single entry with only \\r\\n", function()
       local result = buffer.sanitize_lines({ "\r\n" })
-      assert.equals(0, #result)
+      assert.equals(2, #result)
     end)
   end)
 

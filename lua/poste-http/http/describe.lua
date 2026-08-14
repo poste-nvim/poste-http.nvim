@@ -151,9 +151,6 @@ local function describe_via_treesitter(content)
       if current_block then
         current_block._body_text = get_node_text(child, content)
       end
-    elseif type == "multipart_boundary" or type == "multipart_form_data" then
-      if current_block then
-      end
     elseif type == "external_assertion" or type == "external_script" or type == "file_upload" or type == "comment" or type == "pre_script" or type == "post_script" then
       if current_block then
         for l = sr + 1, er + 1 do

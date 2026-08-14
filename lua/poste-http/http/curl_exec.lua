@@ -55,7 +55,6 @@ function M.execute(opts, callback)
   local headers_file = tmp_dir .. "/headers"
   local req_body_file = tmp_dir .. "/body"
   local resp_body_file = tmp_dir .. "/resp_body"
-  local cookie_file = tmp_dir .. "/cookies"
 
   if expanded_body and expanded_body ~= "" then
     local fd = io.open(req_body_file, "w")

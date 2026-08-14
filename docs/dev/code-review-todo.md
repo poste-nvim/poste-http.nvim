@@ -44,7 +44,7 @@
 - [x] F16: 渲染层全量重渲染 — pending 定时器窗口可见性检查、outline/fileref 防抖
 - [x] F17: `columns.lua` CJK 字节偏移 — 改用 `#lead_sp`/`#pad_sp` 累积，避免 `pad_byte` 漂移
 - [x] F18: `sanitize_lines` 改用 `vim.split` 保留空行 — 空行后 extmark 不错行
-- [ ] F19: 死代码 12 项 — `build_pending_request` 零调用、`code_str` 丢弃、XML/HTML 分支不可达等
+- [x] F19: 死代码 12 项 — 删零调用函数、合并重复分支、修 `format.lua` break 提前终止循环、修 jq 退出码分支不可达
 - [ ] F21: history 纯内存 — 重启即丢，无磁盘读写
 
 ## 第七优先级（P2 测试体系）

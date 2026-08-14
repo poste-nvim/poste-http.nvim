@@ -110,32 +110,6 @@ local function collect_vars(buf, block_start_line)
   return vars
 end
 
---- Resolve variables in request block content:
---- 1. Replace magic vars ({{$timestamp}}, {{$uuid}}, {{$date}}, {{$randomInt}})
---- 2. Resolve {{var}} iteratively
-local function resolve_request_content(buf, raw_lines, block_start_line)
-  local vars = collect_vars(buf, block_start_line)
-  local content = table.concat(raw_lines, "\n")
-
-  -- Magic vars
-  content = content:gsub("{{%$timestamp}}", tostring(os.time()) .. math.random(100000, 999999))
-  content = content:gsub("{{%$uuid}}", function()
-    local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-    return template:gsub("[xy]", function(c)
-      local r = math.random(0, 15)
-      local v = c == "x" and r or (r % 4) + 8
-      return string.format("%x", v)
-    end)
-  end)
-  content = content:gsub("{{%$date}}", os.date("%Y-%m-%d"))
-  content = content:gsub("{{%$randomInt}}", tostring(math.random(0, 9999999)))
-
-  -- {{var}} substitution
-  content = substitute_vars(content, vars)
-
-  return vim.split(content, "\n", { plain = true })
-end
-
 --- Resolve a relative file path against the buffer directory.
 local function resolve_file_path(path, buf_dir)
   if not path or path == "" then return nil end

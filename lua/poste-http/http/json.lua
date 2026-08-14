@@ -86,7 +86,7 @@ function M.apply_filter(query)
   local result
   if vim.fn.executable("jq") == 1 then
     local ok, output = pcall(vim.fn.system, { "jq", query, "-r" }, r.body)
-    if ok then
+    if ok and vim.v.shell_error == 0 then
       local parsed, _ = pcall(vim.json.decode, output)
       if parsed then
         result = format.pretty_body(output, "application/json")

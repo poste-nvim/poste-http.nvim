@@ -34,17 +34,6 @@ local content_type_map = {
   ["text/plain"] = "text",
 }
 
-function M.detect_filetype(content_type)
-  if not content_type or content_type == "" then
-    return "text"
-  end
-  local mime = content_type:match("^([^;]+)") or content_type
-  mime = vim.trim(mime):lower()
-  if content_type_map[mime] then return content_type_map[mime] end
-  if mime:match("%+json$") then return "json" end
-  return "text"
-end
-
 ---------------------------------------------------------------------------
 -- Verbose formatting
 ---------------------------------------------------------------------------

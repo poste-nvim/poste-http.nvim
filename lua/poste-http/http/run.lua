@@ -19,8 +19,6 @@ local orchestration = require("poste-http.http.orchestration")
 local errors = require("poste-http.http.errors")
 local global_headers = require("poste-http.http.global_headers")
 
-local uv = vim.uv or vim.loop
-
 local M = {}
 
 ---------------------------------------------------------------------------
@@ -151,9 +149,7 @@ local function set_result_indicator(src_buf, line_0, parsed, assertion_results)
   local is_error = parsed.status and parsed.status >= 400
   local has_failures = assertion_results and assertion_results.failed > 0
 
-  if has_failures then
-    indicators.set_indicator(src_buf, line_0, "success", parsed.latency_ms, assertion_results)
-  elseif is_error then
+  if has_failures or is_error then
     indicators.set_indicator(src_buf, line_0, "error", parsed.latency_ms, assertion_results)
   else
     indicators.set_indicator(src_buf, line_0, "success", parsed.latency_ms, assertion_results)
@@ -193,23 +189,15 @@ local function handle_curl_response(response, ctx)
       end
 
       if response.error then
-        indicators.set_indicator(src_buf, req_line, "error")
-        local error_response = {
+        response = {
           protocol = "error", status = 0, status_text = response.error,
           latency_ms = 0, url = "", content_type = "text/plain",
           headers = {}, body = response.error, cookies = {},
           metadata = { method = "", error = response.error, exit_code = "1" },
         }
-        state.set_response(error_response)
-        response_buf.reset_multi_response()
-        emit_response(error_response, current_req_name, file, nil, nil)
-        view.show_view("verbose")
-        local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
-        add_to_history(err_name, state.last_response, file)
-        return
       end
 
-      if response.status == 0 and response.protocol == "error" then
+      if response.error or (response.status == 0 and response.protocol == "error") then
         indicators.set_indicator(src_buf, req_line, "error")
         state.set_response(response)
         response_buf.reset_multi_response()
@@ -277,116 +265,6 @@ local function handle_curl_response(response, ctx)
   end)
 end
 
---- Build pending request info for the Verbose tab.
---- Variable resolution via the Lua resolver; method/path/headers via
---- tree-sitter describe (single parse authority — no Lua re-parse of request blocks).
-local function build_pending_request(src_buf, buf_content, req_block, block_start, block_end, file)
-  -- Fallback headers from req_block (Lua indicators extract, used only if describe fails)
-  local fallback_headers_str = describe.headers_str(req_block and { headers = req_block.headers } or nil)
-  if fallback_headers_str == "" and req_block and req_block.headers then
-    local parts = {}
-    for _, h in ipairs(req_block.headers) do
-      table.insert(parts, h[1] .. ": " .. h[2])
-    end
-    fallback_headers_str = table.concat(parts, "\n")
-  end
-
-  -- 1. Resolve variables via Lua VarResolver
-  local resolved_content = nil
-  if file and file ~= "" then
-    local vars = require("poste-http.http.vars")
-    local resolver = vars.build_resolver_from_state({
-      buf = src_buf,
-      file_path = file,
-      block_start = block_start,
-      block_end = block_end,
-      env_name = state.current_env,
-    })
-    resolved_content = resolver:substitute(buf_content)
-  end
-
-  -- 2. Describe resolved (or raw) content via tree-sitter — single parse authority
-  local content = resolved_content or buf_content
-  local req_method = ""
-  local req_url = ""
-  local body = ""
-  local headers_str = fallback_headers_str
-  local name = req_block and req_block.name or ""
-
-  local blocks, desc_err = describe.describe_content(content, file)
-  if blocks and #blocks > 0 then
-    -- Resolved content is often a single-block slice; take first block, or
-    -- the block matching block_start when full file content was described.
-    local meta = blocks[1]
-    if block_start and #blocks > 1 then
-      meta = describe.block_at_line(blocks, block_start) or blocks[1]
-    end
-    if meta then
-      req_method = meta.method or ""
-      req_url = meta.path or ""
-      body = meta.body or ""
-      headers_str = describe.headers_str(meta)
-      if headers_str == "" then
-        headers_str = fallback_headers_str
-      end
-      if meta.name and meta.name ~= "" then
-        name = meta.name
-      end
-    end
-  elseif desc_err then
-    state.log("WARN", "describe for pending request failed: " .. tostring(desc_err))
-    if req_block then
-      req_method = req_block.method or ""
-      req_url = req_block.path or ""
-      if req_block.request_line and (req_method == "" or req_url == "") then
-        req_method, req_url = req_block.request_line:match("^(%S+)%s+(.+)$")
-        req_method = req_method or ""
-        req_url = req_url or ""
-      end
-      body = req_block.body or ""
-      name = (req_block.name ~= "" and req_block.name) or name
-      local h_parts = {}
-      for _, h in ipairs(req_block.headers or {}) do
-        table.insert(h_parts, h[1] .. ": " .. h[2])
-      end
-      if #h_parts > 0 then
-        headers_str = table.concat(h_parts, "\n")
-      end
-    end
-  else
-    state.log("WARN", "describe returned no blocks, falling back to req_block")
-    if req_block then
-      req_method = req_block.method or ""
-      req_url = req_block.path or ""
-      if req_block.request_line and (req_method == "" or req_url == "") then
-        req_method, req_url = req_block.request_line:match("^(%S+)%s+(.+)$")
-        req_method = req_method or ""
-        req_url = req_url or ""
-      end
-      body = req_block.body or ""
-      name = (req_block.name ~= "" and req_block.name) or name
-      local h_parts = {}
-      for _, h in ipairs(req_block.headers or {}) do
-        table.insert(h_parts, h[1] .. ": " .. h[2])
-      end
-      if #h_parts > 0 then
-        headers_str = table.concat(h_parts, "\n")
-      end
-    end
-  end
-
-  state.set_pending_request({
-    method = req_method,
-    url = req_url,
-    headers_str = headers_str,
-    body = body,
-    name = name,
-    env = state.current_env,
-    timestamp = util.timestamp(),
-    start_hires = uv.hrtime(),
-  })
-end
-
 --- Handle the import/run directive response callback.
 local function handle_directive_response(success, response, src_buf, indicator_line, assertion_code, script_vars, resolved, file)
   vim.schedule(function()
@@ -410,7 +288,7 @@ local function handle_directive_response(success, response, src_buf, indicator_l
       emit_response(state.last_response, resolved.request_name, resolved.path or file, nil, nil)
 
       if assertion_code then
-        local ass_line = find_assertion_line(src_buf, indicator_line + 1, indicator_line + 50)
+        local ass_line = find_assertion_line(src_buf, indicator_line + 1, vim.api.nvim_buf_line_count(src_buf))
         run_and_store_assertions(state.last_response, assertion_code, script_vars, resolved.path or file, ass_line)
         local view_name = choose_view_tab(state.last_response, state.last_assertion_results)
         view.show_view(view_name)

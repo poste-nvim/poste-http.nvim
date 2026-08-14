@@ -125,7 +125,6 @@ function M.apply_request_highlights(buf, lines)
     local row = i - 1
     if line:match("^[^*#][^:]*:%s") then
       local colon = line:find(":", 3)
-      if not colon then break end
       if colon then
         vim.api.nvim_buf_set_extmark(buf, request_ns, row, 0, {
           end_row = row, end_col = colon + 1,
