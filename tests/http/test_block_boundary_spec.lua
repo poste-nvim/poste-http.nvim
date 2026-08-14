@@ -100,7 +100,7 @@ describe("block boundary delegation", function()
   -- cache.lua:find_request_line
   ----------------------------------------------------------------------------
   describe("find_request_line", function()
-    it("simple block with GET line returns 0-indexed line", function()
+    it("simple block with GET line returns 1-indexed line", function()
       local buf = create_buf({
         "### Get",
         "GET /users",
@@ -108,7 +108,7 @@ describe("block boundary delegation", function()
       })
       
       local line = cache.find_request_line(buf, 1)
-      assert.equals(1, line)  -- 0-indexed: line 2 is index 1
+      assert.equals(2, line)  -- 1-indexed: line 2
     end)
 
     it("block with pre-script before request skips it", function()
@@ -121,7 +121,7 @@ describe("block boundary delegation", function()
       })
       
       local line = cache.find_request_line(buf, 1)
-      assert.equals(4, line)  -- 0-indexed: line 5 is index 4
+      assert.equals(5, line)  -- 1-indexed: line 5
     end)
 
     it("block with @var before request skips it", function()
@@ -132,7 +132,7 @@ describe("block boundary delegation", function()
       })
       
       local line = cache.find_request_line(buf, 1)
-      assert.equals(2, line)  -- 0-indexed: line 3 is index 2
+      assert.equals(3, line)  -- 1-indexed: line 3
     end)
 
     it("cursor on separator after block returns nil", function()
@@ -157,7 +157,7 @@ describe("block boundary delegation", function()
       })
       
       local line = cache.find_request_line(buf, 1)
-      assert.equals(1, line)
+      assert.equals(2, line)
     end)
 
     it("lowercase script keyword returns its line", function()
@@ -168,7 +168,7 @@ describe("block boundary delegation", function()
       })
       
       local line = cache.find_request_line(buf, 1)
-      assert.equals(1, line)
+      assert.equals(2, line)
     end)
   end)
 

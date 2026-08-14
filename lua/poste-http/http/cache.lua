@@ -619,7 +619,7 @@ end
 
 --- Find the request definition line using the block index.
 --- Skips pre-request script blocks and variable definitions.
---- Returns (line_number_0indexed, nil) or (nil, nil) if not found.
+--- Returns (line_number_1indexed, nil) or (nil, nil) if not found.
 function M.find_request_line(buf, start_line)
   local block = M.get_block_at_line(buf, start_line)
   if not block then return nil end
@@ -644,7 +644,7 @@ function M.find_request_line(buf, start_line)
     elseif trimmed:match("^<<") then
     elseif trimmed == "" or block_boundary.is_comment(text) then
     else
-      return i - 1
+      return i
     end
   end
 

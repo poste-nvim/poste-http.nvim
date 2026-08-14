@@ -198,12 +198,12 @@ local function handle_curl_response(response, ctx)
       end
 
       if response.error or (response.status == 0 and response.protocol == "error") then
-        indicators.set_indicator(src_buf, req_line, "error")
+        indicators.set_indicator(src_buf, req_line - 1, "error")
         state.set_response(response)
         response_buf.reset_multi_response()
         emit_response(response, current_req_name, file, nil, nil)
         view.show_view("verbose")
-        local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+        local err_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line)
         add_to_history(err_name, state.last_response, file)
         return
       end
@@ -247,14 +247,14 @@ local function handle_curl_response(response, ctx)
 
       if vim.api.nvim_buf_is_valid(src_buf) then
         local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
-        state._exec_context = { file = file, line = req_line + 1, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
+        state._exec_context = { file = file, line = req_line, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
         local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
         local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
         state._exec_context = nil
         local view_name = choose_view_tab(response, assertion_results)
         view.show_view(view_name)
-        set_result_indicator(src_buf, req_line, response, assertion_results)
-        local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line + 1)
+        set_result_indicator(src_buf, req_line - 1, response, assertion_results)
+        local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Request #" .. req_line)
         add_to_history(hist_name, state.last_response, file)
       end
     end)
@@ -365,12 +365,12 @@ local function render_orchestration_result(result, ctx)
     or (result.logs and #result.logs > 0 and "script_logs")
     or "verbose"
   view.show_view(view_name)
-  set_result_indicator(src_buf, req_line, summary, assertion_results)
+  set_result_indicator(src_buf, req_line - 1, summary, assertion_results)
 
   for _, call in ipairs(result.calls or {}) do
     add_to_history(call.name, call.response, file)
   end
-  local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Script #" .. tostring(req_line + 1))
+  local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Script #" .. tostring(req_line))
   add_to_history(hist_name, summary, file)
   state._busy = false
 end
@@ -411,8 +411,8 @@ local function prepare_request(ctx, callback)
     state._busy = false
     return
   end
-  indicators.clear_other_requests(src_buf, req_line)
-  indicators.set_indicator(src_buf, req_line, "running")
+  indicators.clear_other_requests(src_buf, req_line - 1)
+  indicators.set_indicator(src_buf, req_line - 1, "running")
 
   local block_start, block_end = cache.find_request_block_bounds(src_buf, line)
   resolve.resolve(buf_content, {
@@ -464,7 +464,7 @@ local function execute_request(ctx, callback)
     state._exec_context = nil
     if pre_result.error then
       state.log("ERROR", pre_result.error)
-      indicators.set_indicator(src_buf, req_line, "error")
+indicators.set_indicator(src_buf, req_line - 1, "error")
       state.set_errors({ errors.pre_request("pre_script", tostring(pre_result.error), { line = block_start, file = file }) })
       state.set_response(nil)
       state.set_pending_request(nil)
@@ -584,7 +584,7 @@ local function start_curl_exec(ctx)
   url = resolver:substitute(url)
 
   if not url or url == "" then
-    indicators.set_indicator(src_buf, req_line, "error")
+    indicators.set_indicator(src_buf, req_line - 1, "error")
     state._busy = false
     vim.notify("Could not determine request URL", vim.log.levels.ERROR, { title = "Poste" })
     return
@@ -599,7 +599,7 @@ local function start_curl_exec(ctx)
   end
   local unresolved = errors.find_unresolved_vars(parts)
   if #unresolved > 0 then
-    indicators.set_indicator(src_buf, req_line, "error")
+    indicators.set_indicator(src_buf, req_line - 1, "error")
     local src_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
     local errs = {}
     for _, name in ipairs(unresolved) do
@@ -753,8 +753,8 @@ function M.run_request()
           view.show_view("verbose")
         end
 
-        set_result_indicator(src_buf, ctx.req_line, script_response, assertion_results)
-        local hist_name = (ctx.current_req_name or "") ~= "" and ctx.current_req_name or ("Script #" .. tostring(ctx.req_line + 1))
+        set_result_indicator(src_buf, ctx.req_line - 1, script_response, assertion_results)
+        local hist_name = (ctx.current_req_name or "") ~= "" and ctx.current_req_name or ("Script #" .. tostring(ctx.req_line))
         add_to_history(hist_name, script_response, file)
         state._busy = false
         return
