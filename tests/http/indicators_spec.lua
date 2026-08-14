@@ -24,23 +24,53 @@ describe("indicators", function()
   -------------------------------------------------------------------------
 
   describe("build_virt_text", function()
+    -- build_virt_text is local; drive it through set_indicator and read the
+    -- virt_text captured by the mocked nvim_buf_set_extmark.
+    local function last_virt_text()
+      for i = #mock.calls, 1, -1 do
+        local call = mock.calls[i]
+        if call == "nvim_buf_set_extmark" then
+          local detail = mock.calls[i + 1]
+          return detail and detail.opts and detail.opts.virt_text or nil
+        end
+      end
+      return nil
+    end
+
     it("returns empty table when no latency and no assertions", function()
-      -- Access internal via the module's returned table
-      -- build_virt_text is local, so we test through set_indicator behavior
-      -- Or we can expose it for testing — but the plan shows testing format_ helpers
+      indicators.set_indicator(1, 0, "success")
+      local virt = last_virt_text()
+      assert.equals("✓ ", virt[1][1])
+      assert.equals(1, #virt)
     end)
 
     it("formats latency < 1000ms as ms", function()
-      -- Tested via set_indicator("success") output
+      indicators.set_indicator(1, 0, "success", 120)
+      local virt = last_virt_text()
+      assert.equals("120.00 ms", virt[2][1])
+      assert.equals("PosteLatency", virt[2][2])
     end)
 
     it("formats latency >= 1000ms as seconds", function()
+      indicators.set_indicator(1, 0, "success", 2500)
+      local virt = last_virt_text()
+      assert.equals("2.50 s", virt[2][1])
     end)
 
     it("shows assertion passed count when no failures", function()
+      indicators.set_indicator(1, 0, "success", 10, { total = 5, passed = 5, failed = 0 })
+      local virt = last_virt_text()
+      local assert_item = virt[#virt]
+      assert.equals("  ✓ 5/5 tests", assert_item[1])
+      assert.equals("PosteSuccess", assert_item[2])
     end)
 
     it("shows assertion failed count when failures exist", function()
+      indicators.set_indicator(1, 0, "error", 10, { total = 5, passed = 2, failed = 3 })
+      local virt = last_virt_text()
+      local assert_item = virt[#virt]
+      assert.equals("  ✘ 3/5 tests", assert_item[1])
+      assert.equals("PosteError", assert_item[2])
     end)
   end)
 

@@ -1,19 +1,4 @@
-local function strip(s)
-  return s:gsub("^%s+", ""):gsub("%s+$", "")
-end
-
-local function find_request_variable_refs(block_text)
-  local refs = {}
-  for full_ref in block_text:gmatch("{{(.-)}}") do
-    if full_ref:match("%.response%.") or full_ref:match("%.request%.") then
-      local req_name = full_ref:match("^([^%.]+)%.")
-      if req_name then
-        table.insert(refs, { full = "{{" .. full_ref .. "}}", request_name = req_name })
-      end
-    end
-  end
-  return refs
-end
+local request_deps = require("poste-http.http.request_deps")
 
 describe("variable ref pattern matching", function()
   describe("{{...}} with } inside content", function()
@@ -81,17 +66,17 @@ describe("variable ref pattern matching", function()
     end)
   end)
 
-  describe("find_request_variable_refs", function()
+  describe("find_request_variable_refs (real module)", function()
     it("finds ref with } inside jq expression", function()
       local block_text = [=[<<method [ {{jq.response.body | {name: .[].commit.author.name, email} }} ]]=]
-      local refs = find_request_variable_refs(block_text)
+      local refs = request_deps.find_request_variable_refs(block_text)
       assert.equals(1, #refs)
       assert.equals("jq", refs[1].request_name)
     end)
 
     it("finds ref with space in request name", function()
       local block_text = "GET {{Get Items.response.body.args.items}}"
-      local refs = find_request_variable_refs(block_text)
+      local refs = request_deps.find_request_variable_refs(block_text)
       assert.equals(1, #refs)
       assert.equals("Get Items", refs[1].request_name)
     end)
@@ -101,7 +86,7 @@ describe("variable ref pattern matching", function()
 {{jq.response.body.committer.name}}
 {{Get Items.response.body.args}}
 ]=]
-      local refs = find_request_variable_refs(block_text)
+      local refs = request_deps.find_request_variable_refs(block_text)
       assert.equals(2, #refs)
       assert.equals("jq", refs[1].request_name)
       assert.equals("Get Items", refs[2].request_name)
@@ -109,34 +94,34 @@ describe("variable ref pattern matching", function()
 
     it("ignores non-request variable refs (no .response. or .request.)", function()
       local block_text = "GET {{base_url}}/get?q={{query}}"
-      local refs = find_request_variable_refs(block_text)
+      local refs = request_deps.find_request_variable_refs(block_text)
       assert.equals(0, #refs)
+    end)
+
+    it("normalizes {{Name.res.body.X}} to .response.", function()
+      local block_text = "GET {{jq.res.body.args.items}}"
+      local refs = request_deps.find_request_variable_refs(block_text)
+      assert.equals(1, #refs)
+      assert.equals("jq", refs[1].request_name)
     end)
   end)
 
-  describe("nav.lua goto_definition req_name extraction", function()
+  describe("request_deps req_name extraction", function()
     it("extracts req_name from {{jq.response.body}}", function()
-      local line = "{{jq.response.body}}"
-      local ref_text = line:match("{{(.-)}}")
-      assert.not_nil(ref_text)
-      local req_name = strip(ref_text:match("^([^%.]+)%.") or ref_text)
-      assert.equals("jq", req_name)
+      local refs = request_deps.find_request_variable_refs("{{jq.response.body}}")
+      assert.equals(1, #refs)
+      assert.equals("jq", refs[1].request_name)
     end)
 
     it("extracts req_name from {{Get Items.response.body}}", function()
-      local line = "{{Get Items.response.body.args.items}}"
-      local ref_text = line:match("{{(.-)}}")
-      assert.not_nil(ref_text)
-      local req_name = strip(ref_text:match("^([^%.]+)%.") or ref_text)
-      assert.equals("Get Items", req_name)
+      local refs = request_deps.find_request_variable_refs("{{Get Items.response.body.args.items}}")
+      assert.equals(1, #refs)
+      assert.equals("Get Items", refs[1].request_name)
     end)
 
     it("extracts req_name from {{jq}} (no dot, bare ref)", function()
-      local line = "{{jq}}"
-      local ref_text = line:match("{{(.-)}}")
-      assert.not_nil(ref_text)
-      local req_name = strip(ref_text:match("^([^%.]+)%.") or ref_text)
-      assert.equals("jq", req_name)
+      local refs = request_deps.find_request_variable_refs("{{jq}}")
+      assert.equals(0, #refs)
     end)
   end)
 end)

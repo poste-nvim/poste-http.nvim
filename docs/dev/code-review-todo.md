@@ -49,7 +49,7 @@
 
 ## 第七优先级（P2 测试体系）
 
-- [ ] F26: 空测试与假测试 — 5 个空 `it()`、`variable_ref_spec` 测自己的副本
+- [x] F26: 空测试与假测试 — indicators_spec 5 个空 `it()` 全部实现；variable_ref_spec 改用真实 `request_deps.find_request_variable_refs`
 - [ ] F28: 覆盖缺口 — 21+ 模块零测试引用
 - [ ] F29: 测试卫生 — 临时文件泄漏、`mock_nvim` 浅实现、无 CI、`grammar_spec.sh` 不在 `run.sh`
 
