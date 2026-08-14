@@ -69,6 +69,25 @@ function M.timestamp()
   return os.date("%Y-%m-%d %H:%M:%S")
 end
 
+--- Redact query-string parameter values from a URL for safe logging.
+--- Preserves the path; masks every `key=` value as `key=[REDACTED]`.
+--- Leaves URLs without a query unchanged.
+function M.redact_url_query(url)
+  if not url or url == "" then return url end
+  local base, query = url:match("^([^?]+)%?(.*)$")
+  if not base then return url end
+  local parts = {}
+  for kv in query:gmatch("[^&]+") do
+    local k = kv:match("^([^=]*)=")
+    if k then
+      table.insert(parts, k .. "=[REDACTED]")
+    else
+      table.insert(parts, kv)
+    end
+  end
+  return base .. "?" .. table.concat(parts, "&")
+end
+
 --- Open a markdown doc preview in a floating window.
 --- Returns float_buf, win, reused (boolean — true if an existing tracked window was re-focused).
 --- opts:

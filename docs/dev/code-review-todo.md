@@ -55,4 +55,33 @@
 
 ## 第八优先级（P3 安全与健壮性）
 
-- [ ] §6: 安全与健壮性 29 项 — 明文日志、shell 转义缺 `[]`、路径拼接、gsub 陷阱等
+§6 共 29 项（见报告 §6），子项跟踪：
+- [x] 明文日志 — `curl_exec.lua` 敏感头（Authorization/Cookie/X-Api-Key 等）脱敏 `[REDACTED]`；`util.redact_url_query` 掩码 query 值，`run.lua` 日志改用之
+- [ ] shell 转义缺 `[]` — `copy.lua:14` 特字符集合
+- [ ] `<` 路径展开误伤脚本标记 — `file_include.lua:22` 排除 `{%`
+- [ ] 路径拼接用字符串 — `run.lua:772`、`cache.lua:564`、`script_block.lua:64`、`vars.lua:187`；`script_block.lua:75` 未转义
+- [ ] gsub 捕获陷阱 — `format_file.lua:93-99` 还原 `{{var}}` 时 `%1`-`%9` 崩溃
+- [ ] `@var` 解析三套实现 — `scripts.lua` 与 `vars.lua` 模式收敛
+- [ ] 脚本 env 目录错误 — `scripts.lua:57-62` `nvim_buf_get_name(0)`
+- [ ] curl 超时选项未生效 — `curl_exec.lua:41` 无 `--max-time`/job 杀死
+- [ ] body 临时文件写失败静默跳过 — `curl_exec.lua:60-66`
+- [ ] `request_deps.lua:74` 请求名含 `.` 无法解析
+- [ ] env.json 缓存按秒级 mtime — `cache.lua:421-423`
+- [ ] 行号 0-based/1-based 混用 — `cache.find_request_line` 等
+- [ ] `symbols.lua:71` 只扫 `start_line + 20` 行；`:24-34` 字节截断切碎 CJK
+- [ ] blink keyword pattern 不含 `-` — `completion.lua:39-41`
+- [ ] `context_detector.lua:46-48` 列号约定不一致
+- [ ] `folding.lua:22-33` 缓存不按 buffer 键控
+- [ ] `nav.lua:100,112` 用 `^###` 而非 `^%s*###`
+- [ ] `cache.lua:473-486` 光标在块尾注释上返回 nil
+- [ ] `import.lua:698-715` post-script 定位风险
+- [ ] `resolve.lua:71-77` 文档与实现不符
+- [ ] `verbose.lua:216,240,377` 硬编码宽度 80
+- [ ] `verbose.lua:15,182-187,595-681` 模块级可变状态
+- [ ] `verbose.lua:594-629` 字符串启发式分区误判
+- [ ] `buffer_setup.lua:96` namespace 泄漏
+- [ ] formatters 写磁盘副作用 — `body.lua:26-31`、`verbose.lua:339-344` 秒级文件名覆盖
+- [ ] `boundary_indicator.lua` 快照而非实时
+- [ ] `indicators.lua:85-99` 单一全局 spinner + `_extmarks` 不清理
+- [ ] `history.lua:240` 每次渲染强制光标回第 1 行
+- [ ] luacheck 95 warnings — 20+ unused variable、变量遮蔽

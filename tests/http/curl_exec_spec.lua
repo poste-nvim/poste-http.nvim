@@ -104,4 +104,36 @@ describe("curl_exec.execute", function()
     assert.is_not_nil(result)
     assert.matches("Failed to start curl", result.error)
   end)
+
+  it("redacts sensitive header values from the log", function()
+    local state = require("poste-http.state")
+    local orig_log = state.log
+    local logged
+    state.log = function(_, msg)
+      logged = msg
+    end
+    vim.fn.jobstart = function() return -1 end
+
+    curl_exec.execute({
+      method = "GET",
+      url = "https://api.example.com/secret",
+      headers = {
+        { "Authorization", "Bearer sekrit-token-123" },
+        { "X-Api-Key", "super-secret-key" },
+        { "Content-Type", "application/json" },
+      },
+    }, function() end)
+
+    state.log = orig_log
+
+    assert.is_not_nil(logged)
+    assert.matches("curl: ", logged)
+    assert.is_false(logged:find("sekrit%-token%-123", 1, true) ~= nil,
+      "Authorization value must not appear in log")
+    assert.is_false(logged:find("super%-secret%-key", 1, true) ~= nil,
+      "X-Api-Key value must not appear in log")
+    assert.matches("Authorization: %[REDACTED%]", logged)
+    assert.matches("X%-Api%-Key: %[REDACTED%]", logged)
+    assert.matches("Content%-Type: application/json", logged)
+  end)
 end)

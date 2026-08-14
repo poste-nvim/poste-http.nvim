@@ -208,3 +208,39 @@ describe("ensure_job_data", function()
     assert.equals(data, result)
   end)
 end)
+
+--------------------------------------------------------------------------
+-- redact_url_query
+--------------------------------------------------------------------------
+
+describe("redact_url_query", function()
+  it("leaves URLs without a query unchanged", function()
+    assert.equals("https://api.example.com/users", util.redact_url_query("https://api.example.com/users"))
+  end)
+
+  it("masks query parameter values", function()
+    assert.equals(
+      "https://api.example.com/users?token=[REDACTED]",
+      util.redact_url_query("https://api.example.com/users?token=secret123")
+    )
+  end)
+
+  it("masks multiple parameter values, preserving keys and order", function()
+    assert.equals(
+      "https://api.example.com/search?q=[REDACTED]&page=[REDACTED]",
+      util.redact_url_query("https://api.example.com/search?q=hello&page=2")
+    )
+  end)
+
+  it("preserves query params without '='", function()
+    assert.equals(
+      "https://api.example.com/flag?debug",
+      util.redact_url_query("https://api.example.com/flag?debug")
+    )
+  end)
+
+  it("handles nil and empty input", function()
+    assert.is_nil(util.redact_url_query(nil))
+    assert.equals("", util.redact_url_query(""))
+  end)
+end)
