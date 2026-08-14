@@ -91,11 +91,11 @@ local function format_json_body(body)
 
   -- Restore unquoted {{var}} first (replace "__POSTE_VAR_U_N__" with {{var}})
   for i, ph in ipairs(unquoted_ph) do
-    formatted = formatted:gsub('"__POSTE_VAR_U_' .. i .. '__"', ph, 1)
+    formatted = formatted:gsub('"__POSTE_VAR_U_' .. i .. '__"', function() return ph end, 1)
   end
   -- Restore quoted {{var}} (replace "__POSTE_VAR_Q_N__" with "{{var}}")
   for i, ph in ipairs(quoted_ph) do
-    formatted = formatted:gsub('"__POSTE_VAR_Q_' .. i .. '__"', ph, 1)
+    formatted = formatted:gsub('"__POSTE_VAR_Q_' .. i .. '__"', function() return ph end, 1)
   end
   return formatted
 end

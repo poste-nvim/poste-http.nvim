@@ -387,6 +387,14 @@ describe("zero-coverage smoke specs", function()
     it("handles empty input", function()
       assert.equals("", format_file.format(""))
     end)
+
+    it("restores {{var}} markers containing %-sequences verbatim", function()
+      local out = format_file.format(
+        "### T\nPOST /x\nContent-Type: application/json\n\n{\"key\": {{a%1b}}}\n")
+      assert.matches("%{{a%%1b}}", out)
+      assert.is_false(out:find("POSTE_VAR", 1, true) ~= nil,
+        "placeholder must be fully restored")
+    end)
   end)
 
   ---------------------------------------------------------------------------
