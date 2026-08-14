@@ -10,13 +10,16 @@ PosteHttpHistory provides a window-sized floating popup with a request list on t
 
 ### Storage
 
-History is stored in memory (`state.http_history`), not persisted to disk. Automatically cleared when Neovim closes.
+History is persisted to disk (`state.config.history_file`, default
+`stdpath("data")/poste-http/history.json`) on every `add_entry`/`delete_entry`
+and loaded back at startup via `history.load()`. Disable with
+`persist_history = false`. Transient `_jq` fields are stripped before saving.
 
 ### Session State (`state.lua`)
 
 ```lua
 M.http_history = {}               -- entry[] (newest first)
-M.http_history_max = 100          -- max entries
+M.http_history_max = 100          -- max entries (config.http_history_max)
 M.http_history_id_counter = 0     -- auto-increment ID
 ```
 
@@ -110,7 +113,7 @@ Other behavior:
 - **Same request re-executed**: Two entries kept (different id/time)
 - **Batch execution**: Each response gets its own entry
 - **Source buffer deleted**: Entry still valid (full response stored)
-- **Large response body**: Full in memory, truncated only on serialization
+- **Large response body**: Body truncated to 100KB on entry, then persisted as-is
 
 ## User Configuration
 

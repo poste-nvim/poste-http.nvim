@@ -121,9 +121,9 @@ function M.load()
   end
   if #loaded > 0 then
     state.http_history = loaded
-    state.http_history_max = state.config.http_history_max
-    if #state.http_history > state.http_history_max then
-      for _ = 1, #state.http_history - state.http_history_max do
+    local max = state.config.http_history_max or state.http_history_max
+    if #state.http_history > max then
+      for _ = 1, #state.http_history - max do
         table.remove(state.http_history)
       end
     end
@@ -145,7 +145,8 @@ function M.add_entry(name, response, assertion_results, script_logs, source_file
     script_logs = script_logs and vim.deepcopy(script_logs) or nil,
   }
   table.insert(state.http_history, 1, entry)
-  if #state.http_history > state.http_history_max then
+  local max = state.config.http_history_max or state.http_history_max
+  if #state.http_history > max then
     table.remove(state.http_history)
   end
   persist()
