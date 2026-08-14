@@ -66,6 +66,10 @@ function M.setup(opts)
   require("poste-http.http.script_snippet").setup()
   commands.setup()
 
+  pcall(function()
+    require("poste-http.http.history").load()
+  end)
+
   _G.poste_status = commands.status
 end
 

@@ -113,8 +113,10 @@ describe("global_headers.merge", function()
     local per_req = { { "X-Local", "l1" } }
     local result = global_headers.merge(per_req)
     assert.equals(3, #result)
-    assert.equals("X-Global", result[1][1])
     assert.equals("X-Local", result[3][1])
+    local names = { result[1][1], result[2][1] }
+    table.sort(names)
+    assert.same({ "X-Global", "X-Global2" }, names)
   end)
 
   it("resolves {{var}} in global header values when resolver given", function()

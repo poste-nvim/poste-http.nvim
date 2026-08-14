@@ -61,6 +61,76 @@ local function now()
   return os.time(), 0
 end
 
+local function history_file()
+  return state.config.history_file or (vim.fn.stdpath("data") .. "/poste-http/history.json")
+end
+
+--- Serialize an entry for disk. Drops the transient `_jq` buffer state so
+--- jq-filtered line caches are not persisted.
+local function serialize_entry(entry)
+  if not entry or type(entry) ~= "table" then return nil end
+  local r = {}
+  for k, v in pairs(entry) do
+    if k ~= "_jq" then
+      r[k] = v
+    end
+  end
+  return r
+end
+
+--- Write the full history to disk (synchronous, small bounded payload:
+--- http_history_max entries with bodies truncated to MAX_BODY_SAVE).
+local function persist()
+  if not state.config.persist_history then return end
+  local ok, payload = pcall(vim.json.encode, state.http_history)
+  if not ok or not payload then return end
+  local file = history_file()
+  local ok_dir, _ = pcall(vim.fn.mkdir, vim.fn.fnamemodify(file, ":h"), "p")
+  if not ok_dir then return end
+  local fd, err = io.open(file, "w")
+  if not fd then
+    if state.log then state.log("WARN", "history persist failed: " .. tostring(err)) end
+    return
+  end
+  fd:write(payload)
+  fd:close()
+end
+
+--- Load persisted history at startup (idempotent).
+function M.load()
+  if not state.config.persist_history then return end
+  local file = history_file()
+  if vim.fn.filereadable(file) == 0 then return end
+  local fd = io.open(file, "r")
+  if not fd then return end
+  local content = fd:read("*a")
+  fd:close()
+  if not content or content == "" then return end
+  local ok, entries = pcall(vim.json.decode, content)
+  if not ok or type(entries) ~= "table" then
+    if state.log then state.log("WARN", "history load failed: invalid JSON in " .. file) end
+    return
+  end
+  local loaded = {}
+  local max_id = 0
+  for _, e in ipairs(entries) do
+    if e and type(e) == "table" and e.id then
+      table.insert(loaded, e)
+      if e.id > max_id then max_id = e.id end
+    end
+  end
+  if #loaded > 0 then
+    state.http_history = loaded
+    state.http_history_max = state.config.http_history_max
+    if #state.http_history > state.http_history_max then
+      for _ = 1, #state.http_history - state.http_history_max do
+        table.remove(state.http_history)
+      end
+    end
+    state.http_history_id_counter = max_id
+  end
+end
+
 function M.add_entry(name, response, assertion_results, script_logs, source_file)
   state.http_history_id_counter = state.http_history_id_counter + 1
   local sec, usec = now()
@@ -78,12 +148,14 @@ function M.add_entry(name, response, assertion_results, script_logs, source_file
   if #state.http_history > state.http_history_max then
     table.remove(state.http_history)
   end
+  persist()
 end
 
 function M.delete_entry(id)
   for i, entry in ipairs(state.http_history) do
     if entry.id == id then
       table.remove(state.http_history, i)
+      persist()
       return
     end
   end

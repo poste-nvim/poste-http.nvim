@@ -45,7 +45,7 @@
 - [x] F17: `columns.lua` CJK 字节偏移 — 改用 `#lead_sp`/`#pad_sp` 累积，避免 `pad_byte` 漂移
 - [x] F18: `sanitize_lines` 改用 `vim.split` 保留空行 — 空行后 extmark 不错行
 - [x] F19: 死代码 12 项 — 删零调用函数、合并重复分支、修 `format.lua` break 提前终止循环、修 jq 退出码分支不可达
-- [ ] F21: history 纯内存 — 重启即丢，无磁盘读写
+- [x] F21: history 纯内存 — `add_entry`/`delete_entry` 序列化到 `stdpath("data")/poste-http/history.json`，`M.load()` 启动加载 + 恢复 id counter + 上限裁剪；`http_history_max`/`persist_history`/`history_file` 提为配置项
 
 ## 第七优先级（P2 测试体系）
 

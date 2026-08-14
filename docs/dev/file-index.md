@@ -119,7 +119,7 @@ library. Pure functions, unit-tested without windows.
 | File | Description |
 |------|-------------|
 | `env.lua` | Environment switching UI |
-| `history.lua` | HTTP request history UI (in-memory) |
+| `history.lua` | HTTP request history UI + disk persistence (`stdpath("data")/poste-http/history.json`) |
 | `format_file.lua` | `.http` file formatter (pure Lua, string-based) |
 
 ## VimScript
