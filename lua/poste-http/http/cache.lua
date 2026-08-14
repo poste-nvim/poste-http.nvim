@@ -62,6 +62,33 @@ function M.get_buffer_cache(buf)
   local in_pre_block = false
   local in_post_block = false
 
+  local function start_block(line, i)
+    local name = vim.trim(line:match("^%s*###%s*(.*)") or "")
+    current_block = {
+      name = name,
+      start_line = i,
+      end_line = nil,
+      block_vars = {},
+      has_pre = false,
+      has_post = false,
+      has_run = false,
+      last_content_line = nil,
+    }
+    if name ~= "" and not seen_names[name] then
+      seen_names[name] = true
+      table.insert(req_names, name)
+    end
+  end
+
+  local function finalize_block()
+    if not current_block then return end
+    local end_line, last_content = block_boundary.compute_block_range(lines, current_block.start_line)
+    current_block.end_line = end_line
+    current_block.last_content_line = last_content
+    table.insert(blocks, current_block)
+    current_block = nil
+  end
+
   for i, line in ipairs(lines) do
     local trimmed = vim.trim(line)
     local t
@@ -73,24 +100,7 @@ function M.get_buffer_cache(buf)
         body_started = false
         in_pre_block = false
         in_post_block = false
-          current_block = {
-            name = vim.trim(line:match("^%s*###%s*(.*)") or ""),
-            start_line = i,
-            end_line = nil,
-            block_vars = {},
-            has_pre = false,
-            has_post = false,
-            has_run = false,
-            last_content_line = nil,
-          }
-        local name = line:match("^%s*###%s+(.+)")
-        if name then
-          name = vim.trim(name)
-          if name ~= "" and not seen_names[name] then
-            seen_names[name] = true
-            table.insert(req_names, name)
-          end
-        end
+        start_block(line, i)
         t = "head"
       elseif line:match("^%s*@(%w[%w_]*)%s*[= ]") then
         local var_name = line:match("^%s*@(%w[%w_]*)%s*[= ]")
@@ -174,35 +184,12 @@ function M.get_buffer_cache(buf)
       end
     else
       if block_boundary.is_separator(line) then
-        if current_block then
-          current_block.end_line = i - 1
-          if not current_block.last_content_line then
-            current_block.last_content_line = current_block.start_line
-          end
-          table.insert(blocks, current_block)
-        end
+        finalize_block()
         request_found_in_block = false
         body_started = false
         in_pre_block = false
         in_post_block = false
-          current_block = {
-            name = vim.trim(line:match("^%s*###%s*(.*)") or ""),
-            start_line = i,
-            end_line = nil,
-            block_vars = {},
-            has_pre = false,
-            has_post = false,
-            has_run = false,
-            last_content_line = nil,
-          }
-        local name = line:match("^%s*###%s+(.+)")
-        if name then
-          name = vim.trim(name)
-          if name ~= "" and not seen_names[name] then
-            seen_names[name] = true
-            table.insert(req_names, name)
-          end
-        end
+        start_block(line, i)
         t = "head"
       elseif line:match("^%s*@(%w[%w_]*)%s*[= ]") then
         local var_name = line:match("^%s*@(%w[%w_]*)%s*[= ]")
@@ -274,22 +261,12 @@ function M.get_buffer_cache(buf)
         t = "body"
       end
 
-      if current_block and block_boundary.is_content(line) then
-        current_block.last_content_line = i
       end
-    end
 
     line_type[i] = t
   end
 
-  -- Finalize last block: end_line = last line of buffer (original behavior)
-  if current_block then
-    current_block.end_line = #lines
-    if not current_block.last_content_line then
-      current_block.last_content_line = current_block.start_line
-    end
-    table.insert(blocks, current_block)
-  end
+  finalize_block()
 
   local entry = {
     changedtick = ct,

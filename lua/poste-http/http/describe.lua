@@ -165,6 +165,28 @@ local function describe_via_treesitter(content)
 
   finalize_block()
 
+  if #blocks == 0 and line_count > 0 then
+    local first_content = 1
+    for i, l in ipairs(lines) do
+      if l:match("%S") then
+        first_content = i
+        break
+      end
+    end
+    local end_line, last_content = block_boundary.compute_block_range(lines, first_content)
+    table.insert(blocks, {
+      name = "",
+      line = first_content,
+      end_line = end_line,
+      last_content_line = last_content,
+      method = "",
+      path = "",
+      headers = {},
+      body = table.concat(lines, "\n", first_content, end_line),
+      request_line = "",
+    })
+  end
+
   return blocks, nil
 end
 
