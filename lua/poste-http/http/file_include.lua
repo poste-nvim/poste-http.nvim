@@ -19,8 +19,9 @@ function M.expand_file_includes(content, buf_dir)
   local result = {}
   local had_include = false
   for _, line in ipairs(lines) do
+    -- Skip script-block lines (< {% ... %} or < {%), they are not file includes.
     local ref = line:match("^%s*<(%s+.+)$")
-    if ref then
+    if ref and not line:match("^%s*< %s*{%%") then
       local path = vim.trim(ref)
       local resolved = resolve_file_path(path, buf_dir)
       if not resolved then

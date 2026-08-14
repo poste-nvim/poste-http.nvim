@@ -334,6 +334,13 @@ describe("zero-coverage smoke specs", function()
       assert.is_nil(out)
       assert.matches("File not found", err)
     end)
+
+    it("does not treat < {% script lines as file includes", function()
+      local content = "< {% print('hello') %}\n"
+      local out, err = file_include.expand_file_includes(content, "/tmp")
+      assert.is_nil(err)
+      assert.equals(content, out)
+    end)
   end)
 
   ---------------------------------------------------------------------------
