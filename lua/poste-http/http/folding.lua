@@ -20,17 +20,23 @@ local function get_separator_ranges(buf)
 end
 
 local cached_separators = {}
-local cached_tick = nil
+local cached_tick = {}
 
 function M.foldexpr()
   local buf = 0
   local lnum = vim.v.lnum - 1
   local ct = vim.api.nvim_buf_get_changedtick(buf)
 
-  if cached_tick ~= ct then
-    cached_separators = get_separator_ranges(buf)
-    cached_tick = ct
+  -- nvim_buf_get_changedtick is per-buffer; two buffers can share a tick value.
+  -- Cache by buffer number so the separator ranges never leak across buffers.
+  local bufnr = vim.api.nvim_get_current_buf()
+
+  if cached_tick[bufnr] ~= ct then
+    cached_separators[bufnr] = get_separator_ranges(buf)
+    cached_tick[bufnr] = ct
   end
+
+  local sep_ranges = cached_separators[bufnr] or {}
 
   local node = ts_query.node_at_point(buf, lnum, 0)
   if not node then return "=" end
@@ -51,9 +57,9 @@ function M.foldexpr()
     return "="
   end
 
-  for i, sep_line in ipairs(cached_separators) do
+  for i, sep_line in ipairs(sep_ranges) do
     if lnum == sep_line then
-      local next_sep = cached_separators[i + 1]
+      local next_sep = sep_ranges[i + 1]
       local fold_end = (next_sep and (next_sep - 1)) or vim.api.nvim_buf_line_count(buf) - 1
       local fold_size = fold_end - sep_line
       if fold_size > 0 then
@@ -61,8 +67,8 @@ function M.foldexpr()
       end
       return "="
     end
-    if i < #cached_separators then
-      local next_sep = cached_separators[i + 1]
+    if i < #sep_ranges then
+      local next_sep = sep_ranges[i + 1]
       if lnum > sep_line and lnum < next_sep then
         return "1"
       end
