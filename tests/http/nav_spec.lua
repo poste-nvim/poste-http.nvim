@@ -296,3 +296,56 @@ return M
     pcall(vim.cmd, "bwipeout!")
   end)
 end)
+
+describe("nav.jump_next / jump_prev", function()
+  local nav = require("poste-http.http.nav")
+
+  local function write_request_file()
+    local req_file = os.tmpname() .. ".http"
+    local f = io.open(req_file, "w")
+    f:write("   ### Indented First\nGET /first\n\n   ### Indented Second\nGET /second\n")
+    f:close()
+    return req_file
+  end
+
+  local function open_request_file(req_file)
+    local buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, req_file)
+    vim.bo[buf].filetype = "poste_http"
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "   ### Indented First",
+      "GET /first",
+      "",
+      "   ### Indented Second",
+      "GET /second",
+    })
+    vim.api.nvim_set_current_buf(buf)
+    return buf
+  end
+
+  it("jump_next lands on an indented ### separator", function()
+    local req_file = write_request_file()
+    local buf = open_request_file(req_file)
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+    assert.has_no.errors(function() nav.jump_next() end)
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    assert.equal(4, cursor[1])
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+    os.remove(req_file)
+  end)
+
+  it("jump_prev lands on an indented ### separator", function()
+    local req_file = write_request_file()
+    local buf = open_request_file(req_file)
+    vim.api.nvim_win_set_cursor(0, { 5, 0 })
+
+    assert.has_no.errors(function() nav.jump_prev() end)
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    assert.equal(4, cursor[1])
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    pcall(vim.cmd, "bwipeout!")
+    os.remove(req_file)
+  end)
+end)

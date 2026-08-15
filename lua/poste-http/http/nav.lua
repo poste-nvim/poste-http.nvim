@@ -101,7 +101,7 @@ function M.jump_next()
   local total = vim.fn.line("$")
   for i = line + 1, total do
     local text = vim.fn.getline(i)
-    if text:match("^###") then
+    if text:match("^%s*###") then
       vim.api.nvim_win_set_cursor(0, { i, 0 })
       return
     end
@@ -113,7 +113,7 @@ function M.jump_prev()
   local line = vim.fn.line(".")
   for i = line - 1, 1, -1 do
     local text = vim.fn.getline(i)
-    if text:match("^###") then
+    if text:match("^%s*###") then
       vim.api.nvim_win_set_cursor(0, { i, 0 })
       return
     end
