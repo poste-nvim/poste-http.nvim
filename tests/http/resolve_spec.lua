@@ -65,4 +65,14 @@ describe("resolve.resolve", function()
     assert.equals("import", calls[1].mode)
     assert.equals("import", calls[2].mode)
   end)
+
+  it("does not crash when on_complete is not callable", function()
+    local calls = {}
+    resolve.resolve("body", {
+      mode = "request",
+      handlers = fake_handlers(calls),
+    }, "not a function")
+
+    assert.equals(2, #calls)
+  end)
 end)

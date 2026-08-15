@@ -68,14 +68,14 @@ end
 ---   - env_name: string|nil
 ---   - handlers: table|nil  Optional { prompts, dependencies } overrides
 ---     (used for testing; defaults come from this module)
---- @param on_complete function|string|nil
+--- @param on_complete function|nil  Callback; non-callable values are ignored
 function M.resolve(content, opts, on_complete)
   opts = opts or {}
   local mode = opts.mode or "request"
   local stage_handlers = opts.handlers or handlers
 
   local function finish(resolved)
-    if on_complete then
+    if type(on_complete) == "function" then
       on_complete(resolved)
     end
   end
