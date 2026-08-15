@@ -4,9 +4,15 @@
 --   nested_access, import_parser, import_openapi, import_swagger,
 --   import_postman, format/multipart, md5, file_include, prompt_vars,
 --   var_collector, format_file, constants
--- GUI-coupled modules (buffer_setup, commands, help, install, highlights,
--- outline, textobj, lua_docs, script_snippet, curl, copy, folding) need a
--- fuller harness and are exercised via existing integration specs.
+-- GUI-coupled modules now covered by dedicated harness specs:
+--   highlights → tests/http/highlights_spec.lua
+--   commands  → tests/http/commands_spec.lua
+--   help      → tests/http/help_spec.lua
+--   script_snippet → tests/http/script_snippet_spec.lua
+-- Remaining GUI-coupled modules (buffer_setup, outline, install, textobj,
+-- lua_docs, curl, copy, folding) are exercised via integration specs and
+-- existing dedicated tests (folding_spec, copy_spec, curl_exec_spec,
+-- buffer_setup_spec).
 
 local M = {}
 
