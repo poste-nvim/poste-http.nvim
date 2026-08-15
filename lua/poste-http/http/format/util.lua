@@ -213,7 +213,8 @@ function M.attachment_filename(r)
   local fn = M.extract_disposition_filename(r.headers)
   if fn and fn ~= "" then return fn end
   local ext = M.content_type_extension(r.content_type)
-  return "download_" .. os.date("%Y%m%d_%H%M%S") .. ext
+  local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
+  return "download_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. ext
 end
 
 return M

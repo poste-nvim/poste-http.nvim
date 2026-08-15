@@ -192,7 +192,7 @@ describe("content-disposition download handling", function()
         content_type = "application/vnd.ms-excel",
       }
       local fn = fmt_util.attachment_filename(r)
-      assert.is_not_nil(fn:match("^download_%d+_%d+%.xls$"))
+      assert.is_not_nil(fn:match("^download_%d+_%d+_%d+%.xls$"))
     end)
 
     it("generates filename with .bin for unknown content types", function()
@@ -201,7 +201,7 @@ describe("content-disposition download handling", function()
         content_type = "application/x-unknown",
       }
       local fn = fmt_util.attachment_filename(r)
-      assert.is_not_nil(fn:match("^download_%d+_%d+%.bin$"))
+      assert.is_not_nil(fn:match("^download_%d+_%d+_%d+%.bin$"))
     end)
   end)
 
