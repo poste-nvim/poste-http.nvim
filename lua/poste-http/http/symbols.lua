@@ -159,6 +159,7 @@ local function show_snacks_picker(requests)
     }
   end
 
+  -- luacheck: ignore Snacks
   Snacks.picker.select(
     items,
     {

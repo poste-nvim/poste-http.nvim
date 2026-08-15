@@ -501,7 +501,7 @@ end
 local function json_byte_span(raw_line)
   local s, e = raw_line:find("^[%s]+")
   s = (s and e) or 0
-  local e = #raw_line
+  e = #raw_line
   while e > s and raw_line:sub(e, e) == " " do e = e - 1 end
   return s, e
 end

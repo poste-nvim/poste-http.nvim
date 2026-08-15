@@ -65,19 +65,6 @@ local function history_file()
   return state.config.history_file or (vim.fn.stdpath("data") .. "/poste-http/history.json")
 end
 
---- Serialize an entry for disk. Drops the transient `_jq` buffer state so
---- jq-filtered line caches are not persisted.
-local function serialize_entry(entry)
-  if not entry or type(entry) ~= "table" then return nil end
-  local r = {}
-  for k, v in pairs(entry) do
-    if k ~= "_jq" then
-      r[k] = v
-    end
-  end
-  return r
-end
-
 --- Write the full history to disk (synchronous, small bounded payload:
 --- http_history_max entries with bodies truncated to MAX_BODY_SAVE).
 local function persist()

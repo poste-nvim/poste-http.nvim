@@ -177,8 +177,6 @@ local function handle_curl_response(response, ctx)
       local file = ctx.file
       local assertion_code = ctx.assertion_code
       local script_vars = ctx.script_vars
-      local req_block = ctx.req_block
-      local req_text = ctx.req_text
 
       if state.pending_request then
         state.pending_request = vim.tbl_extend("keep", {
@@ -538,11 +536,6 @@ local function start_curl_exec(ctx)
   local buf_content = ctx.buf_content
   local req_line = ctx.req_line
   local src_buf = ctx.src_buf
-  local req_block = ctx.req_block
-  local req_text = ctx.req_text
-  local assertion_code = ctx.assertion_code
-  local script_vars = ctx.script_vars
-  local current_req_name = ctx.current_req_name
   local block_start = ctx.block_start
   local block_end = ctx.block_end
 
@@ -698,7 +691,7 @@ function M.run_request()
     local assertion_code
     if block_start then
       script_vars = scripts.collect_script_variables(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
-      _, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end)
+      local _, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end)
     end
 
     -- Place indicator on the run directive line itself

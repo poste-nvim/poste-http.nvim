@@ -264,7 +264,7 @@ function M.inspect(bufnr)
     vim.notify("[Poste] No tree-sitter parser active", vim.log.levels.WARN)
     return
   end
-  local ok, trees = pcall(parser.parse, parser)
+  ok, trees = pcall(parser.parse, parser)
   if not ok or not trees or #trees == 0 then
     vim.notify("[Poste] No parse tree available", vim.log.levels.WARN)
     return

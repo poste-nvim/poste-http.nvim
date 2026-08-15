@@ -9,7 +9,6 @@ local response_window = nil
 local response_cleanup_group = nil
 local response_keymaps_set = false
 local response_buffers = {}  -- view → { idx → buf_nr }
-local active_response_idx = nil
 local setup_keymaps  -- forward declaration
 
 -- Callback for tab-switching keymaps; set by init.lua after show_view is defined.
@@ -129,7 +128,6 @@ function M.reset_multi_response()
     end
   end
   response_buffers = {}
-  active_response_idx = nil
   state.last_responses = nil
   state.response_index = nil
 end
@@ -190,7 +188,6 @@ function M.navigate_response(direction)
   local buf = view_bufs and view_bufs[idx]
   if buf and vim.api.nvim_buf_is_valid(buf) and response_window and vim.api.nvim_win_is_valid(response_window) then
     vim.api.nvim_win_set_buf(response_window, buf)
-    active_response_idx = idx
     pcall(vim.api.nvim_win_set_cursor, response_window, { 1, 0 })
     M.update_winbar(cur_view)
     return

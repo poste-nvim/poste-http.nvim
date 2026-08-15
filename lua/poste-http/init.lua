@@ -7,7 +7,7 @@ require("poste-http.http.scripts")
 require("poste-http.http.request_vars")
 pcall(require, "blink.cmp")
 local completion = require("poste-http.http.completion")
-local symbols = require("poste-http.http.symbols")
+require("poste-http.http.symbols")
 local commands = require("poste-http.commands")
 
 local view = require("poste-http.http.view")

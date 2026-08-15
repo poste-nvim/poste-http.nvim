@@ -116,18 +116,15 @@ function M.render(rows, cols, opts)
     }
   end
 
-  -- Cell texts and natural widths.
-  local texts = {}
+  -- Cell natural widths.
   local natural = {}
   for c = 1, ncols do
     natural[c] = 0
   end
   for r = 1, #rows do
-    texts[r] = {}
     local row = rows[r] or {}
     for c = 1, ncols do
       local text = cell_text(row[c])
-      texts[r][c] = text
       local w = disp_width(text)
       if w > natural[c] then natural[c] = w end
     end

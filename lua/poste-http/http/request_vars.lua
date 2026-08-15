@@ -1,4 +1,3 @@
-local state = require("poste-http.state")
 local cache = require("poste-http.http.cache")
 local form_data = require("poste-http.http.form_data")
 local prompt_vars = require("poste-http.http.prompt_vars")
