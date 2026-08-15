@@ -79,7 +79,7 @@
 - [x] `verbose.lua:216,240,377` 硬编码宽度 80（opts.width 参数化 + separator 同宽）
 - [x] `verbose.lua:15,182-187,595-681` 模块级可变状态（r 附加字段优先于模块级）
 - [x] `verbose.lua:594-629` 字符串启发式分区误判（section_lines 显式标记替代正则）
-- [ ] `buffer_setup.lua:96` namespace 泄漏
+- [x] `buffer_setup.lua:96` namespace 泄漏（模块级单 namespace 替代 per-buffer）
 - [ ] formatters 写磁盘副作用 — `body.lua:26-31`、`verbose.lua:339-344` 秒级文件名覆盖
 - [ ] `boundary_indicator.lua` 快照而非实时
 - [ ] `indicators.lua:85-99` 单一全局 spinner + `_extmarks` 不清理
