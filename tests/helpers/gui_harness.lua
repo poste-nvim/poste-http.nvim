@@ -130,7 +130,10 @@ function M.setup(opts)
   _user_cmds = {}
   _bo = {}
   _wo = {}
-  _o = {}
+  _o = {
+    lines = 24,
+    columns = 80,
+  }
 
   _originals = {}
   _originals.vim_fn = vim.fn
@@ -354,6 +357,12 @@ function M.setup(opts)
     table.insert(M.calls, "nvim_open_term")
     table.insert(M.calls, { buf = buf, opts = opts2 })
     return 3001
+  end
+
+  save_fn("nvim_buf_add_highlight")
+  vim.api.nvim_buf_add_highlight = function(buf, ns, hl_group, line, col_start, col_end)
+    table.insert(M.calls, "nvim_buf_add_highlight")
+    table.insert(M.calls, { buf = buf, ns = ns, hl_group = hl_group, line = line, col_start = col_start, col_end = col_end })
   end
 
   save_fn("nvim_chan_send")
