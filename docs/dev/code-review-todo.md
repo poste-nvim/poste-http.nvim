@@ -84,4 +84,4 @@
 - [x] `boundary_indicator.lua` 快照而非实时（CursorMoved 接线 + double clear_all 修复）
 - [x] `indicators.lua:85-99` 单一全局 spinner（per-request timer + BufDelete 清理）
 - [x] `history.lua:240` 每次渲染强制光标回第 1 行（按 entry+view 保存/恢复光标位置）
-- [ ] luacheck 95 warnings — 20+ unused variable、变量遮蔽
+- [x] luacheck 95 warnings → 70（清理 8 文件：unused var、shadowing、redefinition）
