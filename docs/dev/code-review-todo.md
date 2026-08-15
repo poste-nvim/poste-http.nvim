@@ -76,9 +76,9 @@
 - [x] `cache.lua:473-486` 光标在块尾注释上返回 nil（尾注释归属块，空行仍为块间空隙）
 - [x] `import.lua:698-715` post-script 块扫描越界跳过（用原始 block start 扫原始 content）
 - [x] `resolve.lua:71-77` on_complete 非函数守卫（doc 与实现统一）
-- [ ] `verbose.lua:216,240,377` 硬编码宽度 80
-- [ ] `verbose.lua:15,182-187,595-681` 模块级可变状态
-- [ ] `verbose.lua:594-629` 字符串启发式分区误判
+- [x] `verbose.lua:216,240,377` 硬编码宽度 80（opts.width 参数化 + separator 同宽）
+- [x] `verbose.lua:15,182-187,595-681` 模块级可变状态（r 附加字段优先于模块级）
+- [x] `verbose.lua:594-629` 字符串启发式分区误判（section_lines 显式标记替代正则）
 - [ ] `buffer_setup.lua:96` namespace 泄漏
 - [ ] formatters 写磁盘副作用 — `body.lua:26-31`、`verbose.lua:339-344` 秒级文件名覆盖
 - [ ] `boundary_indicator.lua` 快照而非实时
