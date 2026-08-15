@@ -75,7 +75,7 @@
 - [x] `nav.lua:100,112` 用 `^###` 而非 `^%s*###`
 - [x] `cache.lua:473-486` 光标在块尾注释上返回 nil（尾注释归属块，空行仍为块间空隙）
 - [x] `import.lua:698-715` post-script 块扫描越界跳过（用原始 block start 扫原始 content）
-- [ ] `resolve.lua:71-77` 文档与实现不符
+- [x] `resolve.lua:71-77` on_complete 非函数守卫（doc 与实现统一）
 - [ ] `verbose.lua:216,240,377` 硬编码宽度 80
 - [ ] `verbose.lua:15,182-187,595-681` 模块级可变状态
 - [ ] `verbose.lua:594-629` 字符串启发式分区误判
