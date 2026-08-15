@@ -5,6 +5,7 @@ local _disabled = false
 local _sign_ids = {}  -- { line_0 = sign_id, ... }
 local _sign_group = "poste_boundary_sg"
 local _sign_gen = 0
+local _boundary_augroup = nil
 
 local function define_signs()
   pcall(vim.fn.sign_define, "PosteBoundaryTop",    { text = "┌", texthl = "PosteHttpBoundaryBorder" })
@@ -24,7 +25,9 @@ local function clear_all(buf)
 end
 
 local function apply_range(buf, start, stop)
-  clear_all(_prev_buf)
+  if _prev_buf and _prev_buf ~= buf then
+    clear_all(_prev_buf)
+  end
   if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
   clear_all(buf)
@@ -88,8 +91,20 @@ function M.toggle()
   _disabled = not _disabled
   if _disabled then
     M.clear(vim.api.nvim_get_current_buf())
+    if _boundary_augroup then
+      pcall(vim.api.nvim_del_augroup_by_id, _boundary_augroup)
+      _boundary_augroup = nil
+    end
     vim.notify("HTTP boundary highlight: OFF", vim.log.levels.INFO, { title = "Poste" })
   else
+    _boundary_augroup = vim.api.nvim_create_augroup("PosteHttpBoundary", { clear = true })
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      group = _boundary_augroup,
+      buffer = 0,
+      callback = function()
+        M.refresh(vim.api.nvim_get_current_buf(), vim.fn.line("."))
+      end,
+    })
     M.refresh(vim.api.nvim_get_current_buf(), vim.fn.line("."))
     vim.notify("HTTP boundary highlight: ON", vim.log.levels.INFO, { title = "Poste" })
   end
