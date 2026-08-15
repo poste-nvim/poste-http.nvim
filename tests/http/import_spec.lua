@@ -679,3 +679,119 @@ describe("execute_request_reference", function()
     assert.is_false(executed)
   end)
 end)
+
+describe("execute_run_directive post-script positioning", function()
+  local req_file
+  local buf
+  local orig_curl_execute
+  local orig_run_curry_before
+  local mock_describe
+
+  before_each(function()
+    package.loaded["poste-http.http.import"] = nil
+    package.loaded["poste-http.http.curl_exec"] = nil
+    package.loaded["poste-http.http.describe"] = nil
+    state.last_script_logs = nil
+    state.global_vars = {}
+
+    req_file = os.tmpname() .. ".http"
+    local f = io.open(req_file, "w")
+    f:write([[
+### login
+> {% 
+  client.log("post-script-ran")
+%}
+
+< {% 
+  request.variables.set("a", "1")
+  request.variables.set("b", "2")
+%}
+GET /login
+]])
+    f:close()
+
+    buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, os.tmpname() .. ".http")
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
+      "### Run login",
+      "run #login (@foo=bar)",
+    })
+
+    mock_describe = {
+      describe_content = function()
+        return {
+          {
+            name = "login",
+            line = 1,
+            end_line = 12,
+            method = "GET",
+            path = "/login",
+            headers = {},
+            body = "",
+            request_line = "GET /login",
+          },
+        }, nil
+      end,
+      block_at_line = function(blocks, _)
+        return blocks[1]
+      end,
+      to_req_block = function(meta)
+        return {
+          request_line = meta.request_line or "",
+          headers = meta.headers or {},
+          name = meta.name or "",
+          method = meta.method or "",
+          path = meta.path or "",
+          body = meta.body or "",
+        }
+      end,
+      headers_str = function(meta)
+        local parts = {}
+        for _, h in ipairs(meta.headers or {}) do
+          table.insert(parts, h[1] .. ": " .. (h[2] or ""))
+        end
+        return table.concat(parts, "\n")
+      end,
+    }
+    package.loaded["poste-http.http.describe"] = mock_describe
+
+    local curl_exec = require("poste-http.http.curl_exec")
+    orig_curl_execute = curl_exec.execute
+    curl_exec.execute = function(_, callback)
+      callback({ status = 200, status_text = "OK", body = "{}", headers = {}, metadata = {} })
+    end
+  end)
+
+  after_each(function()
+    state.last_script_logs = nil
+    state.global_vars = {}
+    if orig_curl_execute then
+      package.loaded["poste-http.http.curl_exec"] = nil
+    end
+    package.loaded["poste-http.http.describe"] = nil
+    package.loaded["poste-http.http.import"] = nil
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    os.remove(req_file)
+  end)
+
+  it("runs the target post-script when pre-script injection shifts block lines", function()
+    local import_mod = require("poste-http.http.import")
+
+    import_mod.execute_run_directive({
+      action = "execute",
+      path = req_file,
+      line = 1,
+      request_name = "login",
+      vars = { foo = "bar" },
+    }, function() end)
+
+    assert.is_not_nil(state.last_script_logs, "post-script never ran")
+    local found = false
+    for _, msg in ipairs(state.last_script_logs or {}) do
+      if msg == "post-script-ran" then
+        found = true
+      end
+    end
+    assert.is_true(found, "assertion block was skipped after pre-script injection")
+  end)
+end)

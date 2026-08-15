@@ -682,6 +682,7 @@ function M.execute_run_directive(opts, callback)
 
     -- Find target block bounds
     local block_end = find_block_end(content, opts.line)
+    local orig_block_start = opts.line
     local orig_block_end = block_end  -- original bounds for post-script on original content
 
     resolve_import_content(content, opts.line, opts.path, state.current_env, "import", function(prompt_resolved)
@@ -709,7 +710,9 @@ function M.execute_run_directive(opts, callback)
           return
         end
         -- Run target block's post-script (so client.global.set() persists)
-        process_target_post_script(response, content, opts.line, orig_block_end, file_dir)
+        -- Post-script scans the ORIGINAL content, so use the original block
+        -- start (opts.line may have been shifted by pre-script injection).
+        process_target_post_script(response, content, orig_block_start, orig_block_end, file_dir)
         -- Cache the response for cross-request variable resolution
         request_vars.cache_response(opts.request_name, response)
         if callback then callback(true, response) end
