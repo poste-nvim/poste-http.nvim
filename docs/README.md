@@ -12,9 +12,9 @@ See the [project README](../README.md) for features, installation, quick start, 
 
 | Area | Document | Description |
 |------|----------|-------------|
-| **HTTP** | [User Docs](./user/http/README.md) | Syntax, variables, form-data, quick reference |
-| General | [Installation](./user/plugin-install.md) | Plugin setup with lazy/packer/vim-plug |
+| General | [User Docs](./user/README.md) | Syntax, variables, form-data, keymaps, installation |
 | General | [Keymaps](./user/keymaps.md) | All keybindings and customization |
+| General | [Installation](./user/plugin-install.md) | Plugin setup with lazy/packer/vim-plug |
 
 ## Developer Documentation
 
@@ -23,16 +23,8 @@ See the [project README](../README.md) for features, installation, quick start, 
 | General | [Architecture](./dev/architecture-overview.md) | Layered architecture, protocol isolation, data flow |
 | General | [File Index](./dev/file-index.md) | Key files quick reference |
 | General | [Testing Guide](./dev/testing.md) | Lua + tree-sitter grammar testing workflows |
-| **HTTP** | [Dev Docs](./dev/http/README.md) | TDD guide, formatter design, JSON UX, history |
+| General | [Dev Docs](./dev/README.md) | TDD guide, JSON UX, history, tree-sitter migration |
 
 ---
 
-## Protocol Support
-
-| Protocol | Extension | Status |
-|----------|-----------|--------|
-| HTTP | `.http` / `.rest` | ✅ Complete |
-
----
-
-*Documentation center — Last updated: 2026-07-21*
+*Documentation center — Last updated: 2026-08-15*

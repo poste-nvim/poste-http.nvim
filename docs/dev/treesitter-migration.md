@@ -54,7 +54,7 @@ tree-sitter parser (incremental)
 
 ## Phase 0: ts_query.lua (Foundation)
 
-**File:** `lua/poste/http/ts_query.lua`
+**File:** `lua/poste-http/http/ts_query.lua`
 
 A thin abstraction over `vim.treesitter` APIs. All other modules import this instead of calling tree-sitter directly.
 

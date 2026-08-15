@@ -118,7 +118,7 @@ Other behavior:
 ## User Configuration
 
 ```lua
-require("poste").setup({
+require("poste-http").setup({
   http_history_max = 100,
   keymaps = {
     http_history = {

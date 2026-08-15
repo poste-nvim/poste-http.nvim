@@ -1,6 +1,6 @@
 # JSON Response UX Design
 
-> **Status**: ✅ Implemented — see `lua/poste/http/json.lua` for the live module
+> **Status**: ✅ Implemented — see `lua/poste-http/http/json.lua` for the live module
 
 ## 1. Background
 

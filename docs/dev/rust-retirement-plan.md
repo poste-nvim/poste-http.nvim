@@ -33,7 +33,7 @@ No Rust. One language. One parse authority (tree-sitter). One variable resolver.
 
 ### Phase 2: Variable resolver in Lua ✅
 
-- `lua/poste/http/vars.lua` — `VarResolver` with 7-layer priority chain
+- `lua/poste-http/http/vars.lua` — `VarResolver` with 7-layer priority chain
 - Magic var resolution (`$timestamp`, `$uuid`, `$date`, `$randomInt`)
 - Iterative `{{var}}` substitution (up to 20 iterations)
 - `build_resolver_from_state()` — builds resolver from buffer + state

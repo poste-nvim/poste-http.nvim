@@ -127,7 +127,7 @@ library. Pure functions, unit-tested without windows.
 | File | Description |
 |------|-------------|
 | `syntax/poste_http.vim` | HTTP syntax highlighting |
-| `ftdetect/poste.vim` | Filetype detection (.http/.sql/.sqlite) |
+| `ftdetect/poste.vim` | Filetype detection (.http) |
 
 ---
 

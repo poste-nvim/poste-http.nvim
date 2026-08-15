@@ -1,35 +1,16 @@
 # User Documentation
 
-> Installing the Poste plugin and getting started
-
----
-
-## Installation
-
-See the [plugin installation guide](./plugin-install.md).
-
-## General
+> File-driven HTTP request executor for Neovim
 
 | Document | Description |
 |----------|-------------|
-| [Keymaps Reference](./keymaps.md) | All keybindings: HTTP source/response, history |
-| [Plugin Installation](./plugin-install.md) | Setup with lazy.nvim, packer, or vim-plug |
-
-## HTTP
-
-| Document | Description |
-|----------|-------------|
-| [Syntax Reference](./http/syntax.md) | Complete `.http` / `.rest` file syntax |
-| [Variable Resolution](./http/variables.md) | Variable priority chain — all 7 layers, cross-request refs, CLI usage |
-| [Quick Reference](./http/quick-reference.md) | Syntax cheatsheet |
-| [Form Data](./http/form-data.md) | URL-encoded and multipart form data |
-
-## Quick Start
-
-### In Neovim
-
-Open a `.http` file and press `<Enter>` to execute the request under the cursor.
+| [Installation Guide](./plugin-install.md) | Setup with lazy.nvim / packer / vim-plug |
+| [Keymaps](./keymaps.md) | All keybindings reference |
+| [HTTP Syntax](./syntax.md) | Complete `.http` file syntax reference |
+| [Variables](./variables.md) | Variable priority chain, magic vars, prompts |
+| [Form Data](./form-data.md) | URL-encoded and multipart form data |
+| [Quick Reference](./quick-reference.md) | Cheatsheet for common features |
 
 ---
 
-*User documentation group*
+*User documentation — Last updated: 2026-08-15*

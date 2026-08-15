@@ -199,7 +199,7 @@ Content-Type: multipart/form-data; boundary=----boundary
 
 **Cross-request references** (`{{RequestName.response.body.path}}`) do **NOT** participate in the priority chain — they are resolved independently via response cache.
 
-See [Variable Resolution in Detail](./variables.md) for complete documentation on all variable sources, magic variables, prompt variables, transitive resolution, and the CLI `poste resolve` command.
+See [Variable Resolution in Detail](./variables.md) for complete documentation on all variable sources, magic variables, prompt variables, and transitive resolution.
 
 ### 2.9 Pre-request Script
 
