@@ -285,6 +285,20 @@ describe("block boundary delegation", function()
       local block = cache.get_block_at_line(buf, 3)
       assert.is_nil(block)
     end)
+
+    it("cursor on a trailing comment still resolves to the block", function()
+      local buf = create_buf({
+        "### Block A",
+        "GET /a",
+        "Content-Type: application/json",
+        "",
+        "-- trailing note",
+      })
+      local block = cache.get_block_at_line(buf, 5)
+      assert.is_not_nil(block)
+      assert.equals(1, block.start_line)
+      assert.equals(5, block.end_line)
+    end)
   end)
 
   ----------------------------------------------------------------------------

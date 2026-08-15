@@ -52,18 +52,33 @@ describe("copy_as_curl", function()
     assert.matches("data%-binary", cmd)
   end)
 
-  it("returns error when no request block at cursor", function()
+  it("returns error when no request block at cursor (blank separator line)", function()
     local buf = make_buf({
       "### Block one",
       "GET https://example.com/a",
       "",
-      "# a trailing comment past the last content line",
+      "### Block two",
+      "GET https://example.com/b",
     })
     vim.api.nvim_set_current_buf(buf)
-    vim.fn.setpos(".", { 0, 4, 1, 0 })
+    vim.fn.setpos(".", { 0, 3, 1, 0 })
 
     local cmd, err = copy.copy_as_curl()
     assert.is_nil(cmd)
     assert.matches("No request block", err)
+  end)
+
+  it("resolves the block from a trailing comment line", function()
+    local buf = make_buf({
+      "### Block one",
+      "GET https://example.com/a",
+      "",
+      "-- trailing comment",
+    })
+    vim.api.nvim_set_current_buf(buf)
+    vim.fn.setpos(".", { 0, 4, 1, 0 })
+
+    local cmd = copy.copy_as_curl()
+    assert.is_not_nil(cmd)
   end)
 end)

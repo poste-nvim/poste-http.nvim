@@ -1,7 +1,9 @@
 --- Regression tests: HTTP request block boundary.
 --- Ensures describe.lua (tree-sitter semantic) and cache.lua (UI) agree on the
---- block boundary rule — trailing comments after a request body are NOT part
---- of the request block range. Both now share lua/poste-http/http/block_boundary.lua.
+--- block boundary rule — trailing blank lines after a request body are NOT part
+--- of the request block range, but trailing comment lines still resolve to the
+--- block (so a cursor on a block-end comment can still run the request).
+--- Both now share lua/poste-http/http/block_boundary.lua.
 
 local poste_describe = require("poste-http.http.describe")
 local block_boundary = require("poste-http.http.block_boundary")
@@ -77,10 +79,12 @@ describe("semantic block boundary", function()
     assert.equal(13, blocks[1].end_line)
   end)
 
-  it("block_at_line returns nil on a trailing comment line", function()
+  it("block_at_line returns the block on a trailing comment line", function()
     local blocks = poste_describe.describe_content(magic_vars, "t.http")
-    -- line 10 is inside the trailing `# ...` comment block
-    assert.is_nil(poste_describe.block_at_line(blocks, 10))
+    -- line 10 is inside the trailing `# ...` comment block → belongs to block 1
+    local b = poste_describe.block_at_line(blocks, 10)
+    assert.is_not_nil(b)
+    assert.equals(1, b.line)
   end)
 
   it("block_at_line returns block for its real content", function()
@@ -111,10 +115,14 @@ describe("describe and cache agree on block boundaries", function()
     assert.equals(8, blocks[1].last_content_line)
   end)
 
-  it("both return no block for a trailing comment line", function()
+  it("both resolve a trailing comment line to the same block", function()
     local buf = create_buf(magic_lines)
-    assert.is_nil(cache.get_block_at_line(buf, 10))
+    local cb = cache.get_block_at_line(buf, 10)
+    assert.is_not_nil(cb, "cache should resolve trailing comment line")
+    assert.equals(1, cb.start_line)
     local blocks = poste_describe.describe_content(magic_vars, "t.http")
-    assert.is_nil(poste_describe.block_at_line(blocks, 10))
+    local db = poste_describe.block_at_line(blocks, 10)
+    assert.is_not_nil(db, "describe should resolve trailing comment line")
+    assert.equals(1, db.line)
   end)
 end)

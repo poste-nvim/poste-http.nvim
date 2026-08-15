@@ -60,6 +60,16 @@ local function describe_via_treesitter(content)
     -- after a request body are not part of the block range.
     current_block.last_content_line = last_content
 
+    -- Track trailing comment lines so block_at_line can still resolve a cursor
+    -- sitting on a comment below the request body (see cache.get_block_at_line).
+    -- Without this, describe and cache would disagree on such lines.
+    current_block.comment_lines = {}
+    for i = last_content + 1, end_line do
+      if block_boundary.is_comment(lines[i]) then
+        current_block.comment_lines[i] = true
+      end
+    end
+
     current_block.body = ""
     if current_block._body_text then
       current_block.body = current_block._body_text
@@ -171,11 +181,18 @@ local function describe_via_treesitter(content)
       end
     end
     local end_line, last_content = block_boundary.compute_block_range(lines, first_content)
+    local comment_lines = {}
+    for i = last_content + 1, end_line do
+      if block_boundary.is_comment(lines[i]) then
+        comment_lines[i] = true
+      end
+    end
     table.insert(blocks, {
       name = "",
       line = first_content,
       end_line = end_line,
       last_content_line = last_content,
+      comment_lines = comment_lines,
       method = "",
       path = "",
       headers = {},
@@ -207,14 +224,20 @@ end
 
 function M.block_at_line(blocks, line)
   if not blocks or not line then return nil end
-  -- A line belongs to a block only within its content range (up to
-  -- last_content_line). Trailing comments / separator lines after a request
-  -- body belong to no block — same rule as cache.get_block_at_line.
+  -- A line belongs to a block within its content range (up to
+  -- last_content_line) OR on a trailing comment line after the request body.
+  -- Blank separator lines belong to no block — same rule as cache.get_block_at_line.
   for _, b in ipairs(blocks) do
     local start_l = b.line or 0
     local end_l = b.last_content_line or (b.end_line or start_l)
     if line >= start_l and line <= end_l then
       return b
+    end
+    if line > end_l then
+      local b_end = b.end_line or end_l
+      if line <= b_end and b.comment_lines and b.comment_lines[line] then
+        return b
+      end
     end
   end
   return nil

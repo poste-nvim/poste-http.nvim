@@ -445,10 +445,14 @@ function M.get_block_at_line(buf, line)
   local cache = M.get_buffer_cache(buf)
   for _, block in ipairs(cache.blocks) do
     if line >= block.start_line and line <= block.end_line then
-      -- Check cursor is not on inter-block separator
-      -- (past last content line but before next ###)
+      -- Trailing comment lines still belong to this block: returning nil
+      -- here made run.lua silently skip the request when the cursor sat on
+      -- a comment below the request body.
       if block.last_content_line and line > block.last_content_line then
-        return nil
+        local text = vim.api.nvim_buf_get_lines(buf, line - 1, line, false)[1] or ""
+        if not block_boundary.is_comment(text) then
+          return nil
+        end
       end
       return block
     end
