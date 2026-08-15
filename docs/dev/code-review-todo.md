@@ -82,6 +82,6 @@
 - [x] `buffer_setup.lua:96` namespace 泄漏（模块级单 namespace 替代 per-buffer）
 - [x] formatters 写磁盘副作用 — `body.lua:26-31`、`verbose.lua:339-344` 秒级文件名覆盖（hrtime ms 防冲突）
 - [x] `boundary_indicator.lua` 快照而非实时（CursorMoved 接线 + double clear_all 修复）
-- [ ] `indicators.lua:85-99` 单一全局 spinner + `_extmarks` 不清理
+- [x] `indicators.lua:85-99` 单一全局 spinner（per-request timer + BufDelete 清理）
 - [ ] `history.lua:240` 每次渲染强制光标回第 1 行
 - [ ] luacheck 95 warnings — 20+ unused variable、变量遮蔽
