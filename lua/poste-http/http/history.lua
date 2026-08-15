@@ -278,9 +278,20 @@ local function update_winbar()
   vim.wo[detail_win].winbar = table.concat(parts)
 end
 
+local _detail_cursor = {}  -- { [entry_id] = { [view_name] = { row, col }, ... }, ... }
+
 local function render_detail()
   if not detail_buf or not vim.api.nvim_buf_is_valid(detail_buf) then return end
+
+  -- Save cursor for the current entry+view before re-rendering
   local entry = state.http_history[current_index]
+  if entry and detail_win and vim.api.nvim_win_is_valid(detail_win) then
+    local pos = vim.api.nvim_win_get_cursor(detail_win)
+    _detail_cursor[entry.id] = _detail_cursor[entry.id] or {}
+    _detail_cursor[entry.id][detail_view] = pos
+  end
+
+  entry = state.http_history[current_index]
   if not entry then
     vim.api.nvim_set_option_value("modifiable", true, { buf = detail_buf })
     vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, { "(no history)" })
@@ -310,7 +321,18 @@ local function render_detail()
   vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = detail_buf })
   vim.bo[detail_buf].filetype = filetype or "text"
-  pcall(vim.api.nvim_win_set_cursor, detail_win, { 1, 0 })
+
+  local saved = _detail_cursor[entry.id] and _detail_cursor[entry.id][detail_view]
+  if saved then
+    local max_line = vim.api.nvim_buf_line_count(detail_buf)
+    if saved[1] <= max_line then
+      pcall(vim.api.nvim_win_set_cursor, detail_win, saved)
+    else
+      pcall(vim.api.nvim_win_set_cursor, detail_win, { max_line, 0 })
+    end
+  else
+    pcall(vim.api.nvim_win_set_cursor, detail_win, { 1, 0 })
+  end
   update_winbar()
 
   if filetype == "json" then
