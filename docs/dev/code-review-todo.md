@@ -71,7 +71,7 @@
 - [x] `symbols.lua:71` 只扫 `start_line + 20` 行；`:24-34` 字节截断切碎 CJK
 - [x] blink keyword pattern 不含 `-` — `completion.lua:39-41`（含 nvim-cmp 同步）；列号约定统一为 1-based 行 / 0-based 列（对齐 `nvim_win_get_cursor`）
 - [x] `context_detector.lua:46-48` 列号约定不一致
-- [ ] `folding.lua:22-33` 缓存不按 buffer 键控
+- [x] `folding.lua:22-33` 缓存不按 buffer 键控
 - [ ] `nav.lua:100,112` 用 `^###` 而非 `^%s*###`
 - [ ] `cache.lua:473-486` 光标在块尾注释上返回 nil
 - [ ] `import.lua:698-715` post-script 定位风险
