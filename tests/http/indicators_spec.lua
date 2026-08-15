@@ -128,4 +128,43 @@ describe("indicators", function()
       indicators.clear_all(nil)  -- should not crash
     end)
   end)
+
+  -------------------------------------------------------------------------
+  -- concurrent spinners
+  -------------------------------------------------------------------------
+
+  describe("concurrent spinners", function()
+    it("keeps first spinner timer when second starts on different buffer", function()
+      indicators.set_indicator(1, 0, "running")
+      mock.reset_calls()
+
+      indicators.set_indicator(2, 0, "running")
+
+      local timer_start_count = 0
+      for _, call in ipairs(mock.calls) do
+        if call == "uv_timer_start" then
+          timer_start_count = timer_start_count + 1
+        end
+      end
+      assert.equals(1, timer_start_count,
+        "second spinner should create a new timer (not stop the first)")
+    end)
+
+    it("stops only the completed spinner's timer, not other spinners", function()
+      indicators.set_indicator(1, 0, "running")
+      indicators.set_indicator(2, 0, "running")
+      mock.reset_calls()
+
+      indicators.set_indicator(1, 0, "success", 42)
+
+      local timer_stop_count = 0
+      for _, call in ipairs(mock.calls) do
+        if call == "uv_timer_stop" then
+          timer_stop_count = timer_stop_count + 1
+        end
+      end
+      assert.equals(1, timer_stop_count,
+        "should stop only one timer (the completed spinner)")
+    end)
+  end)
 end)
