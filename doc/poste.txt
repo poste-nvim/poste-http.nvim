@@ -252,7 +252,7 @@ The current environment is shown in the winbar.
     <leader>h              Show request history
     <leader>e              Cycle environment
 
-Keymaps are set in `poste_http` and `poste_sql` buffers.
+Keymaps are set in `poste_http` buffers.
 
 ==============================================================================
 9. COMMANDS                                            *poste-commands*

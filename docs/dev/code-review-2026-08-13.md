@@ -293,7 +293,7 @@
 - 位置：`tests/diag/diag_context.lua`、`diag_stmt.lua`、`diag_space_trigger.lua`、`diag_winbar.lua`、`tests/bench/bench_dataset.lua`、`bench_dataset_driver.lua`、`tests/http/test_winbar_alignment.lua`
 - 证据：【代码】以上文件均 `require("poste.sql.*")`，违反 AGENTS.md「No require poste.sql.*」；`diag_context.lua:90-91` 还执行 `vim.cmd("qa!")`。
 - 后果：一旦被测试发现即崩掉整个测试进程；当前是纯死重。
-- 建议：整目录删除。
+- 建议：已删除（`experiments/prototype.lua` 亦同）。
 
 ### F26 空测试与假测试
 

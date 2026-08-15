@@ -31,7 +31,7 @@ Poste keymaps are grouped by UI element. Each group has a unique config name:
 | `http_response` | HTTP | HTTP response buffer |
 | `http_history` | HTTP | HTTP request history popup |
 
-SQL keymap groups (`sql_source`, `sql_dataset`, `sql_table_ops`, `sql_db_browser`, `sql_introspect`) are configured in the [poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) plugin.
+
 
 Override in `setup({ keymaps = { <group_name> = { ... } } })`.
 
@@ -130,8 +130,7 @@ configured keybindings.
 ## Full Default Configuration
 
 Below is the complete default keymap config from `state.lua`, ready to use as
-a starting point for customization. SQL keymap defaults are in the
-[poste-sql.nvim](https://github.com/beyondlex/poste-sql.nvim) plugin.
+a starting point for customization.
 
 ```lua
 require("poste-http").setup({
