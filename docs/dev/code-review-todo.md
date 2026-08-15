@@ -73,7 +73,7 @@
 - [x] `context_detector.lua:46-48` 列号约定不一致
 - [x] `folding.lua:22-33` 缓存不按 buffer 键控
 - [x] `nav.lua:100,112` 用 `^###` 而非 `^%s*###`
-- [ ] `cache.lua:473-486` 光标在块尾注释上返回 nil
+- [x] `cache.lua:473-486` 光标在块尾注释上返回 nil（尾注释归属块，空行仍为块间空隙）
 - [ ] `import.lua:698-715` post-script 定位风险
 - [ ] `resolve.lua:71-77` 文档与实现不符
 - [ ] `verbose.lua:216,240,377` 硬编码宽度 80
