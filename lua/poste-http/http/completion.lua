@@ -37,7 +37,7 @@ end
 
 --- blink.cmp: keyword pattern for word boundary detection.
 function M:get_keyword_pattern()
-  return '[#%w_]+'
+  return '[#%w_%-]+'
 end
 
 --- blink.cmp: get completion items.
@@ -49,6 +49,8 @@ function M:get_completions(ctx, callback)
   local buf = ctx.bufnr or vim.api.nvim_get_current_buf()
   local line_before_cursor = line:sub(1, col)
 
+  -- blink exposes ctx.cursor = nvim_win_get_cursor(0) = {1-based row, 0-based col},
+  -- matching context_detector's convention.
   local items = item_builder.get_items_for_context(line_before_cursor, buf, cursor_line, col)
 
   callback({
@@ -84,7 +86,7 @@ function source.new()
 end
 
 function source.get_keyword_pattern()
-  return [=[#\w]\+]=]
+  return [=[[#\w%-]\+]=]
 end
 
 function source:get_trigger_characters()

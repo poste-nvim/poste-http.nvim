@@ -249,6 +249,24 @@ describe("detect_context", function()
         vim.api.nvim_buf_delete(buf, { force = true })
         assert.is_nil(ctx)
       end)
+
+      it("detects script context with 0-based col (nvim cursor convention)", function()
+        local buf = block_buf({
+          "### Orchestration",
+          "SCRIPT",
+          "> {%",
+          "  local r = client.run(\"#api\")",
+          "%}",
+        })
+        if not ts_query.is_available(buf) then
+          vim.api.nvim_buf_delete(buf, { force = true })
+          return -- parser not installed, skip
+        end
+        -- Cursor on line 4 (1-based), col 0 (0-based) → col - 1 would be -1
+        local ctx = detect_context("", buf, 4, 0)
+        vim.api.nvim_buf_delete(buf, { force = true })
+        assert.equals("post_script", ctx)
+      end)
     end)
 
     describe("with broken parser (falls back to regex)", function()
@@ -271,6 +289,23 @@ describe("detect_context", function()
       it("returns nil on a request line URL", function()
         local buf = block_buf({ "### ", "POST {{base_url}}/post/" })
         local ctx = detect_context("POST {{base_url}}/post/", buf, 2, 23)
+        vim.api.nvim_buf_delete(buf, { force = true })
+        assert.is_nil(ctx)
+      end)
+
+      it("uses 1-indexed lines for the non-TS script lookup", function()
+        local buf = block_buf({
+          "### Script",
+          "SCRIPT",
+          "> {%",
+          "  client.test('x', function() end)",
+          "%}",
+          "GET /after",
+        })
+        -- Cursor on the request line AFTER the script block (1-indexed line 6).
+        -- cursor_line is 1-based; a stale 0-based lookup would land on the `%}`
+        -- line and misreport post_script.
+        local ctx = detect_context("GET /after", buf, 6, 0)
         vim.api.nvim_buf_delete(buf, { force = true })
         assert.is_nil(ctx)
       end)

@@ -43,9 +43,11 @@ local function detect_client_run_target(line_before_cursor)
   return nil
 end
 
+--- Detect if cursor is inside a pre/post script block via tree-sitter.
+--- cursor_line is 1-based, cursor_col is 0-based (nvim_win_get_cursor).
 local function ts_detect_script_context(buf, cursor_line, cursor_col)
   local row = cursor_line - 1
-  local col = cursor_col - 1
+  local col = cursor_col
   local node = ts_query.node_at_point(buf, row, col)
   if not node then return nil end
 
