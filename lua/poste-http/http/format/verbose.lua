@@ -13,6 +13,7 @@ local verbose_ns = vim.api.nvim_create_namespace("poste_verbose")
 local json_ns = vim.api.nvim_create_namespace("poste_verbose_json")
 
 local _sep_lines = nil
+local _section_lines = nil
 
 -- Content-type → filetype mapping
 local content_type_map = {
@@ -132,10 +133,22 @@ end
 
 --- Unified verbose view: called with either a response object, a pending
 --- request table, or both.
-function M.format_verbose(r, pending)
+function M.format_verbose(r, pending, opts)
+  opts = opts or {}
   if r and r._cached_verbose then return r._cached_verbose end
   local lines = {}
-  _sep_lines = {}
+  local sep_lines = {}
+  local section_lines = {}
+  local fmt_width = opts.width or 80
+  if r then
+    r._sep_lines = sep_lines
+    r._section_lines = section_lines
+    r._fmt_width = fmt_width
+  else
+    _sep_lines = sep_lines
+    _section_lines = section_lines
+    M._fmt_width = fmt_width
+  end
 
   local method = ""
   local url = ""
@@ -181,7 +194,7 @@ function M.format_verbose(r, pending)
     request_name = pending.name
   end
   table.insert(lines, "  ")
-  _sep_lines[#lines] = true
+  sep_lines[#lines] = true
 
   -- General section: key-value pairs rendered with aligned columns
   local general_rows = {}
@@ -202,16 +215,17 @@ function M.format_verbose(r, pending)
     local general_lines, _ = columns.render(general_rows, {
       { max = 20, gap = 2 },
       { flex = true, pad = false },
-    }, { width = 80, gap = 1 })
+    }, { width = fmt_width, gap = 1 })
     for _, line in ipairs(general_lines) do
       table.insert(lines, line)
     end
   end
 
   table.insert(lines, "  ")
-  _sep_lines[#lines] = true
+  sep_lines[#lines] = true
 
   table.insert(lines, "  Request Headers")
+  section_lines[#lines] = true
   if request_headers ~= "" then
     local header_rows = {}
     for l in request_headers:gmatch("[^\r\n]+") do
@@ -226,7 +240,7 @@ function M.format_verbose(r, pending)
       local header_lines, _ = columns.render(header_rows, {
         { max = 30, gap = 2 },
         { flex = true, pad = false },
-      }, { width = 80, gap = 1 })
+      }, { width = fmt_width, gap = 1 })
       for _, line in ipairs(header_lines) do
         table.insert(lines, line)
       end
@@ -237,6 +251,7 @@ function M.format_verbose(r, pending)
 
   -- Query Parameters section
   table.insert(lines, "  Query Parameters")
+  section_lines[#lines] = true
   if url ~= "" then
     local qmark = url:find("?")
     if qmark then
@@ -260,6 +275,7 @@ function M.format_verbose(r, pending)
 
   -- Request Body section
   table.insert(lines, "  Request Body")
+  section_lines[#lines] = true
   if request_body ~= "" then
     local multipart = require("poste-http.http.format.multipart")
     local verbose_body = multipart.strip_request_preamble(request_body, request_headers)
@@ -301,21 +317,24 @@ function M.format_verbose(r, pending)
   if r then
     if r.protocol == "error" then
       table.insert(lines, "  ")
-      _sep_lines[#lines] = true
+      sep_lines[#lines] = true
       if r.body and r.body ~= "" then
         table.insert(lines, "  Details")
-        table.insert(lines, "  " .. r.body:gsub("\n", "\n  "))
+      section_lines[#lines] = true
+      table.insert(lines, "  " .. r.body:gsub("\n", "\n  "))
       end
       r._cached_verbose = lines
-      r._sep_lines = _sep_lines
+      r._sep_lines = sep_lines
+      r._section_lines = section_lines
       return lines
     end
 
     table.insert(lines, "  ")
-    _sep_lines[#lines] = true
+    sep_lines[#lines] = true
 
     if r.headers and #r.headers > 0 then
       table.insert(lines, "  Response Headers")
+      section_lines[#lines] = true
       for _, h in ipairs(r.headers) do
         table.insert(lines, "  " .. h[1] .. ": " .. h[2])
       end
@@ -323,6 +342,7 @@ function M.format_verbose(r, pending)
 
     if r.body and r.body ~= "" then
       table.insert(lines, "  Response Body")
+      section_lines[#lines] = true
 
       -- Content-Disposition: attachment → save body to file before display
       if not (r.metadata and r.metadata.file_path) and r.headers then
@@ -354,6 +374,7 @@ function M.format_verbose(r, pending)
       local conn_info = extract_connection_info(verbose)
       if next(conn_info) then
         table.insert(lines, "  Connection")
+        section_lines[#lines] = true
         local conn_rows = {}
         if conn_info.proxy then table.insert(conn_rows, { "  Proxy: ", conn_info.proxy }) end
         if conn_info.tls then table.insert(conn_rows, { "  TLS: ", conn_info.tls }) end
@@ -363,7 +384,7 @@ function M.format_verbose(r, pending)
           local conn_lines, _ = columns.render(conn_rows, {
             { max = 16, gap = 2 },
             { flex = true, pad = false },
-          }, { width = 80, gap = 1 })
+          }, { width = fmt_width, gap = 1 })
           for _, line in ipairs(conn_lines) do
             table.insert(lines, line)
           end
@@ -372,10 +393,6 @@ function M.format_verbose(r, pending)
     end
   end
 
-  if r then
-    r._cached_verbose = lines
-    r._sep_lines = _sep_lines
-  end
   return lines
 end
 
@@ -436,8 +453,11 @@ function M.format_request_payload(r)
     if #raw_lines > 10 then
       table.insert(lines, string.format("  ... (%d more lines)", #raw_lines - 10))
     end
-    return lines
+if r then
+    r._cached_verbose = lines
   end
+  return lines
+end
 
   if ct:lower():find("application/x%-www%-form%-urlencoded") then
     local form_lines = fmt_util.format_urlencoded_body(body_only)
@@ -581,7 +601,8 @@ function M.apply_verbose_highlights(buf, lines, r)
   local in_req_body = false
   local in_req_headers = false
   local req_content_type = nil
-  local sep_lookup = _sep_lines or (r and r._sep_lines) or {}
+  local sep_lookup = (r and r._sep_lines) or _sep_lines or {}
+  local section_lookup = (r and r._section_lines) or _section_lines or {}
   for i, line in ipairs(lines) do
     if line == "  Response Body" then
       in_body = true
@@ -591,7 +612,7 @@ function M.apply_verbose_highlights(buf, lines, r)
       req_body_start = i + 1
     elseif line == "  Request Headers" then
       in_req_headers = true
-    elseif (line:match("^  [A-Z][a-z]") and not line:find(":")) or sep_lookup[i] then
+    elseif section_lookup[i] or sep_lookup[i] then
       if in_body then
         body_end = i - 1
         in_body = false
@@ -632,29 +653,22 @@ function M.apply_verbose_highlights(buf, lines, r)
       goto next
     end
 
-    local sep_lines = _sep_lines or (r and r._sep_lines)
+    local sep_lines = (r and r._sep_lines) or _sep_lines
     if sep_lines and sep_lines[i] then
-      local width = 80
-      local wins = vim.api.nvim_list_wins()
-      for _, w in ipairs(wins) do
-        if vim.api.nvim_win_get_buf(w) == buf then
-          width = vim.api.nvim_win_get_width(w)
-          break
-        end
-      end
+      local width = (r and r._fmt_width) or M._fmt_width or 80
       vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
         virt_text = {{string.rep("─", width), "PosteVerboseSeparator"}},
         virt_text_pos = "overlay",
         priority = 100,
       })
-    elseif line:match("^  [A-Z][a-z]") and not line:find(":") then
+    elseif section_lookup[i] then
       vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 0, {
         end_row = row, end_col = #line,
         hl_group = "PosteVerboseSection", priority = 100,
       })
     elseif line:match("^  %w+://") then
-      local fmt_method = M._fmt_method or (r and r._fmt_method)
-      local fmt_method_line = M._fmt_method_line or (r and r._fmt_method_line)
+      local fmt_method = (r and r._fmt_method) or M._fmt_method
+      local fmt_method_line = (r and r._fmt_method_line) or M._fmt_method_line
       if fmt_method and fmt_method ~= "" and row == fmt_method_line then
         local hl_map = {
           GET = "PosteMethodGET", POST = "PosteMethodPOST", PUT = "PosteMethodPUT",
@@ -763,6 +777,7 @@ function M.apply_verbose_highlights(buf, lines, r)
     end
   end
   _sep_lines = nil
+  _section_lines = nil
 end
 
 return M

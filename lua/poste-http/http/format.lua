@@ -196,7 +196,7 @@ function M.format_view(view, r, opts)
       return M.format_body(r), M.detect_filetype(r.content_type)
     end
   elseif view == "verbose" then
-    return M.format_verbose(r, opts.pending_request), "text"
+    return M.format_verbose(r, opts.pending_request, opts), "text"
   elseif view == "assertions" then
     local ass = require("poste-http.http.assertions")
     return ass.format_assertions(opts.assertion_results), "poste_assertions"
