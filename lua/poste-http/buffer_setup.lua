@@ -2,6 +2,8 @@ local state = require("poste-http.state")
 local _ = require("poste-http.indicators")
 local M = {}
 
+local fileref_ns = vim.api.nvim_create_namespace("poste_fileref")
+
 function M.setup_buffer_keymaps(buf)
   local keymap_opts = { buffer = buf, noremap = true, silent = true }
   local km = state.get_keymap
@@ -93,7 +95,6 @@ function M.setup_buffer_keymaps(buf)
     end,
   })
 
-  local fileref_ns = vim.api.nvim_create_namespace("poste_fileref_" .. buf)
   local function refresh_fileref_marks()
     if not vim.api.nvim_buf_is_valid(buf) then return end
     vim.api.nvim_buf_clear_namespace(buf, fileref_ns, 0, -1)

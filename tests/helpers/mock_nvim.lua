@@ -213,6 +213,7 @@ end
   -- Mock nvim_create_namespace
   vim.api.nvim_create_namespace = function(name)
     table.insert(M.calls, "nvim_create_namespace")
+    table.insert(M.calls, name)
     return 42  -- arbitrary ns id
   end
 
