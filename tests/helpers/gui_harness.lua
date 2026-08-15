@@ -365,6 +365,18 @@ function M.setup(opts)
     table.insert(M.calls, { buf = buf, ns = ns, hl_group = hl_group, line = line, col_start = col_start, col_end = col_end })
   end
 
+  save_fn("nvim_buf_get_changedtick")
+  vim.api.nvim_buf_get_changedtick = function(buf)
+    table.insert(M.calls, "nvim_buf_get_changedtick")
+    return 0
+  end
+
+  save_fn("nvim_buf_get_name")
+  vim.api.nvim_buf_get_name = function(buf)
+    table.insert(M.calls, "nvim_buf_get_name")
+    return "/tmp/test.http"
+  end
+
   save_fn("nvim_chan_send")
   vim.api.nvim_chan_send = function(chan, data)
     table.insert(M.calls, "nvim_chan_send")
