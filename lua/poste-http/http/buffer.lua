@@ -359,11 +359,15 @@ setup_keymaps = function(buf)
         vim.notify("Source buffer not visible in any window", vim.log.levels.WARN)
         return
       end
+      local response_win = vim.api.nvim_get_current_win()
       vim.api.nvim_set_current_win(win)
       pcall(vim.api.nvim_win_set_cursor, win, { last.line, 0 })
       -- Clear last_response so the UI updates even if the same request returns quickly
       state.set_response(nil)
       require("poste-http").run_request()
+      if vim.api.nvim_win_is_valid(response_win) then
+        vim.api.nvim_set_current_win(response_win)
+      end
     end, opts)
   end
 

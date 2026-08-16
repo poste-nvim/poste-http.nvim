@@ -45,7 +45,7 @@ Content-Type: application/json
   local name = names[math.random(#names)];
   request.variables.set('name', name);
 %}
-@base_url = http://localhosot:8888
+@base_url = http://localhost:8888
 POST {{base_url}}/anything
 Content-Type: application/json
 
