@@ -84,6 +84,21 @@ end
 function M.render_response_image(buf, r, cursor_line)
   return image_mod.render_response_image(buf, r, cursor_line)
 end
+function M.get_url_under_cursor()
+  return image_mod.get_url_under_cursor()
+end
+function M.guess_image_content_type(url)
+  return image_mod.guess_image_content_type(url)
+end
+function M.download_image_url(url)
+  return image_mod.download_image_url(url)
+end
+function M.preview_image_url(buf, url, cursor_line)
+  return image_mod.preview_image_url(buf, url, cursor_line)
+end
+function M.cleanup_url_preview()
+  return image_mod.cleanup_url_preview()
+end
 
 ---------------------------------------------------------------------------
 -- Body formatting (re-exported from format/body.lua)

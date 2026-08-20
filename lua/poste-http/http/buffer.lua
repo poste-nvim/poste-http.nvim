@@ -414,22 +414,34 @@ setup_keymaps = function(buf)
     vim.notify(string.format("Opening: %s", file_path), vim.log.levels.INFO, { title = "Poste" })
   end, { buffer = buf, noremap = true, silent = true })
 
-  -- K on image response: try inline render in Body, otherwise open system viewer
+  -- K on image response: try inline render in Body, otherwise open system viewer.
+  -- Also supports previewing image URLs in JSON/text responses.
   k = state.get_keymap("http_response", "image_preview", "K")
   if k then
     vim.keymap.set("n", k, function()
       local bufnr = vim.api.nvim_get_current_buf()
       if bufnr ~= buf then return end
       local r = state.last_response
-      if not r or not r.metadata or not r.metadata.file_path then return end
-      if not format.is_image_content_type(r.metadata.file_content_type) then return end
-      local ok = false
-      if state.current_view == "body" then
-        local cursor_line = vim.api.nvim_buf_line_count(buf) - format.inline_image_padding_lines() + 1
-        ok = format.render_response_image(buf, r, cursor_line)
-      end
-      if not ok then
+
+      -- Try image response preview first
+      if r and r.metadata and r.metadata.file_path and format.is_image_content_type(r.metadata.file_content_type) then
+        if state.current_view == "body" then
+          local cursor_line = vim.api.nvim_buf_line_count(buf) - format.inline_image_padding_lines() + 1
+          if format.render_response_image(buf, r, cursor_line) then return end
+        end
         format.open_image_external(r.metadata.file_path)
+        return
+      end
+
+      -- Fallback: URL under cursor
+      if state.current_view == "body" then
+        local url = format.get_url_under_cursor()
+        if url then
+          local cursor_line = vim.fn.line(".")
+          vim.defer_fn(function()
+            format.preview_image_url(buf, url, cursor_line)
+          end, 50)
+        end
       end
     end, opts)
   end
@@ -463,6 +475,7 @@ end
 --- Ensure the response split is open and display the given lines
 function M.render_buffer(lines, filetype)
   format.close_image_preview()
+  format.cleanup_url_preview()
   local buf = get_response_buffer()
 
   -- Make buffer modifiable, write lines, lock again
