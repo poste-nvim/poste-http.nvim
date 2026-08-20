@@ -263,19 +263,22 @@ end
 function M.get_url_under_cursor()
   local line = vim.fn.getline(".")
   local col = vim.fn.col(".") - 1
-  local url_pattern = "https?://[^\"'%s>]+"
+  local url_pattern = "https?://[^\"'%s>%)%]]+"
   local urls = {}
   for u in line:gmatch(url_pattern) do
     table.insert(urls, u)
   end
   for _, u in ipairs(urls) do
-    local start_idx, end_idx = line:find(vim.pesc(u), 1, true)
+    local start_idx, end_idx = line:find(u, 1, true)
     if start_idx and col >= start_idx - 1 and col < end_idx then
       return u
     end
   end
   local expanded = vim.fn.expand("<cfile>")
-  if expanded and expanded:match("^https?://") then
+  if expanded then
+    expanded = expanded:match("^https?://[^\"'%s>%,%)%]]+")
+  end
+  if expanded then
     return expanded
   end
   return nil
@@ -285,7 +288,7 @@ end
 ---@param url string
 ---@return string|nil content_type
 function M.guess_image_content_type(url)
-  local ext = (url:match("%.([^%.%?/]+)%s*$") or ""):lower()
+  local ext = (url:match(".*%.([^%.%?/]+)") or ""):lower()
   return image_url_exts[ext]
 end
 
