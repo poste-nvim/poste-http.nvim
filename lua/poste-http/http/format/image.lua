@@ -97,11 +97,22 @@ local function try_snacks_image(buf, file_path, cursor_line)
     inline = true,
     conceal = false,
   })
-  if not placement_ok or not placement then
+  if not placement_ok then
+    vim.notify("snacks.image preview failed: " .. tostring(placement), vim.log.levels.WARN, { title = "Poste" })
+    return false
+  end
+  if not placement then
     return false
   end
 
   image_preview_state.snacks_placement = placement
+  vim.schedule(function()
+    vim.defer_fn(function()
+      if placement.img and placement.img:failed() then
+        vim.notify("snacks.image async load failed for: " .. file_path, vim.log.levels.WARN, { title = "Poste" })
+      end
+    end, 2000)
+  end)
   return true
 end
 

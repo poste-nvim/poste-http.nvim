@@ -915,7 +915,6 @@ async def store_endpoint(request: Request):
     if "multipart/form-data" in ct_header:
         # Multipart upload — extract the file part
         raw_body = await request.body()
-        normalized = raw_body.replace(b"\n", b"\r\n").replace(b"\r\r\n", b"\r\n")
 
         boundary = ""
         for part in ct_header.split(";"):
@@ -925,7 +924,7 @@ async def store_endpoint(request: Request):
                 break
 
         if boundary:
-            parts = _parse_multipart(normalized, boundary.encode())
+            parts = _parse_multipart(raw_body, boundary.encode())
             for name, _, fname, fct, data in parts:
                 if fname:
                     filename = fname
@@ -1181,14 +1180,18 @@ def _parse_multipart(
         if not part or part.startswith(b"--"):
             continue
 
-        part_normalized = part.replace(b"\r\n", b"\n")
-        blank_idx = part_normalized.find(b"\n\n")
-        if blank_idx == -1:
-            header_section = part_normalized
-            body_data = b""
+        blank_idx = part.find(b"\r\n\r\n")
+        if blank_idx >= 0:
+            header_section = part[:blank_idx].replace(b"\r\n", b"\n")
+            body_data = part[blank_idx + 4 :]
         else:
-            header_section = part_normalized[:blank_idx]
-            body_data = part_normalized[blank_idx + 2 :]
+            blank_idx = part.find(b"\n\n")
+            if blank_idx >= 0:
+                header_section = part[:blank_idx]
+                body_data = part[blank_idx + 2 :]
+            else:
+                header_section = part.replace(b"\r\n", b"\n")
+                body_data = b""
 
         name = ""
         filename: str | None = None

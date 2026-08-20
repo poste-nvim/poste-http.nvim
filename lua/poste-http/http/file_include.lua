@@ -27,14 +27,12 @@ function M.expand_file_includes(content, buf_dir)
       if not resolved then
         return nil, "Invalid file path: " .. path
       end
-      local fd = io.open(resolved, "r")
+      local fd = io.open(resolved, "rb")
       if not fd then
         return nil, "File not found: " .. resolved .. " (referenced from body line)"
       end
       local file_content = fd:read("*a")
       fd:close()
-      file_content = file_content:gsub("\r\n", "\n")
-      file_content = file_content:gsub("\n$", "")
       table.insert(result, file_content)
       had_include = true
     else

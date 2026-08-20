@@ -94,7 +94,7 @@ function M.execute(opts, callback)
   local resp_body_file = tmp_dir .. "/resp_body"
 
   if expanded_body and expanded_body ~= "" then
-    local fd, werr = io.open(req_body_file, "w")
+    local fd, werr = io.open(req_body_file, "wb")
     if not fd then
       cleanup_temp_dir(tmp_dir)
       callback({ error = "Failed to write request body temp file: " .. tostring(werr) })
