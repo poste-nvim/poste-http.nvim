@@ -221,6 +221,9 @@ Hello from Poste! This file was uploaded at {{$timestamp}}.
   client.global.set('store_file_id', response.body.file_id)
 %}
 
+### t
+GET localhost:8080
+
 ### 45 — Upload multipart to /store
 POST {{host}}/store HTTP/1.1
 Content-Type: multipart/form-data; boundary=----StoreBoundary
@@ -237,18 +240,25 @@ POST {{host}}/store HTTP/1.1
 Content-Type: multipart/form-data; boundary=----StoreBoundary
 
 ------StoreBoundary
-Content-Disposition: form-data; name="file"; filename="g.jpg"
+Content-Disposition: form-data; name="file"; filename="g.png"
 Content-Type: image/png
 
-< /Users/lex/Downloads/g.jpg
+< /Users/lex/Downloads/e877eed8-94b6-4e7c-801e-ea11596e8710_0.png
 ------StoreBoundary--
 
-### 46 — Download stored file (use file_id from #44 or #45 response)
-<<store_file_id [{{47 — List all stored files.response.body.files[].file_id}}]
+### 46 — List all stored files
+GET {{host}}/files
+
+### 47 — Download stored file (use file_id from #44 or #45 response)
+<<store_file_id [{{46 — List all stored files.response.body.files[].file_id}}]
 GET {{host}}/download/{{store_file_id}}
 
-### 47 — List all stored files
-GET {{host}}/files
+### show webp
+GET https://storage.moegirl.org.cn/moegirl/commons/1/11/%E6%B0%B4%E9%B8%9F%E4%BA%9A%E9%B8%9F_anime_stand.webp
+
+### show jpg
+GET https://ww1.sinaimg.cn/mw690/7205b6c7ly1hu246tzx6wj20rs16hqfw.jpg
+
 
 ### 48 — Delete a stored file (use file_id from #44 or #45 response)
 <<store_file_id [{{47 — List all stored files.response.body.files[].file_id}}]

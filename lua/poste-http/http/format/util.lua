@@ -44,7 +44,7 @@ function M.save_body_to_file(body, content_type, r)
   local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
   vim.fn.mkdir(cache_dir, "p")
   local tmp_file = string.format("%s/res_%s.txt", cache_dir, vim.fn.strftime("%Y%m%d_%H%M%S_%6N"))
-  local f = io.open(tmp_file, "w")
+  local f = io.open(tmp_file, "wb")
   if not f then return nil end
   f:write(body)
   f:close()
@@ -206,6 +206,22 @@ function M.save_binary_body(body, filename, content_type, r)
   r.metadata.file_size = #body
   r.metadata.file_content_type = content_type
   r.metadata.content_disposition_attachment = true
+  return file_path
+end
+
+function M.save_binary_file(body, filename, content_type, r)
+  local cfg = state.config or {}
+  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
+  vim.fn.mkdir(cache_dir, "p")
+  local file_path = cache_dir .. "/" .. filename
+  local f = io.open(file_path, "wb")
+  if not f then return nil end
+  f:write(body)
+  f:close()
+  if not r.metadata then r.metadata = {} end
+  r.metadata.file_path = file_path
+  r.metadata.file_size = #body
+  r.metadata.file_content_type = content_type
   return file_path
 end
 

@@ -7,8 +7,23 @@ local M = {}
 local image_preview_state = {
   image = nil,
   snacks_placement = nil,
+  temp_files = {},
 }
 local INLINE_IMAGE_PADDING_LINES = 2
+
+local image_url_exts = {
+  png = "image/png",
+  jpg = "image/jpeg",
+  jpeg = "image/jpeg",
+  gif = "image/gif",
+  webp = "image/webp",
+  svg = "image/svg+xml",
+  avif = "image/avif",
+  bmp = "image/bmp",
+  tiff = "image/tiff",
+  tif = "image/tiff",
+  ico = "image/x-icon",
+}
 
 --- Image content type detection.
 local image_content_types = {
@@ -97,11 +112,22 @@ local function try_snacks_image(buf, file_path, cursor_line)
     inline = true,
     conceal = false,
   })
-  if not placement_ok or not placement then
+  if not placement_ok then
+    vim.notify("snacks.image preview failed: " .. tostring(placement), vim.log.levels.WARN, { title = "Poste" })
+    return false
+  end
+  if not placement then
     return false
   end
 
   image_preview_state.snacks_placement = placement
+  vim.schedule(function()
+    vim.defer_fn(function()
+      if placement.img and placement.img:failed() then
+        vim.notify("snacks.image async load failed for: " .. file_path, vim.log.levels.WARN, { title = "Poste" })
+      end
+    end, 2000)
+  end)
   return true
 end
 
@@ -230,6 +256,103 @@ function M.render_response_image(buf, r, cursor_line)
   local file_path = r.metadata.file_path
   local content_type = r.metadata.file_content_type or r.content_type
   return M.render_image_preview(buf, file_path, content_type, cursor_line)
+end
+
+--- Get the URL under the cursor position.
+--- Returns the URL string or nil.
+function M.get_url_under_cursor()
+  local line = vim.fn.getline(".")
+  local col = vim.fn.col(".") - 1
+  local url_pattern = "https?://[^\"'%s>%)%]]+"
+  local urls = {}
+  for u in line:gmatch(url_pattern) do
+    table.insert(urls, u)
+  end
+  for _, u in ipairs(urls) do
+    local start_idx, end_idx = line:find(u, 1, true)
+    if start_idx and col >= start_idx - 1 and col < end_idx then
+      return u
+    end
+  end
+  local expanded = vim.fn.expand("<cfile>")
+  if expanded then
+    expanded = expanded:match("^https?://[^\"'%s>%,%)%]]+")
+  end
+  if expanded then
+    return expanded
+  end
+  return nil
+end
+
+--- Check if a URL looks like an image URL based on its extension.
+---@param url string
+---@return string|nil content_type
+function M.guess_image_content_type(url)
+  local ext = (url:match(".*%.([^%.%?/]+)") or ""):lower()
+  return image_url_exts[ext]
+end
+
+--- Download an image URL to a temp file.
+--- Returns the file path and content type, or nil on failure.
+function M.download_image_url(url)
+  local ct = M.guess_image_content_type(url) or "image/png"
+  local ext = ({
+    ["image/png"] = ".png",
+    ["image/jpeg"] = ".jpg",
+    ["image/gif"] = ".gif",
+    ["image/webp"] = ".webp",
+    ["image/svg+xml"] = ".svg",
+    ["image/avif"] = ".avif",
+    ["image/bmp"] = ".bmp",
+    ["image/tiff"] = ".tiff",
+    ["image/x-icon"] = ".ico",
+  })[ct] or ".bin"
+
+  local state = require("poste-http.state")
+  local cfg = state.config or {}
+  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
+  vim.fn.mkdir(cache_dir, "p")
+  local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
+  local tmp = cache_dir .. "/url_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. ext
+  table.insert(image_preview_state.temp_files, tmp)
+  local cmd = { "curl", "-s", "-S", "-L", "--max-time", "15", "-o", tmp, url }
+  vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    table.remove(image_preview_state.temp_files)
+    pcall(os.remove, tmp)
+    return nil, ct
+  end
+  return tmp, ct
+end
+
+--- Download and preview an image URL.
+--- Shows a notification while downloading, then renders inline.
+---@param buf number
+---@param url string
+---@param cursor_line number
+---@return boolean
+function M.preview_image_url(buf, url, cursor_line)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then return false end
+  if not url or not url:match("^https?://") then return false end
+  local ct = M.guess_image_content_type(url)
+  if not ct then return false end
+
+  M.cleanup_url_preview()
+  vim.notify("Downloading image...", vim.log.levels.INFO, { title = "Poste" })
+  local file_path, content_type = M.download_image_url(url)
+  if not file_path then
+    vim.notify("Failed to download image from URL", vim.log.levels.WARN, { title = "Poste" })
+    return false
+  end
+  return M.render_image_preview(buf, file_path, content_type or ct, cursor_line)
+end
+
+--- Clean up temp files created for URL preview.
+function M.cleanup_url_preview()
+  for _, f in ipairs(image_preview_state.temp_files) do
+    pcall(os.remove, f)
+  end
+  image_preview_state.temp_files = {}
 end
 
 return M

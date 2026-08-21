@@ -30,6 +30,19 @@ function M.format_body(r)
     end
   end
 
+  -- Image/binary response without Content-Disposition: save body to file for preview
+  if r.body and r.body ~= "" and not (r.metadata and r.metadata.file_path) then
+    local ct = r.content_type or ""
+    local mime = ct:match("^([^;]+)") or ct
+    mime = vim.trim(mime):lower()
+    if mime ~= "" and not mime:find("text") and not mime:find("json") and not mime:find("xml") and not mime:find("html") then
+      local ext = fmt_util.content_type_extension(ct)
+      local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
+      local fn = "res_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. ext
+      fmt_util.save_binary_file(r.body, fn, ct, r)
+    end
+  end
+
   -- Binary file/download response: show file info instead of mangled raw content
   if r.metadata and r.metadata.file_path and r.metadata.file_content_type
     and (r.metadata.content_disposition_attachment
