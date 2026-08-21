@@ -21,6 +21,10 @@ describe("state.config defaults", function()
     assert.equals("vertical", state.config.split_direction)
   end)
 
+  it("result_window_ratio is 0.5", function()
+    assert.equals(0.5, state.config.result_window_ratio)
+  end)
+
   it("split_size is nil (removed dead config)", function()
     assert.is_nil(state.config.split_size)
   end)

@@ -150,6 +150,9 @@ Open a `.http` file. With cursor on a request block, press `<CR>` to execute. Re
 require("poste-http").setup({
   default_env = "dev",
   split_direction = "vertical",
+  -- Response window share (0–1) restored after the whole window is resized
+  -- (e.g. terminal maximize → restore), so neither split disappears.
+  result_window_ratio = 0.5,
   log_file = vim.fn.stdpath("cache") .. "/poste.log",
 
   keymaps = {

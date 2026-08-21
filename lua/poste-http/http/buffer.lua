@@ -460,6 +460,90 @@ function M.sanitize_lines(lines)
   return out
 end
 
+local resize_group = nil
+
+-- Minimum sizes that keep a split usable. The response window is never
+-- rebalanced below these, and the other side of the split is guaranteed the
+-- source minimum so the http file window never disappears.
+local MIN_RESPONSE_WIDTH = 30
+local MIN_SOURCE_WIDTH = 40
+local MIN_RESPONSE_HEIGHT = 8
+local MIN_SOURCE_HEIGHT = 8
+
+local function clamp(v, lo, hi)
+  if v < lo then return lo end
+  if v > hi then return hi end
+  return v
+end
+
+--- Compute a rebalance target size for the response window.
+local function target_size(total, ratio, min_self, min_other)
+  local halves = math.floor(total / 2)
+  local lower = math.min(min_self, halves)
+  local upper = math.max(lower, total - math.min(min_other, halves))
+  return clamp(math.floor(total * ratio + 0.5), lower, upper)
+end
+
+--- Approximate the number of window text rows available to horizontal splits.
+local function available_rows()
+  local rows = vim.o.lines - (vim.o.cmdheight or 1)
+  if vim.o.showtabline and vim.o.showtabline >= 1 then
+    rows = rows - 1
+  end
+  if vim.o.laststatus and vim.o.laststatus >= 2 then
+    rows = rows - 1
+  end
+  return math.max(1, rows)
+end
+
+--- Rebalance the response split after the whole window was resized (terminal
+--- maximize/restore). Neovim's default layout can squeeze one side down to a
+--- sliver so it is effectively invisible; here we only step in when a side is
+--- below the usable minimum, restoring the configured proportion.
+function M.rebalance_on_resize()
+  if not response_window or not vim.api.nvim_win_is_valid(response_window) then
+    return
+  end
+  local ratio = state.config.result_window_ratio
+  if not ratio or not (ratio > 0 and ratio < 1) then
+    ratio = 0.5
+  end
+
+  -- A side-by-side split (vertical) has width < columns; a stacked split
+  -- (horizontal) spans the full width.
+  if vim.api.nvim_win_get_width(response_window) < vim.o.columns then
+    local total = vim.o.columns
+    local cur = vim.api.nvim_win_get_width(response_window)
+    if cur >= MIN_RESPONSE_WIDTH and total - cur >= MIN_SOURCE_WIDTH then
+      return
+    end
+    local target = target_size(total, ratio, MIN_RESPONSE_WIDTH, MIN_SOURCE_WIDTH)
+    if target ~= cur then
+      pcall(vim.api.nvim_win_set_width, response_window, target)
+    end
+  else
+    local total = available_rows()
+    local cur = vim.api.nvim_win_get_height(response_window)
+    if cur >= MIN_RESPONSE_HEIGHT and total - cur >= MIN_SOURCE_HEIGHT then
+      return
+    end
+    local target = target_size(total, ratio, MIN_RESPONSE_HEIGHT, MIN_SOURCE_HEIGHT)
+    if target ~= cur then
+      pcall(vim.api.nvim_win_set_height, response_window, target)
+    end
+  end
+end
+
+-- Register the VimResized handler once (idempotent across re-renders).
+local function setup_response_resize_autocmd()
+  if resize_group then return end
+  resize_group = vim.api.nvim_create_augroup("poste_http_response_resize", { clear = true })
+  vim.api.nvim_create_autocmd("VimResized", {
+    group = resize_group,
+    callback = function() M.rebalance_on_resize() end,
+  })
+end
+
 --- Ensure the response split is open and display the given lines
 function M.render_buffer(lines, filetype)
   format.close_image_preview()
@@ -494,6 +578,7 @@ function M.render_buffer(lines, filetype)
     response_keymaps_set = false
     vim.api.nvim_set_current_win(saved_win)
     setup_response_cleanup_autocmds()
+    setup_response_resize_autocmd()
   end
 
   vim.api.nvim_win_set_buf(response_window, buf)

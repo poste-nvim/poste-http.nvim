@@ -3,6 +3,7 @@ local M = {}
 M.config = {
   default_env = "dev",
   split_direction = "vertical",
+  result_window_ratio = 0.5,
   log_file = vim.fn.stdpath("cache") .. "/poste.log",
   import_chunk_size = 100,
   response_cache_dir = vim.fn.stdpath("cache") .. "/poste_res",
