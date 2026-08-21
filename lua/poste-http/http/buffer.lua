@@ -415,7 +415,7 @@ setup_keymaps = function(buf)
   end, { buffer = buf, noremap = true, silent = true })
 
   -- K on image response: try inline render in Body, otherwise open system viewer.
-  -- Also supports previewing image URLs in JSON/text responses.
+  -- Also supports previewing image URLs in JSON/text responses in a floating window.
   k = state.get_keymap("http_response", "image_preview", "K")
   if k then
     vim.keymap.set("n", k, function()
@@ -423,7 +423,7 @@ setup_keymaps = function(buf)
       if bufnr ~= buf then return end
       local r = state.last_response
 
-      -- Try image response preview first
+      -- Try image response preview first (inline)
       if r and r.metadata and r.metadata.file_path and format.is_image_content_type(r.metadata.file_content_type) then
         if state.current_view == "body" then
           local cursor_line = vim.api.nvim_buf_line_count(buf) - format.inline_image_padding_lines() + 1
@@ -433,13 +433,12 @@ setup_keymaps = function(buf)
         return
       end
 
-      -- Fallback: URL under cursor
+      -- Fallback: URL under cursor → show in floating window
       if state.current_view == "body" then
         local url = format.get_url_under_cursor()
         if url then
-          local cursor_line = vim.fn.line(".")
           vim.defer_fn(function()
-            format.preview_image_url(buf, url, cursor_line)
+            format.preview_image_url_float(url)
           end, 50)
         end
       end

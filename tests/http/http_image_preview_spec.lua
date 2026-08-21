@@ -271,4 +271,113 @@ describe("http image preview", function()
     format.close_image_preview()
     assert.equals(1, close_calls)
   end)
+
+  -- Floating window preview tests
+  describe("floating window preview", function()
+    it("render_image_float creates a floating window", function()
+      local tmp = make_tmp_file("PNG")
+
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+      assert.is_true(has_call("nvim_open_win"))
+    end)
+
+    it("render_image_float creates floating window with snacks.image", function()
+      local snacks_calls = {}
+      package.preload["snacks"] = function()
+        return {
+          image = {
+            supports = function(_) return true end,
+            supports_terminal = function() return true end,
+            placement = {
+              new = function(buf, src, opts)
+                table.insert(snacks_calls, { buf = buf, src = src, opts = opts })
+                return { close = function() end }
+              end,
+            },
+          },
+        }
+      end
+      package.loaded["snacks"] = nil
+
+      local tmp = make_tmp_file("PNG")
+
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+      assert.is_true(has_call("nvim_open_win"))
+      assert.equals(1, #snacks_calls)
+      assert.equals(tmp, snacks_calls[1].src)
+    end)
+
+    it("render_image_float creates floating window with image.nvim", function()
+      local image_calls = {}
+      package.preload["image"] = function()
+        return {
+          from_file = function(path, opts)
+            table.insert(image_calls, { path = path, opts = opts })
+            return {
+              render = function() table.insert(image_calls, "render") end,
+            }
+          end,
+        }
+      end
+      package.loaded["image"] = nil
+
+      local tmp = make_tmp_file("PNG")
+
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+      assert.is_true(has_call("nvim_open_win"))
+      assert.equals(2, #image_calls)
+      assert.equals(tmp, image_calls[1].path)
+    end)
+
+    it("close_image_preview closes floating window", function()
+      local close_calls = 0
+      package.preload["snacks"] = function()
+        return {
+          image = {
+            supports = function(_) return true end,
+            supports_terminal = function() return true end,
+            placement = {
+              new = function()
+                return {
+                  close = function() close_calls = close_calls + 1 end,
+                }
+              end,
+            },
+          },
+        }
+      end
+      package.loaded["snacks"] = nil
+      format = require("poste-http.http.format")
+
+      local tmp = make_tmp_file("PNG")
+
+      format.render_image_float(tmp, "image/png")
+      assert.is_true(has_call("nvim_open_win"))
+      format.close_image_preview()
+      assert.is_true(has_call("nvim_win_close"))
+    end)
+
+    it("preview_image_url_float downloads and shows in floating window", function()
+      -- Mock the download function at the image module level
+      local image_mod = require("poste-http.http.format.image")
+      local download_called = false
+      local original_download = image_mod.download_image_url
+      image_mod.download_image_url = function(url)
+        download_called = true
+        local tmp = make_tmp_file("PNG")
+        return tmp, "image/png"
+      end
+
+      local ok = format.preview_image_url_float("https://example.com/image.png")
+      assert.is_true(ok)
+      assert.is_true(download_called)
+      assert.is_true(has_call("nvim_open_win"))
+
+      -- Restore original function
+      image_mod.download_image_url = original_download
+    end)
+  end)
 end)

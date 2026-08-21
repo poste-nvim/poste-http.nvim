@@ -551,6 +551,7 @@ local function execute_import_via_curl(resolved_content, file_path, block_line, 
     headers = merged_headers,
     body = body,
     buf_dir = buf_dir,
+    timeout = state.config.timeout,
   }, function(response)
     if response.error then
       vim.schedule(function()

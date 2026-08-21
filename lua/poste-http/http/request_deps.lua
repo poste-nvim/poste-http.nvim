@@ -257,6 +257,7 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
     headers = global_headers.merge(resolved_headers, resolver),
     body = body,
     buf_dir = buf_dir,
+    timeout = state.config.timeout,
   }, function(response)
     if response.error then
       state.log("WARN", string.format("Dependency '%s' failed: %s", dep_req.name, response.error))

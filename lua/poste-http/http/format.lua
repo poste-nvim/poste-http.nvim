@@ -96,6 +96,12 @@ end
 function M.preview_image_url(buf, url, cursor_line)
   return image_mod.preview_image_url(buf, url, cursor_line)
 end
+function M.preview_image_url_float(url)
+  return image_mod.preview_image_url_float(url)
+end
+function M.render_image_float(file_path, content_type)
+  return image_mod.render_image_float(file_path, content_type)
+end
 function M.cleanup_url_preview()
   return image_mod.cleanup_url_preview()
 end

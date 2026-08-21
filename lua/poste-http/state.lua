@@ -14,6 +14,7 @@ M.config = {
   max_body_lines = 500,
   body_preview_lines = 20,
   default_view = "body",
+  timeout = 30000,
   keymaps = {
     http_source = {
       run = "<CR>",

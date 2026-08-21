@@ -620,6 +620,7 @@ local function start_curl_exec(ctx)
     headers = merged_headers,
     body = body,
     buf_dir = buf_dir,
+    timeout = state.config.timeout,
   }, function(response)
     handle_curl_response(response, ctx)
   end)

@@ -8,6 +8,8 @@ local image_preview_state = {
   image = nil,
   snacks_placement = nil,
   temp_files = {},
+  float_win = nil,
+  float_buf = nil,
 }
 local INLINE_IMAGE_PADDING_LINES = 2
 
@@ -65,6 +67,17 @@ function M.open_image_external(file_path)
 end
 
 function M.close_image_preview()
+  -- Close floating image preview window
+  if image_preview_state.float_win then
+    local win = image_preview_state.float_win
+    image_preview_state.float_win = nil
+    image_preview_state.float_buf = nil
+    pcall(function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+    end)
+  end
   if image_preview_state.snacks_placement then
     local p = image_preview_state.snacks_placement
     image_preview_state.snacks_placement = nil
@@ -345,6 +358,147 @@ function M.preview_image_url(buf, url, cursor_line)
     return false
   end
   return M.render_image_preview(buf, file_path, content_type or ct, cursor_line)
+end
+
+--- Download and preview an image URL in a floating window.
+--- Shows a notification while downloading, then renders in a popup that can be closed with Esc.
+---@param url string
+---@return boolean
+function M.preview_image_url_float(url)
+  if not url or not url:match("^https?://") then return false end
+  local ct = M.guess_image_content_type(url)
+  if not ct then return false end
+
+  M.close_image_preview()
+  vim.notify("Downloading image...", vim.log.levels.INFO, { title = "Poste" })
+  local file_path, content_type = M.download_image_url(url)
+  if not file_path then
+    vim.notify("Failed to download image from URL", vim.log.levels.WARN, { title = "Poste" })
+    return false
+  end
+  return M.render_image_float(file_path, content_type or ct)
+end
+
+--- Try to render image in floating window using snacks.image.
+local function try_snacks_image_float(buf, win, file_path)
+  local ok, snacks = pcall(require, "snacks")
+  if not ok or type(snacks) ~= "table" then return false end
+  if type(snacks.image) ~= "table" or type(snacks.image.supports) ~= "function" then
+    return false
+  end
+  if not snacks.image.supports(file_path) then return false end
+
+  local placement_ok, placement = pcall(snacks.image.placement.new, buf, file_path, {
+    inline = true,
+    conceal = false,
+  })
+  if not placement_ok or not placement then
+    return false
+  end
+
+  image_preview_state.snacks_placement = placement
+  return true
+end
+
+--- Try to render image in floating window using image.nvim.
+local function try_image_nvim_float(buf, win, file_path)
+  local ok, image = pcall(require, "image")
+  if not ok or type(image) ~= "table" or type(image.from_file) ~= "function" then
+    return false
+  end
+
+  local image_obj
+  local from_ok = pcall(function()
+    image_obj = image.from_file(file_path, {
+      buffer = buf,
+      window = win,
+      with_virtual_padding = true,
+      inline = true,
+      id = "poste_image_float_preview",
+    })
+  end)
+  if not from_ok or not image_obj then return false end
+
+  image_preview_state.image = image_obj
+
+  if type(image_obj.render) == "function" then
+    local render_ok = pcall(function() image_obj:render() end)
+    if render_ok then return true end
+  end
+  if type(image_obj.show) == "function" then
+    local show_ok = pcall(function() image_obj:show() end)
+    if show_ok then return true end
+  end
+
+  image_preview_state.image = nil
+  return false
+end
+
+--- Render an image file in a floating window.
+--- Tries snacks.image first, then image.nvim, then fallback to file info.
+---@param file_path string
+---@param content_type string
+---@return boolean
+function M.render_image_float(file_path, content_type)
+  if not file_path or vim.fn.filereadable(file_path) ~= 1 then return false end
+  if not M.is_image_content_type(content_type) then return false end
+
+  -- Create floating window with a scratch buffer
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
+
+  local width = math.min(80, vim.o.columns - 4)
+  local height = math.min(30, vim.o.lines - 4)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = " Image Preview ",
+    title_pos = "center",
+  })
+
+  image_preview_state.float_win = win
+  image_preview_state.float_buf = buf
+
+  -- Set up keymaps to close the floating window
+  vim.keymap.set("n", "<Esc>", function()
+    M.close_image_preview()
+  end, { buffer = buf, nowait = true })
+  vim.keymap.set("n", "q", function()
+    M.close_image_preview()
+  end, { buffer = buf, nowait = true })
+
+  -- Try snacks.image first
+  if try_snacks_image_float(buf, win, file_path) then
+    return true
+  end
+
+  -- Try image.nvim
+  if try_image_nvim_float(buf, win, file_path) then
+    return true
+  end
+
+  -- Fallback: show file info in the buffer
+  local lines = {
+    "Image preview",
+    "",
+    "File: " .. file_path,
+    "Type: " .. (content_type or "unknown"),
+    "",
+    "Press <Esc> or q to close",
+  }
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
+  return true
 end
 
 --- Clean up temp files created for URL preview.
