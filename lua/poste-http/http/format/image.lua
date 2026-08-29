@@ -13,6 +13,23 @@ local image_preview_state = {
 }
 local INLINE_IMAGE_PADDING_LINES = 2
 
+local meta_ns = nil
+local meta_hl_defined = false
+
+local function meta_namespace()
+  if not meta_ns then
+    meta_ns = vim.api.nvim_create_namespace("poste_image_meta")
+  end
+  return meta_ns
+end
+
+--- Gray highlight for the meta lines below a floating image preview.
+local function ensure_meta_highlight()
+  if meta_hl_defined then return end
+  meta_hl_defined = true
+  pcall(vim.api.nvim_set_hl, 0, "PosteImageMeta", { fg = "#9e9e9e", default = true })
+end
+
 local image_url_exts = {
   png = "image/png",
   jpg = "image/jpeg",
@@ -26,6 +43,23 @@ local image_url_exts = {
   tif = "image/tiff",
   ico = "image/x-icon",
 }
+
+-- Extension for a cached/downloaded image file.
+local image_exts = {
+  ["image/png"] = ".png",
+  ["image/jpeg"] = ".jpg",
+  ["image/gif"] = ".gif",
+  ["image/webp"] = ".webp",
+  ["image/svg+xml"] = ".svg",
+  ["image/avif"] = ".avif",
+  ["image/bmp"] = ".bmp",
+  ["image/tiff"] = ".tiff",
+  ["image/x-icon"] = ".ico",
+}
+
+local function extension_for(content_type)
+  return image_exts[content_type] or ".bin"
+end
 
 --- Image content type detection.
 local image_content_types = {
@@ -305,35 +339,90 @@ function M.guess_image_content_type(url)
   return image_url_exts[ext]
 end
 
---- Download an image URL to a temp file.
---- Returns the file path and content type, or nil on failure.
-function M.download_image_url(url)
-  local ct = M.guess_image_content_type(url) or "image/png"
-  local ext = ({
-    ["image/png"] = ".png",
-    ["image/jpeg"] = ".jpg",
-    ["image/gif"] = ".gif",
-    ["image/webp"] = ".webp",
-    ["image/svg+xml"] = ".svg",
-    ["image/avif"] = ".avif",
-    ["image/bmp"] = ".bmp",
-    ["image/tiff"] = ".tiff",
-    ["image/x-icon"] = ".ico",
-  })[ct] or ".bin"
+--- 32-bit XOR via arithmetic (no bit ops; some Lua targets lack `~`/bit.*).
+local function bxor32(a, b)
+  local r, p = 0, 1
+  while a > 0 or b > 0 do
+    local a2, b2 = a % 2, b % 2
+    if a2 ~= b2 then r = r + p end
+    a, b, p = math.floor(a / 2), math.floor(b / 2), p * 2
+  end
+  return r
+end
 
+--- Stable hex id for cache filenames derived from a URL.
+local function url_hash(str)
+  local ok, hex = pcall(vim.fn.sha256, str)
+  if ok and hex and #hex >= 16 then return hex:sub(1, 32) end
+  -- FNV-1a fallback when sha256 is unavailable
+  local hash = 2166136261
+  for i = 1, #str do
+    hash = (bxor32(hash, str:byte(i)) * 16777619) % 4294967296
+  end
+  return string.format("%08x", hash)
+end
+
+--- Cache path for a downloaded image URL, e.g. <cache_dir>/img/<hash><ext>.
+---@param url string
+---@param content_type string|nil
+---@return string cached_file_path
+function M.cache_path_for_url(url, content_type)
   local state = require("poste-http.state")
   local cfg = state.config or {}
   local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
-  vim.fn.mkdir(cache_dir, "p")
+  local ct = content_type or M.guess_image_content_type(url) or "image/png"
+  return cache_dir .. "/img/" .. url_hash(url) .. extension_for(ct)
+end
+
+--- Download an image URL to a cached file.
+--- Reuses a fresh cached copy within `image_url_cache_ttl_seconds` (default 1h,
+--- 0/negative disables caching). Falls back to a stale cached file if
+--- re-download fails.
+--- Returns the file path and content type, or nil on failure.
+function M.download_image_url(url)
+  local ct = M.guess_image_content_type(url) or "image/png"
+  local state = require("poste-http.state")
+  local cfg = state.config or {}
+  local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
+  local ttl = cfg.image_url_cache_ttl_seconds
+  local cache_path = M.cache_path_for_url(url, ct)
+
+  -- Fresh cached copy → reuse without downloading
+  if ttl and ttl > 0 and cache_path and vim.fn.filereadable(cache_path) == 1 then
+    local st = (vim.uv or vim.loop).fs_stat(cache_path)
+    local age
+    if st and st.mtime and st.mtime.sec then
+      age = os.time() - st.mtime.sec
+    end
+    if age and age < ttl then
+      return cache_path, ct
+    end
+  end
+
+  -- Download to a temp file, then move it into the cache
+  vim.fn.mkdir(cache_dir .. "/img", "p")
   local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
-  local tmp = cache_dir .. "/url_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. ext
+  local tmp = cache_dir .. "/img/url_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. extension_for(ct)
   table.insert(image_preview_state.temp_files, tmp)
   local cmd = { "curl", "-s", "-S", "-L", "--max-time", "15", "-o", tmp, url }
   vim.fn.system(cmd)
+
   if vim.v.shell_error ~= 0 then
     table.remove(image_preview_state.temp_files)
     pcall(os.remove, tmp)
+    -- Download failed → fall back to a stale cached copy if we have one
+    if cache_path and vim.fn.filereadable(cache_path) == 1 then
+      return cache_path, ct
+    end
     return nil, ct
+  end
+
+  if ttl and ttl > 0 and cache_path then
+    local renamed = pcall(os.rename, tmp, cache_path)
+    if renamed then
+      table.remove(image_preview_state.temp_files)
+      return cache_path, ct
+    end
   end
   return tmp, ct
 end
@@ -380,7 +469,9 @@ function M.preview_image_url_float(url)
 end
 
 --- Try to render image in floating window using snacks.image.
-local function try_snacks_image_float(buf, win, file_path)
+--- @param start_row number 1-based row to anchor the header bottom; snacks
+--- requires pos[1] <= buf line count, so the header must leave a real line there.
+local function try_snacks_image_float(buf, win, file_path, start_row, img_width, img_height)
   local ok, snacks = pcall(require, "snacks")
   if not ok or type(snacks) ~= "table" then return false end
   if type(snacks.image) ~= "table" or type(snacks.image.supports) ~= "function" then
@@ -391,6 +482,9 @@ local function try_snacks_image_float(buf, win, file_path)
   local placement_ok, placement = pcall(snacks.image.placement.new, buf, file_path, {
     inline = true,
     conceal = false,
+    pos = { start_row or 1, 0 },
+    width = img_width,
+    height = img_height,
   })
   if not placement_ok or not placement then
     return false
@@ -401,7 +495,7 @@ local function try_snacks_image_float(buf, win, file_path)
 end
 
 --- Try to render image in floating window using image.nvim.
-local function try_image_nvim_float(buf, win, file_path)
+local function try_image_nvim_float(buf, win, file_path, start_row, img_width, img_height)
   local ok, image = pcall(require, "image")
   if not ok or type(image) ~= "table" or type(image.from_file) ~= "function" then
     return false
@@ -415,6 +509,9 @@ local function try_image_nvim_float(buf, win, file_path)
       with_virtual_padding = true,
       inline = true,
       id = "poste_image_float_preview",
+      y = start_row or 0,
+      width = img_width,
+      height = img_height,
     })
   end)
   if not from_ok or not image_obj then return false end
@@ -434,8 +531,57 @@ local function try_image_nvim_float(buf, win, file_path)
   return false
 end
 
+--- Build the meta lines rendered below a floating image preview (gray text).
+local function build_meta_lines(meta)
+  local summary = {}
+  if meta.format then table.insert(summary, meta.format) end
+  if meta.width and meta.height then
+    table.insert(summary, string.format("%d*%d", meta.width, meta.height))
+  end
+  if meta.size_human then table.insert(summary, meta.size_human) end
+
+  local lines = { " " .. table.concat(summary, "  ") }
+  if meta.exif then
+    if meta.exif.Make then
+      local model = meta.exif.Model and (" " .. meta.exif.Model) or ""
+      table.insert(lines, " Camera: " .. meta.exif.Make .. model)
+    end
+    if meta.exif.DateTime then
+      table.insert(lines, " Taken:  " .. meta.exif.DateTime)
+    end
+    if meta.exif.Orientation and meta.exif.Orientation ~= 1 then
+      local labels = { [3] = "Rotate 180", [6] = "Rotate 90 CW", [8] = "Rotate 270 CW" }
+      table.insert(lines, " Orient: " .. (labels[meta.exif.Orientation] or tostring(meta.exif.Orientation)))
+    end
+  end
+  return lines
+end
+
+--- Pick a float window size that hugs the image while fitting on screen.
+--- The image sits at the top; `meta_rows` extra rows are reserved below it.
+--- Also returns the image render area (cells) for the backend renderers.
+local function calc_float_size(meta, meta_rows)
+  meta_rows = meta_rows or 0
+  local max_w = math.max(20, vim.o.columns - 2)
+  local max_h = math.max(4, vim.o.lines - 2)
+  local img_cols, img_rows = 80, math.max(1, max_h - meta_rows - 2)
+  if meta.width and meta.height and meta.width > 0 and meta.height > 0 then
+    local cols = math.max(1, meta.width / 9)
+    local rows = math.max(1, meta.height / 18)
+    local avail_h = math.max(1, max_h - meta_rows - 2)
+    local scale = math.min(max_w / cols, avail_h / rows, 1)
+    img_cols = math.max(1, math.floor(cols * scale))
+    img_rows = math.max(1, math.floor(rows * scale))
+  end
+  local width = math.max(20, math.min(img_cols, max_w))
+  local height = math.min(1 + img_rows + meta_rows, max_h)
+  return width, height, img_cols, img_rows
+end
+
 --- Render an image file in a floating window.
---- Tries snacks.image first, then image.nvim, then fallback to file info.
+--- The image fills the top; meta info (format, dimensions, size, JPEG EXIF)
+--- is shown below it in gray. Tries snacks.image first, then image.nvim, then
+--- fallback to file info. Closable with <Esc> or q.
 ---@param file_path string
 ---@param content_type string
 ---@return boolean
@@ -443,16 +589,43 @@ function M.render_image_float(file_path, content_type)
   if not file_path or vim.fn.filereadable(file_path) ~= 1 then return false end
   if not M.is_image_content_type(content_type) then return false end
 
-  -- Create floating window with a scratch buffer
+  local image_meta = require("poste-http.http.format.image_meta")
+  local meta = image_meta.read_image_meta(file_path, content_type)
+  local meta_lines = build_meta_lines(meta)
+  local width, height, img_cols, img_rows = calc_float_size(meta, #meta_lines)
+
+  -- Create floating window with a scratch buffer.
+  -- Row 0 is a blank anchor below which the image renders; meta text follows.
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
 
-  local width = math.min(80, vim.o.columns - 4)
-  local height = math.min(30, vim.o.lines - 4)
-  local row = math.floor((vim.o.lines - height) / 2)
-  local col = math.floor((vim.o.columns - width) / 2)
+  local lines = { "" }
+  for _, l in ipairs(meta_lines) do
+    table.insert(lines, l)
+  end
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  -- Gray meta lines below the image
+  ensure_meta_highlight()
+  for i = 1, #meta_lines do
+    vim.api.nvim_buf_set_extmark(buf, meta_namespace(), i, 0, {
+      hl_group = "PosteImageMeta",
+      end_row = i + 1,
+      end_col = 0,
+    })
+  end
+
+  local row = math.max(0, math.floor((vim.o.lines - height) / 2))
+  local col = math.max(0, math.floor((vim.o.columns - width) / 2))
+
+  local title_parts = { "Image Preview" }
+  if meta.format then table.insert(title_parts, meta.format) end
+  if meta.width and meta.height then
+    table.insert(title_parts, string.format("%d*%d", meta.width, meta.height))
+  end
+  if meta.size_human then table.insert(title_parts, meta.size_human) end
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -462,7 +635,7 @@ function M.render_image_float(file_path, content_type)
     col = col,
     style = "minimal",
     border = "rounded",
-    title = " Image Preview ",
+    title = " " .. table.concat(title_parts, "  ") .. " ",
     title_pos = "center",
   })
 
@@ -477,26 +650,22 @@ function M.render_image_float(file_path, content_type)
     M.close_image_preview()
   end, { buffer = buf, nowait = true })
 
-  -- Try snacks.image first
-  if try_snacks_image_float(buf, win, file_path) then
+  -- Try snacks.image first (image anchored on the blank row 0)
+  if try_snacks_image_float(buf, win, file_path, 1, img_cols, img_rows) then
     return true
   end
 
-  -- Try image.nvim
-  if try_image_nvim_float(buf, win, file_path) then
+  -- Try image.nvim (draw below the meta lines so it never covers them)
+  if try_image_nvim_float(buf, win, file_path, #lines, img_cols, img_rows) then
     return true
   end
 
   -- Fallback: show file info in the buffer
-  local lines = {
-    "Image preview",
-    "",
+  local extras = {
     "File: " .. file_path,
     "Type: " .. (content_type or "unknown"),
-    "",
-    "Press <Esc> or q to close",
   }
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.api.nvim_buf_set_lines(buf, #lines, -1, false, extras)
   vim.bo[buf].modifiable = false
   return true
 end

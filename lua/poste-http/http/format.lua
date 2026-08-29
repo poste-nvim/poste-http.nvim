@@ -93,6 +93,9 @@ end
 function M.download_image_url(url)
   return image_mod.download_image_url(url)
 end
+function M.cache_path_for_url(url, content_type)
+  return image_mod.cache_path_for_url(url, content_type)
+end
 function M.preview_image_url(buf, url, cursor_line)
   return image_mod.preview_image_url(buf, url, cursor_line)
 end

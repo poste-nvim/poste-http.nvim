@@ -26,6 +26,15 @@ describe("http image preview", function()
     return tmp
   end
 
+  -- Minimal PNG header (IHDR) with the given pixel dimensions.
+  local function png_bytes(w, h)
+    local function be32(n)
+      return string.char(math.floor(n / 16777216) % 256, math.floor(n / 65536) % 256,
+        math.floor(n / 256) % 256, n % 256)
+    end
+    return "\137PNG\r\n\26\n" .. be32(13) .. "IHDR" .. be32(w) .. be32(h) .. "\8\6\0\0\0"
+  end
+
   before_each(function()
     original_image_preload = package.preload["image"]
     original_snacks_preload = package.preload["snacks"]
@@ -378,6 +387,258 @@ describe("http image preview", function()
 
       -- Restore original function
       image_mod.download_image_url = original_download
+    end)
+
+    it("render_image_float shows gray meta below the image", function()
+      local tmp = make_tmp_file(png_bytes(1024, 768))
+
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+
+      local buf_lines = nil
+      local open_config = nil
+      local meta_hl_rows = {}
+      for _, call in ipairs(mock.calls) do
+        if type(call) == "table" and call.start == 0 and call.lines then
+          buf_lines = call.lines
+        end
+        if type(call) == "table" and call.config and call.config.title then
+          open_config = call.config
+        end
+        if type(call) == "table" and call.opts and call.opts.hl_group == "PosteImageMeta" then
+          meta_hl_rows[#meta_hl_rows + 1] = call.line
+        end
+      end
+
+      assert.is_table(buf_lines)
+      -- row 0 is the blank anchor the image renders below; meta follows after
+      assert.equals("", buf_lines[1])
+      local saw_dims = false
+      for _, l in ipairs(buf_lines) do
+        if l:match("1024%*768") then saw_dims = true end
+      end
+      assert.is_true(saw_dims, "meta lines should include pixel dimensions")
+
+      -- meta rows are highlighted gray
+      assert.is_true(#meta_hl_rows >= 1, "meta lines should get the PosteImageMeta highlight")
+      assert.is_true(meta_hl_rows[1] >= 1, "meta highlight should not cover the blank anchor row")
+
+      assert.is_table(open_config)
+      assert.match("PNG", open_config.title)
+      assert.match("1024%*768", open_config.title)
+      assert.is_true(open_config.width < 80, "popup should hug image instead of staying 80 cols wide")
+      assert.is_true(open_config.height >= #buf_lines, "popup should fit blank anchor + meta rows")
+    end)
+
+    it("render_image_float draws below meta lines (image.nvim)", function()
+      local image_calls = {}
+      package.preload["image"] = function()
+        return {
+          from_file = function(path, opts)
+            table.insert(image_calls, { path = path, opts = opts })
+            return { render = function() table.insert(image_calls, "render") end }
+          end,
+        }
+      end
+      package.loaded["image"] = nil
+
+      local tmp = make_tmp_file(png_bytes(64, 64))
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+
+      local buf_lines = nil
+      for _, call in ipairs(mock.calls) do
+        if type(call) == "table" and call.start == 0 and call.lines then
+          buf_lines = call.lines
+        end
+      end
+      -- image.nvim draws at 0-based row == number of buffer lines (below the gray meta)
+      assert.equals(#buf_lines, image_calls[1].opts.y)
+    end)
+
+    it("render_image_float anchors snacks.image on the blank top row", function()
+      local snacks_calls = {}
+      package.preload["snacks"] = function()
+        return {
+          image = {
+            supports = function() return true end,
+            supports_terminal = function() return true end,
+            placement = {
+              new = function(buf, src, opts)
+                table.insert(snacks_calls, opts)
+                return { close = function() end }
+              end,
+            },
+          },
+        }
+      end
+      package.loaded["snacks"] = nil
+
+      local tmp = make_tmp_file(png_bytes(64, 64))
+      local ok = format.render_image_float(tmp, "image/png")
+      assert.is_true(ok)
+
+      local buf_lines = nil
+      for _, call in ipairs(mock.calls) do
+        if type(call) == "table" and call.start == 0 and call.lines then
+          buf_lines = call.lines
+        end
+      end
+
+      assert.is_table(snacks_calls[1].pos)
+      assert.equals(1, snacks_calls[1].pos[1], "snacks anchors on the blank top row")
+      assert.is_true(
+        snacks_calls[1].pos[1] <= #buf_lines,
+        "snacks requires pos row <= buf line count (placement:valid)"
+      )
+      -- render area is constrained so the image fits above the meta lines
+      assert.is_number(snacks_calls[1].width)
+      assert.is_number(snacks_calls[1].height)
+      assert.is_true(snacks_calls[1].width > 0)
+      assert.is_true(snacks_calls[1].height > 0)
+    end)
+  end)
+
+  describe("unified popup preview", function()
+    it("preview_response_image opens a popup for image responses (no external viewer)", function()
+      local buf = require("poste-http.http.buffer")
+      local tmp = make_tmp_file("PNG")
+      state.last_response = {
+        body = "",
+        content_type = "image/png",
+        metadata = { file_path = tmp, file_content_type = "image/png", file_size = 3 },
+      }
+
+      local ok = buf.preview_response_image()
+      assert.is_true(ok)
+      assert.is_true(has_call("nvim_open_win"), "image response should preview in a popup")
+      assert.is_false(has_call("jobstart"), "image response should not open the system viewer")
+    end)
+
+    it("preview_response_image returns false for non-image responses", function()
+      local buf = require("poste-http.http.buffer")
+      state.last_response = {
+        body = "{}",
+        content_type = "application/json",
+        metadata = { file_path = "cached.json", file_content_type = "application/json" },
+      }
+
+      assert.is_false(buf.preview_response_image())
+      assert.is_false(has_call("nvim_open_win"))
+      assert.is_false(has_call("jobstart"))
+    end)
+  end)
+
+  describe("download URL caching", function()
+    local saved_config
+    local saved_system
+    local system_calls
+    local cache_dir
+    local cache_files = {}
+
+    -- Simulate a successful curl that writes the file passed after "-o".
+    local function patch_curl()
+      saved_system = vim.fn.system
+      vim.fn.system = function(cmd)
+        table.insert(system_calls, cmd)
+        if type(cmd) == "table" then
+          for i = 1, #cmd - 1 do
+            if cmd[i] == "-o" and cmd[i + 1] then
+              local f = assert(io.open(cmd[i + 1], "wb"))
+              f:write("PNG")
+              f:close()
+            end
+          end
+        end
+      end
+    end
+
+    before_each(function()
+      saved_config = state.config
+      state.config = vim.tbl_deep_extend("force", {}, saved_config)
+      cache_dir = vim.fn.tempname()
+      vim.fn.mkdir(cache_dir, "p")
+      vim.fn.mkdir(cache_dir .. "/img", "p")
+      state.config.response_cache_dir = cache_dir
+      state.config.image_url_cache_ttl_seconds = 3600
+      system_calls = {}
+      patch_curl()
+      saved_system({ "true" }) -- reset v:shell_error to 0 so downloads succeed
+    end)
+
+    after_each(function()
+      for _, p in ipairs(cache_files) do
+        pcall(os.remove, p)
+      end
+      cache_files = {}
+      pcall(vim.loop.fs_rmdir, cache_dir .. "/img")
+      pcall(vim.loop.fs_rmdir, cache_dir)
+      state.config = saved_config
+      vim.fn.system = saved_system
+    end)
+
+    it("cache_path_for_url is stable per URL", function()
+      local url = "https://example.com/images/photo.png"
+      local p1 = format.cache_path_for_url(url)
+      local p2 = format.cache_path_for_url(url)
+      assert.equals(p1, p2, "same URL should map to the same cache path")
+      assert.is_not_equals(p1, format.cache_path_for_url(url .. "?time=1"), "different URL should map elsewhere")
+      assert.match("%.png$", p1)
+      assert.match("^" .. cache_dir .. "/img/", p1)
+    end)
+
+    it("download_image_url reuses a fresh cached copy without curling", function()
+      local url = "https://example.com/images/logo.png"
+      local cached = format.cache_path_for_url(url)
+      local f = assert(io.open(cached, "wb"))
+      f:write("FRESH")
+      f:close()
+      table.insert(cache_files, cached)
+
+      local res, ct = format.download_image_url(url)
+      assert.equals(cached, res)
+      assert.equals("image/png", ct)
+      assert.equals(0, #system_calls, "no download should happen for a fresh cache hit")
+    end)
+
+    it("download_image_url re-downloads once the cache expires and replaces it", function()
+      local url = "https://example.com/images/now.png"
+      local cached = format.cache_path_for_url(url)
+      local f = assert(io.open(cached, "wb"))
+      f:write("STALE")
+      f:close()
+      table.insert(cache_files, cached)
+      -- age the cached file past the TTL so the fresh-cache branch is skipped
+      local uv = vim.uv or vim.loop
+      uv.fs_utime(cached, 0, 0)
+
+      local res, ct = format.download_image_url(url)
+      assert.equals(1, #system_calls, "cache miss should trigger a download")
+      assert.equals("image/png", ct)
+      assert.equals(cached, res, "fresh download should be moved into the cache path")
+      local f2 = io.open(res, "rb")
+      assert.equals("PNG", f2:read("*a"))
+      f2:close()
+    end)
+
+    it("download_image_url falls back to a stale cached copy on download failure", function()
+      local url = "https://example.com/images/fallback.png"
+      local cached = format.cache_path_for_url(url)
+      local f = assert(io.open(cached, "wb"))
+      f:write("STALE")
+      f:close()
+      table.insert(cache_files, cached)
+      local uv = vim.uv or vim.loop
+      uv.fs_utime(cached, 0, 0) -- stale: expired + re-download fails
+
+      -- make the "curl" fail by omitting the -o write and exiting non-zero
+      vim.fn.system = function(cmd)
+        table.insert(system_calls, cmd)
+        saved_system({ "false" })
+      end
+
+      local res = format.download_image_url(url)
+      assert.equals(cached, res, "stale cache should be used when re-download fails")
     end)
   end)
 end)

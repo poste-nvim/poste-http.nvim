@@ -59,7 +59,8 @@ library. Pure functions, unit-tested without windows.
 | `format.lua` | JSON formatting (dispatches to `format/`) |
 | `format/body.lua` | HTTP response body formatting |
 | `format/verbose.lua` | Verbose response rendering |
-| `format/image.lua` | Image preview |
+| `format/image.lua` | Image preview (floating window + inline) |
+| `format/image_meta.lua` | Pure image metadata (dimensions, size, JPEG EXIF) |
 | `format/multipart.lua` | Multipart body parsing |
 | `highlights.lua` | HTTP syntax highlighting (extmarks) |
 | `json.lua` | JSON folding, jq filter, outline |

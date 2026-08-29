@@ -14,6 +14,19 @@ local setup_keymaps  -- forward declaration
 -- Callback for tab-switching keymaps; set by init.lua after show_view is defined.
 M.on_show_view = nil
 
+--- Open a popup preview for the current image response; falls back to the
+--- system viewer when the popup cannot be created.
+---@return boolean true when the current response is an image
+function M.preview_response_image()
+  local r = state.last_response
+  if not r or not r.metadata or not r.metadata.file_path then return false end
+  local ct = r.metadata.file_content_type or r.content_type
+  if not format.is_image_content_type(ct) then return false end
+  if format.render_image_float(r.metadata.file_path, ct) then return true end
+  format.open_image_external(r.metadata.file_path)
+  return true
+end
+
 -- Tab metadata: id → { name, section, action (for keymap lookup) }
 local TAB_META = {
   body        = { name = "Body",     section = "http_response", action = "view_body" },
@@ -414,8 +427,8 @@ setup_keymaps = function(buf)
     vim.notify(string.format("Opening: %s", file_path), vim.log.levels.INFO, { title = "Poste" })
   end, { buffer = buf, noremap = true, silent = true })
 
-  -- K on image response: try inline render in Body, otherwise open system viewer.
-  -- Also supports previewing image URLs in JSON/text responses in a floating window.
+  -- K on image/URL preview: image responses and image URLs in JSON/text open a
+  -- popup preview that can be closed with <Esc> or q.
   k = state.get_keymap("http_response", "image_preview", "K")
   if k then
     vim.keymap.set("n", k, function()
@@ -423,13 +436,9 @@ setup_keymaps = function(buf)
       if bufnr ~= buf then return end
       local r = state.last_response
 
-      -- Try image response preview first (inline)
-      if r and r.metadata and r.metadata.file_path and format.is_image_content_type(r.metadata.file_content_type) then
-        if state.current_view == "body" then
-          local cursor_line = vim.api.nvim_buf_line_count(buf) - format.inline_image_padding_lines() + 1
-          if format.render_response_image(buf, r, cursor_line) then return end
-        end
-        format.open_image_external(r.metadata.file_path)
+      -- Popup preview when the response itself is an image
+      if r and format.is_image_content_type(r.metadata and (r.metadata.file_content_type or r.content_type)) then
+        M.preview_response_image()
         return
       end
 

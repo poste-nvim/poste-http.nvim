@@ -7,6 +7,7 @@ M.config = {
   log_file = vim.fn.stdpath("cache") .. "/poste.log",
   import_chunk_size = 100,
   response_cache_dir = vim.fn.stdpath("cache") .. "/poste_res",
+  image_url_cache_ttl_seconds = 3600,
   history_file = vim.fn.stdpath("data") .. "/poste-http/history.json",
   http_history_max = 100,
   persist_history = true,
