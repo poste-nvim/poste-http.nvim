@@ -3,6 +3,11 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-08-30: read `docs/dev/agent-guardrails.md` before UI or test work —
+  it distills this log into MUST rules (ui/ primitives only, format/ layer
+  purity, require-shadowing/pcall traps, headless test recipes) with
+  machine-checkable greps. Repeat-offense pitfalls get promoted there.
+
 - 2026-08-30: ui/picker headless testing — the picker queues `vim.cmd("startinsert!")`
   on open; under headless `nvim_feedkeys` that deferred mode switch races with
   multi-key blobs (`feedkeys("jj<CR>", "mx")` ran one normal-mapped `j`, then the

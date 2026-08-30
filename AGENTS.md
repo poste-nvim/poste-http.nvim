@@ -50,12 +50,35 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
 Check [Lua 5.1 Patterns](https://www.lua.org/manual/5.1/manual.html#5.4.1) or
 load the `lua-patterns` skill before writing any `string.match`/`gmatch`/`gsub`.
 
+## UI & Agent Guardrails (hard constraints)
+
+- **Never hand-roll UI primitives** — floats via `ui/float`, buffer writes via
+  `ui/render.set_lines`, truncation via `ui/text`, method/status highlights via
+  `ui/semantics`, winbar rows via `ui/winbar`, keymaps via `ui/keymaps`.
+  Hand-rolled copies have historically shipped with missing guards and drifted
+  mappings (9 uneven float blocks, 5 truncation dialects, 4 highlight tables).
+- `http/format/` renders response bodies to lines only — no network, no disk
+  cache, no windows (infra goes to dedicated modules like `http/image_cache.lua`).
+- Before `require`-ing a module, grep the file for a local of the same name —
+  shadowing a module with a local function breaks it at runtime (outline.lua's
+  local `render` vs `ui/render`). `pcall(function() return f() end)` keeps only
+  the FIRST return value — extract needed values explicitly.
+- Call stub-able functions through `M.fn(...)`, never a pre-bound local.
+- Headless test rules (feed one key per feedkeys, `doautocmd` for insert paths,
+  `PlenaryBustedFile` skips minimal_init, `vim.v.shell_error` is read-only):
+  see the guardrails doc before writing UI specs.
+- **Done = `./tests/run.sh` exit 0** (check the exit code and spec-file count,
+  not just per-spec `Failed : 0`) + `luacheck` no new warnings.
+- Full rules, incident list, and machine-checkable greps:
+  `docs/dev/agent-guardrails.md` — read before UI or test work.
+
 ## References
 
 | Want | Go to |
 |------|-------|
 |**Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)**|`lua/poste-http/` — edit there|
-|**UI components (columns, text, semantics, winbar, render, float, …)**|`lua/poste-http/ui/` — reusable primitives; pure modules are unit-tested, window code stays in the thin `float.lua` primitive and out of `http/` business modules|
+|**UI components (columns, text, semantics, winbar, render, float, picker, keymaps, …)**|`lua/poste-http/ui/` — reusable primitives; pure modules are unit-tested, window code stays in the thin `float.lua` primitive and out of `http/` business modules|
+| Agent guardrails (UI rules, test pitfalls, self-checks) | `docs/dev/agent-guardrails.md` |
 | File index | `docs/dev/file-index.md` |
 | Architecture | `docs/dev/architecture-overview.md` |
 | Build & test | `docs/dev/testing.md` |
