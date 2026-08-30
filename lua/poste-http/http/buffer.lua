@@ -3,6 +3,7 @@ local state = require("poste-http.state")
 local format = require("poste-http.http.format")
 local winbar = require("poste-http.ui.winbar")
 local render = require("poste-http.ui.render")
+local keymaps = require("poste-http.ui.keymaps")
 
 local M = {}
 
@@ -290,58 +291,23 @@ end
 --- (Re-)apply response buffer keymaps.
 --- Called on every render to ensure they stay active even after buffer reuse or ftplugin reload.
 setup_keymaps = function(buf)
-  local opts = { buffer = buf, noremap = true, silent = true, nowait = true }
-
-  -- Close window
-  local k = state.get_keymap("http_response", "close", "q")
-  if k then
-    vim.keymap.set("n", k, function()
+  keymaps.register_all(buf, "http_response", {
+    { action = "close", default = "q", handler = function()
       format.close_image_preview()
       if response_window and vim.api.nvim_win_is_valid(response_window) then
         vim.api.nvim_win_close(response_window, true)
         response_window = nil
       end
-    end, opts)
-  end
-
-  -- Tab switching keymaps — delegate to on_show_view callback
-  k = state.get_keymap("http_response", "view_body", "B")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("body") end end, opts)
-  end
-  k = state.get_keymap("http_response", "view_request", "R")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("request") end end, opts)
-  end
-  k = state.get_keymap("http_response", "view_verbose", "E")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("verbose") end end, opts)
-  end
-  k = state.get_keymap("http_response", "view_assertions", "A")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("assertions") end end, opts)
-  end
-  k = state.get_keymap("http_response", "view_errors", "X")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("errors") end end, opts)
-  end
-  k = state.get_keymap("http_response", "view_script_logs", "S")
-  if k then
-    vim.keymap.set("n", k, function() if M.on_show_view then M.on_show_view("script_logs") end end, opts)
-  end
-  k = state.get_keymap("http_response", "next_tab", "<Tab>")
-  if k then
-    vim.keymap.set("n", k, function() M.cycle_tab(1) end, opts)
-  end
-  k = state.get_keymap("http_response", "prev_tab", "<S-Tab>")
-  if k then
-    vim.keymap.set("n", k, function() M.cycle_tab(-1) end, opts)
-  end
-
-  -- Re-run current request
-  k = state.get_keymap("http_response", "rerun", "r")
-  if k then
-    vim.keymap.set("n", k, function()
+    end },
+    { action = "view_body", default = "B", handler = function() if M.on_show_view then M.on_show_view("body") end end },
+    { action = "view_request", default = "R", handler = function() if M.on_show_view then M.on_show_view("request") end end },
+    { action = "view_verbose", default = "E", handler = function() if M.on_show_view then M.on_show_view("verbose") end end },
+    { action = "view_assertions", default = "A", handler = function() if M.on_show_view then M.on_show_view("assertions") end end },
+    { action = "view_errors", default = "X", handler = function() if M.on_show_view then M.on_show_view("errors") end end },
+    { action = "view_script_logs", default = "S", handler = function() if M.on_show_view then M.on_show_view("script_logs") end end },
+    { action = "next_tab", default = "<Tab>", handler = function() M.cycle_tab(1) end },
+    { action = "prev_tab", default = "<S-Tab>", handler = function() M.cycle_tab(-1) end },
+    { action = "rerun", default = "r", handler = function()
       local last = state.last_request
       if not last then
         vim.notify("No request to re-run", vim.log.levels.WARN)
@@ -365,46 +331,27 @@ setup_keymaps = function(buf)
       if vim.api.nvim_win_is_valid(response_win) then
         vim.api.nvim_set_current_win(response_win)
       end
-    end, opts)
-  end
-
-  -- Ask the AI about the shown response/errors (needs poste-ai.nvim)
-  k = state.get_keymap("http_response", "ask_ai", "a")
-  if k then
-    vim.keymap.set("n", k, function()
+    end },
+    -- Ask the AI about the shown response/errors (needs poste-ai.nvim)
+    { action = "ask_ai", default = "a", handler = function()
       require("poste-http.ai").ask_view()
-    end, opts)
-  end
-
-  -- Multi-response navigation
-  k = state.get_keymap("http_response", "next_response", "]")
-  if k then
-    vim.keymap.set("n", k, function() M.navigate_response(1) end, opts)
-  end
-  k = state.get_keymap("http_response", "prev_response", "[")
-  if k then
-    vim.keymap.set("n", k, function() M.navigate_response(-1) end, opts)
-  end
-
-  -- JSON filter prompt (<leader>j) — interactive float with completion dropdown
-  k = state.get_keymap("http_response", "json_filter", "<leader>j")
-  if k then
-    vim.keymap.set("n", k, function()
+    end },
+    -- Multi-response navigation
+    { action = "next_response", default = "]", handler = function() M.navigate_response(1) end },
+    { action = "prev_response", default = "[", handler = function() M.navigate_response(-1) end },
+    -- JSON filter prompt (<leader>j) — interactive float with completion dropdown
+    { action = "json_filter", default = "<leader>j", handler = function()
       local bufnr = vim.api.nvim_get_current_buf()
       if vim.bo[bufnr].filetype ~= "json" then return end
       require("poste-http.http.json").start_interactive_input()
-    end, opts)
-  end
-
-  -- JSON restore original (<leader>jc)
-  k = state.get_keymap("http_response", "json_restore", "<leader>jc")
-  if k then
-    vim.keymap.set("n", k, function()
+    end },
+    -- JSON restore original (<leader>jc)
+    { action = "json_restore", default = "<leader>jc", handler = function()
       local bufnr = vim.api.nvim_get_current_buf()
       if vim.bo[bufnr].filetype ~= "json" then return end
       require("poste-http.http.json").restore_original()
-    end, opts)
-  end
+    end },
+  }, { nowait = true })
 
   -- gd on "Open file:" (binary) or "File:" (large text) lines: open the file
   vim.keymap.set("n", "gd", function()
@@ -421,30 +368,27 @@ setup_keymaps = function(buf)
 
   -- K on image/URL preview: image responses and image URLs in JSON/text open a
   -- popup preview that can be closed with <Esc> or q.
-  k = state.get_keymap("http_response", "image_preview", "K")
-  if k then
-    vim.keymap.set("n", k, function()
-      local bufnr = vim.api.nvim_get_current_buf()
-      if bufnr ~= buf then return end
-      local r = state.last_response
+  keymaps.register(buf, "http_response", "image_preview", "K", function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    if bufnr ~= buf then return end
+    local r = state.last_response
 
-      -- Popup preview when the response itself is an image
-      if r and format.is_image_content_type(r.metadata and (r.metadata.file_content_type or r.content_type)) then
-        M.preview_response_image()
-        return
-      end
+    -- Popup preview when the response itself is an image
+    if r and format.is_image_content_type(r.metadata and (r.metadata.file_content_type or r.content_type)) then
+      M.preview_response_image()
+      return
+    end
 
-      -- Fallback: URL under cursor → show in floating window
-      if state.current_view == "body" then
-        local url = format.get_url_under_cursor()
-        if url then
-          vim.defer_fn(function()
-            format.preview_image_url_float(url)
-          end, 50)
-        end
+    -- Fallback: URL under cursor → show in floating window
+    if state.current_view == "body" then
+      local url = format.get_url_under_cursor()
+      if url then
+        vim.defer_fn(function()
+          format.preview_image_url_float(url)
+        end, 50)
       end
-    end, opts)
-  end
+    end
+  end, { nowait = true })
 end
 
 function M.get_buf()

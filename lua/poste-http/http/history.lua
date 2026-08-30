@@ -6,6 +6,7 @@ local semantics = require("poste-http.ui.semantics")
 local render = require("poste-http.ui.render")
 local winbar = require("poste-http.ui.winbar")
 local float = require("poste-http.ui.float")
+local keymaps = require("poste-http.ui.keymaps")
 
 local M = {}
 
@@ -487,38 +488,16 @@ local function wincmd_detail()
 end
 
 local function setup_detail_keymaps()
-  local opts = { buffer = detail_buf, noremap = true, silent = true }
-
-  local k = state.get_keymap("http_response", "close", "q")
-  if k then vim.keymap.set("n", k, hide, opts) end
-
-  k = state.get_keymap("http_response", "view_body", "B")
-  if k then vim.keymap.set("n", k, function() switch_tab("body") end, opts) end
-
-  k = state.get_keymap("http_response", "view_request", "R")
-  if k then vim.keymap.set("n", k, function() switch_tab("request") end, opts) end
-
-  k = state.get_keymap("http_response", "view_verbose", "E")
-  if k then vim.keymap.set("n", k, function() switch_tab("verbose") end, opts) end
-
-  k = state.get_keymap("http_response", "view_assertions", "A")
-  if k then vim.keymap.set("n", k, function() switch_tab("assertions") end, opts) end
-
-  k = state.get_keymap("http_response", "view_script_logs", "S")
-  if k then vim.keymap.set("n", k, function() switch_tab("script_logs") end, opts) end
-
-  k = state.get_keymap("http_response", "next_tab", "<Tab>")
-  if k then vim.keymap.set("n", k, function() cycle_tab(1) end, opts) end
-
-  k = state.get_keymap("http_response", "prev_tab", "<S-Tab>")
-  if k then vim.keymap.set("n", k, function() cycle_tab(-1) end, opts) end
-
-  local nopts = { buffer = detail_buf, noremap = true, silent = true, nowait = true }
-  vim.keymap.set("n", "<C-h>", wincmd_list, nopts)
-
-  k = state.get_keymap("http_response", "json_filter", "<leader>j")
-  if k then
-    vim.keymap.set("n", k, function()
+  keymaps.register_all(detail_buf, "http_response", {
+    { action = "close", default = "q", handler = hide },
+    { action = "view_body", default = "B", handler = function() switch_tab("body") end },
+    { action = "view_request", default = "R", handler = function() switch_tab("request") end },
+    { action = "view_verbose", default = "E", handler = function() switch_tab("verbose") end },
+    { action = "view_assertions", default = "A", handler = function() switch_tab("assertions") end },
+    { action = "view_script_logs", default = "S", handler = function() switch_tab("script_logs") end },
+    { action = "next_tab", default = "<Tab>", handler = function() cycle_tab(1) end },
+    { action = "prev_tab", default = "<S-Tab>", handler = function() cycle_tab(-1) end },
+    { action = "json_filter", default = "<leader>j", handler = function()
       if vim.bo[detail_buf].filetype ~= "json" then return end
       local entry = state.http_history[current_index]
       if not entry then return end
@@ -541,34 +520,23 @@ local function setup_detail_keymaps()
           if q and q ~= "" then history_jq_filter(q) end
         end)
       end
-    end, opts)
-  end
+    end },
+    { action = "json_restore", default = "<leader>jc", handler = history_jq_restore },
+  })
 
-  k = state.get_keymap("http_response", "json_restore", "<leader>jc")
-  if k then
-    vim.keymap.set("n", k, function()
-      history_jq_restore()
-    end, opts)
-  end
+  vim.keymap.set("n", "<C-h>", wincmd_list, { buffer = detail_buf, noremap = true, silent = true, nowait = true })
 end
 
 local function setup_list_keymaps()
-  local opts = { buffer = list_buf, noremap = true, silent = true }
+  keymaps.register_all(list_buf, "http_history", {
+    { action = "close", default = "q", handler = hide },
+    { action = "delete_entry", default = "dd", handler = delete_at_cursor },
+    { action = "focus_detail", default = "<CR>", handler = focus_detail },
+  })
 
-  local k = state.get_keymap("http_history", "close", "q")
-  if k then vim.keymap.set("n", k, hide, opts) end
-
-  k = state.get_keymap("http_history", "delete_entry", "dd")
-  if k then vim.keymap.set("n", k, delete_at_cursor, opts) end
-
-  k = state.get_keymap("http_history", "focus_detail", "<CR>")
-  if k then vim.keymap.set("n", k, focus_detail, opts) end
-
-  vim.keymap.set("n", "j", function() navigate_list(1) end, opts)
-  vim.keymap.set("n", "k", function() navigate_list(-1) end, opts)
-
-  local nopts = { buffer = list_buf, noremap = true, silent = true, nowait = true }
-  vim.keymap.set("n", "<C-l>", wincmd_detail, nopts)
+  vim.keymap.set("n", "j", function() navigate_list(1) end, { buffer = list_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "k", function() navigate_list(-1) end, { buffer = list_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "<C-l>", wincmd_detail, { buffer = list_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_buf_attach(list_buf, false, {
     on_detach = function()
