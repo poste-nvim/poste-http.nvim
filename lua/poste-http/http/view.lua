@@ -1,6 +1,7 @@
 local state = require("poste-http.state")
 local format = require("poste-http.http.format")
 local buffer = require("poste-http.http.buffer")
+local render = require("poste-http.ui.render")
 
 local uv = vim.uv or vim.loop
 local M = {}
@@ -33,9 +34,7 @@ local function start_verbose_timer()
     if not buf_visible then return end
     local lines = format.format_view("verbose", nil, { pending_request = state.pending_request })
     lines = buffer.sanitize_lines(lines)
-    vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+    render.set_lines(buf, lines)
     format.apply_view_highlights(buf, "verbose", lines, nil)
   end))
 end

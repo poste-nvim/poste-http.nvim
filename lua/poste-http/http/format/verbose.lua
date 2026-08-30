@@ -6,6 +6,7 @@
 local state = require("poste-http.state")
 local fmt_util = require("poste-http.http.format.util")
 local columns = require("poste-http.ui.columns")
+local semantics = require("poste-http.ui.semantics")
 
 local M = {}
 
@@ -683,12 +684,8 @@ function M.apply_verbose_highlights(buf, lines, r)
       local fmt_method = (r and r._fmt_method) or M._fmt_method
       local fmt_method_line = (r and r._fmt_method_line) or M._fmt_method_line
       if fmt_method and fmt_method ~= "" and row == fmt_method_line then
-        local hl_map = {
-          GET = "PosteMethodGET", POST = "PosteMethodPOST", PUT = "PosteMethodPUT",
-          DELETE = "PosteMethodDELETE", PATCH = "PosteMethodPATCH",
-          HEAD = "PosteMethodHEAD", OPTIONS = "PosteMethodOPTIONS",
-        }
-        local hl = hl_map[fmt_method] or "PosteVerboseValue"
+        local hl = semantics.method_hl(fmt_method)
+        if hl == "PosteMethodOther" then hl = "PosteVerboseValue" end
         vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, 2, {
           virt_text = {{fmt_method .. " ", hl}},
           virt_text_pos = "inline",
@@ -724,32 +721,21 @@ function M.apply_verbose_highlights(buf, lines, r)
           local matched = false
 
           if line:match("^  Request Method:") then
-            local hl_map = {
-              GET = "PosteMethodGET", POST = "PosteMethodPOST", PUT = "PosteMethodPUT",
-              DELETE = "PosteMethodDELETE", PATCH = "PosteMethodPATCH",
-              HEAD = "PosteMethodHEAD", OPTIONS = "PosteMethodOPTIONS",
-            }
             local meth = value:match("^(%S+)")
-            if meth and hl_map[meth] then
+            local hl = meth and semantics.method_hl(meth)
+            if meth and hl and hl ~= "PosteMethodOther" then
               vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1, {
                 end_col = content_start - 1 + #meth,
-                hl_group = hl_map[meth], priority = 200,
+                hl_group = hl, priority = 200,
               })
               matched = true
             end
           elseif line:match("^  Status Code:") then
             local code = value:match("^(%d+)")
             if code then
-              local sc = tonumber(code)
-              local hl_group
-              if sc < 300 then hl_group = "PosteStatus2xx"
-              elseif sc < 400 then hl_group = "PosteStatus3xx"
-              elseif sc < 500 then hl_group = "PosteStatus4xx"
-              else hl_group = "PosteStatus5xx"
-              end
               vim.api.nvim_buf_set_extmark(buf, verbose_ns, row, content_start - 1, {
                 end_col = content_start - 1 + #code,
-                hl_group = hl_group, priority = 200,
+                hl_group = semantics.status_hl(code), priority = 200,
               })
               matched = true
             end

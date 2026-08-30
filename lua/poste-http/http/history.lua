@@ -2,6 +2,10 @@ local state = require("poste-http.state")
 local format = require("poste-http.http.format")
 local buffer = require("poste-http.http.buffer")
 local columns = require("poste-http.ui.columns")
+local semantics = require("poste-http.ui.semantics")
+local render = require("poste-http.ui.render")
+local winbar = require("poste-http.ui.winbar")
+local float = require("poste-http.ui.float")
 
 local M = {}
 
@@ -19,17 +23,6 @@ local hiding = false
 local list_ns = vim.api.nvim_create_namespace("poste_history_list")
 
 local MAX_BODY_SAVE = 100 * 1024
-
-local METHOD_HL = {
-  GET = "PosteMethodGET",
-  POST = "PosteMethodPOST",
-  PUT = "PosteMethodPUT",
-  DELETE = "PosteMethodDELETE",
-  PATCH = "PosteMethodPATCH",
-  HEAD = "PosteMethodHEAD",
-  OPTIONS = "PosteMethodOPTIONS",
-  SCRIPT = "PosteMethodScript",
-}
 
 local METHOD_WIDTH = 8
 local STATUS_WIDTH = 3
@@ -173,18 +166,6 @@ local function format_elapsed(ms)
   return string.format("%.2f ms", ms)
 end
 
-local function status_hl(status)
-  local sc = tonumber(status) or 0
-  if sc > 0 then
-    if sc < 300 then return "PosteStatus2xx"
-    elseif sc < 400 then return "PosteStatus3xx"
-    elseif sc < 500 then return "PosteStatus4xx"
-    else return "PosteStatus5xx"
-    end
-  end
-  return "Comment"
-end
-
 --- Build the five display cells for one history entry (method, name, status,
 --- elapsed, timestamp). Also returns the raw status for highlight mapping.
 local function build_row(entry)
@@ -205,11 +186,11 @@ end
 local function entry_info(cells, status)
   return {
     method = cells[1].text,
-    method_hl = METHOD_HL[cells[1].text] or "PosteMethodOther",
+    method_hl = semantics.method_hl(cells[1].text),
     method_col = cells[1].col,
     method_end = cells[1].end_col,
     status = cells[3].text,
-    status_hl = status_hl(status),
+    status_hl = semantics.status_hl(status),
     status_col = cells[3].col,
     status_end = cells[3].end_col,
     elapsed_col = cells[4].col,
@@ -253,16 +234,7 @@ end
 
 local function update_winbar()
   if not detail_win or not vim.api.nvim_win_is_valid(detail_win) then return end
-  local tabs = get_active_tabs()
-  local parts = {}
-  for _, tab in ipairs(tabs) do
-    if tab.id == detail_view then
-      table.insert(parts, "%#TabLineSel# " .. tab.label .. " %*")
-    else
-      table.insert(parts, "%#TabLine# " .. tab.label .. " %*")
-    end
-  end
-  vim.wo[detail_win].winbar = table.concat(parts)
+  vim.wo[detail_win].winbar = winbar.render_tabs(get_active_tabs(), detail_view)
 end
 
 local _detail_cursor = {}  -- { [entry_id] = { [view_name] = { row, col }, ... }, ... }
@@ -280,10 +252,7 @@ local function render_detail()
 
   entry = state.http_history[current_index]
   if not entry then
-    vim.api.nvim_set_option_value("modifiable", true, { buf = detail_buf })
-    vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, { "(no history)" })
-    vim.api.nvim_set_option_value("modifiable", false, { buf = detail_buf })
-    vim.bo[detail_buf].filetype = "text"
+    render.set_lines(detail_buf, { "(no history)" }, { filetype = "text" })
     update_winbar()
     return
   end
@@ -304,10 +273,7 @@ local function render_detail()
 
   lines = buffer.sanitize_lines(lines)
 
-  vim.api.nvim_set_option_value("modifiable", true, { buf = detail_buf })
-  vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, lines)
-  vim.api.nvim_set_option_value("modifiable", false, { buf = detail_buf })
-  vim.bo[detail_buf].filetype = filetype or "text"
+  render.set_lines(detail_buf, lines, { filetype = filetype or "text" })
 
   local saved = _detail_cursor[entry.id] and _detail_cursor[entry.id][detail_view]
   if saved then
@@ -363,9 +329,7 @@ local function history_jq_filter(query)
   entry._jq.is_filtered = true
   entry._jq.lines = lines
 
-  vim.api.nvim_set_option_value("modifiable", true, { buf = detail_buf })
-  vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, buffer.sanitize_lines(lines))
-  vim.api.nvim_set_option_value("modifiable", false, { buf = detail_buf })
+  render.set_lines(detail_buf, buffer.sanitize_lines(lines))
 
   if detail_win and vim.api.nvim_win_is_valid(detail_win) then
     vim.wo[detail_win].foldmethod = "indent"
@@ -380,9 +344,7 @@ local function history_jq_restore()
   local entry = state.http_history[current_index]
   if not entry or not entry._jq or not entry._jq.original_lines then return end
 
-  vim.api.nvim_set_option_value("modifiable", true, { buf = detail_buf })
-  vim.api.nvim_buf_set_lines(detail_buf, 0, -1, false, buffer.sanitize_lines(entry._jq.original_lines))
-  vim.api.nvim_set_option_value("modifiable", false, { buf = detail_buf })
+  render.set_lines(detail_buf, buffer.sanitize_lines(entry._jq.original_lines))
 
   entry._jq = nil
 
@@ -414,10 +376,7 @@ local function render_list()
     end
   end
 
-  vim.api.nvim_set_option_value("modifiable", true, { buf = list_buf })
-  vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
-  vim.api.nvim_set_option_value("modifiable", false, { buf = list_buf })
-  vim.bo[list_buf].filetype = "poste_history_list"
+  render.set_lines(list_buf, lines, { filetype = "poste_history_list" })
 
   -- Colored method, elapsed, and gray timestamp via extmarks
   for i, line in ipairs(lines) do
@@ -505,14 +464,7 @@ local function switch_tab(tab_id)
 end
 
 local function cycle_tab(direction)
-  local tabs = get_active_tabs()
-  if #tabs == 0 then return end
-  local idx = 1
-  for i, tab in ipairs(tabs) do
-    if tab.id == detail_view then idx = i end
-  end
-  local next = ((idx - 1 + direction) % #tabs) + 1
-  detail_view = tabs[next].id
+  detail_view = winbar.cycle(get_active_tabs(), detail_view, direction) or detail_view
   render_detail()
 end
 
@@ -641,48 +593,34 @@ function M.show()
   list_width = 53
   local gap = 1
 
-  list_buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[list_buf].bufhidden = "wipe"
-  local ok, lw = pcall(vim.api.nvim_open_win, list_buf, true, {
-    relative = "editor",
+  -- close_keys = {}: the list/detail keymaps below own "q" (hide closes both
+  -- windows), so the float primitive must not map its own close keys.
+  list_buf, list_win = float.open({
     width = list_width,
     height = total_height,
     row = top,
     col = left,
-    style = "minimal",
     border = "single",
     title = " Poste HTTP History ",
-    title_pos = "center",
+    cursorline = true,
+    close_keys = {},
   })
-  if not ok then
-    pcall(vim.api.nvim_buf_delete, list_buf, { force = true })
-    list_buf = nil
-    return
-  end
-  list_win = lw
-  vim.wo[list_win].cursorline = true
+  if not list_win then return end
 
   local detail_width = total_width - list_width - gap - 1
-  detail_buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[detail_buf].bufhidden = "wipe"
-  local ok2, dw = pcall(vim.api.nvim_open_win, detail_buf, false, {
-    relative = "editor",
+  detail_buf, detail_win = float.open({
     width = detail_width,
     height = total_height,
     row = top,
     col = left + list_width + gap,
-    style = "minimal",
     border = "single",
+    focus = false,
+    close_keys = {},
   })
-  if not ok2 then
-    pcall(vim.api.nvim_win_close, list_win, true)
-    pcall(vim.api.nvim_buf_delete, detail_buf, { force = true })
-    detail_buf = nil
-    list_buf = nil
-    list_win = nil
+  if not detail_win then
+    hide()
     return
   end
-  detail_win = dw
 
   current_index = nil
   detail_view = DEFAULT_DETAIL_VIEW

@@ -2,6 +2,11 @@ local _ = require("poste-http.state")
 local request_vars = require("poste-http.http.request_vars")
 local ts_query = require("poste-http.http.ts_query")
 local state = require("poste-http.state")
+local text = require("poste-http.ui.text")
+local semantics = require("poste-http.ui.semantics")
+-- ui/render is aliased: this module has its own local render() below.
+local ui_render = require("poste-http.ui.render")
+local float = require("poste-http.ui.float")
 
 local M = {}
 
@@ -13,9 +18,7 @@ local active = nil
 local hl_ns = vim.api.nvim_create_namespace("poste_outline")
 
 local function ellipsis(s, max)
-  if not s then return "" end
-  if #s <= max then return s end
-  return s:sub(1, max - 1) .. "…"
+  return text.truncate(s, max)
 end
 
 -----------------------------------------------------------------------------
@@ -225,17 +228,8 @@ end
 -----------------------------------------------------------------------------
 
 local function method_hl(method)
-  if not method or method == "--" then return "PosteMethodOther" end
-  if method == "RUN" then return "PosteRun" end
   if method == "@" then return "PreProc" end
-  local m = method:upper()
-  if m == "GET" then return "PosteMethodGET"
-  elseif m == "POST" then return "PosteMethodPOST"
-  elseif m == "PUT" then return "PosteMethodPUT"
-  elseif m == "DELETE" then return "PosteMethodDELETE"
-  elseif m == "PATCH" then return "PosteMethodPATCH"
-  elseif m == "HEAD" then return "PosteMethodHEAD"
-  else return "PosteMethodOther" end
+  return semantics.method_hl(method)
 end
 
 local function build_label(item, max_method_width)
@@ -283,8 +277,7 @@ local function render()
     table.insert(lines, build_label(item, max_method_width))
   end
 
-  vim.bo[active.out_buf].modifiable = true
-  vim.api.nvim_buf_set_lines(active.out_buf, 0, -1, false, lines)
+  ui_render.set_lines(active.out_buf, lines)
   vim.api.nvim_buf_clear_namespace(active.out_buf, hl_ns, 0, -1)
 
   for i, item in ipairs(items) do
@@ -295,7 +288,6 @@ local function render()
     end
   end
 
-  vim.bo[active.out_buf].modifiable = false
   active.items = items
   active.max_method_width = max_method_width
 end
@@ -355,8 +347,6 @@ local function highlight_current()
       end
     end
   end
-
-  vim.bo[active.out_buf].modifiable = false
 end
 
 -----------------------------------------------------------------------------
@@ -410,21 +400,19 @@ function M.open()
 
   local width = math.min(80, math.max(45, math.floor(vim.o.columns * 0.4)))
   local height = math.min(20, vim.o.lines - 4)
-  local col = math.floor((vim.o.columns - width) / 2)
-  local row = math.floor((vim.o.lines - height) / 2)
 
-  local ok, out_win = pcall(vim.api.nvim_open_win, out_buf, true, {
-    style = "minimal",
-    relative = "editor",
-    width = width,
-    height = height,
-    row = row,
-    col = col,
-    border = "rounded",
-    focusable = true,
-    zindex = 50,
-  })
-  if not ok then
+  local ok, out_win = pcall(function()
+    local _, w = float.open({
+      buf = out_buf,
+      width = width,
+      height = height,
+      border = "rounded",
+      close_keys = {},
+      win_opts = { zindex = 50 },
+    })
+    return w
+  end)
+  if not ok or not out_win then
     pcall(vim.api.nvim_buf_delete, out_buf, { force = true })
     return
   end

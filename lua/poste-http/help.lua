@@ -87,23 +87,16 @@ function M.open()
   table.sort(close_parts, function(a, b) return #a < #b end)
   local close_text = #close_parts > 0 and table.concat(close_parts, " / ") or "q"
   table.insert(lines, "  " .. close_text .. "  close")
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].filetype = "poste_help"
   local height = math.min(#lines, vim.o.lines - 4)
-  local ok, win = pcall(vim.api.nvim_open_win, buf, true, {
-    relative = "editor",
-    row = 2, col = math.floor((vim.o.columns - width) / 2),
+  local buf, win = require("poste-http.ui.float").open({
+    lines = lines,
+    filetype = "poste_help",
     width = width, height = height,
-    style = "minimal", border = "rounded",
-    title = " Poste Keymaps ", title_pos = "center",
+    row = 2,
+    border = "rounded",
+    title = " Poste Keymaps ",
   })
-  if not ok then return end
-  vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "<Esc>", function() pcall(vim.api.nvim_win_close, win, true) end, { buffer = buf, nowait = true })
+  if not win then return end
   local ns = vim.api.nvim_create_namespace("poste_help")
   for i, line in ipairs(lines) do
     if line:find("^  %u%a") then

@@ -1,4 +1,6 @@
 local M = {}
+local text = require("poste-http.ui.text")
+local semantics = require("poste-http.ui.semantics")
 
 ---------------------------------------------------------------------------
 -- Helpers
@@ -21,36 +23,15 @@ local function extract_url_path(line)
   return path and path ~= "" and path or nil
 end
 
-local function truncate_middle(s, max)
-  if not s or vim.fn.strchars(s) <= max then return s or "" end
-  local half = math.floor((max - 1) / 2)
-  return vim.fn.strcharpart(s, 0, half) .. "…" .. vim.fn.strcharpart(s, -half)
-end
-
-local function truncate(s, max)
-  if not s then return "" end
-  if vim.fn.strchars(s) <= max then return s end
-  return vim.fn.strcharpart(s, 0, max - 1) .. "…"
-end
+local truncate_middle = text.middle
+local truncate = text.truncate
 
 local function short_name(name)
   if not name then return "" end
   return name:match("([^%.]+)$") or name
 end
 
-local function method_hl(method)
-  if not method or method == "--" then return "PosteMethodOther" end
-  if method == "RUN" then return "PosteRun" end
-  local m = method:upper()
-  if m == "GET" then return "PosteMethodGET"
-  elseif m == "POST" then return "PosteMethodPOST"
-  elseif m == "PUT" then return "PosteMethodPUT"
-  elseif m == "DELETE" then return "PosteMethodDELETE"
-  elseif m == "PATCH" then return "PosteMethodPATCH"
-  elseif m == "HEAD" then return "PosteMethodHEAD"
-  elseif m == "SCRIPT" then return "PosteMethodScript"
-  else return "PosteMethodOther" end
-end
+local method_hl = semantics.method_hl
 
 ---------------------------------------------------------------------------
 -- Parse requests from buffer

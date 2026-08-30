@@ -3,6 +3,8 @@ local cache = require("poste-http.http.cache")
 local state = require("poste-http.state")
 local request_deps = require("poste-http.http.request_deps")
 local columns = require("poste-http.ui.columns")
+local text = require("poste-http.ui.text")
+local float = require("poste-http.ui.float")
 
 local M = {}
 
@@ -179,9 +181,7 @@ local function collect_entries(buf, cursor_line)
 end
 
 local function middle_ellipsis(s, max_len)
-  if #s <= max_len then return s end
-  local half = math.floor((max_len - 3) / 2)
-  return s:sub(1, half) .. "..." .. s:sub(#s - half + 1)
+  return text.middle(s, max_len)
 end
 
 local function format_value(val)
@@ -302,30 +302,23 @@ function M.show_inspector()
 
   local height = math.min(#rows + 2, math.floor(vim.o.lines * 0.7))
 
-  local win_opts = {
-    relative = "editor",
-    row = math.floor((vim.o.lines - height) / 2),
-    col = math.floor((vim.o.columns - target_width) / 2),
+  -- close_keys = {}: "q"/"<Esc>" close via the `close()` closure below, which
+  -- jump_to_def also uses; float's generic close would bypass nothing here but
+  -- keeping one close path avoids double bookkeeping.
+  local _, win = float.open({
+    buf = float_buf,
     width = target_width,
     height = height,
-    style = "minimal",
-    border = "rounded",
     title = " Variable Inspector ",
-    title_pos = "center",
-  }
-  local ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-  if not ok then
-    win_opts.title = nil
-    win_opts.title_pos = nil
-    ok, win = pcall(vim.api.nvim_open_win, float_buf, true, win_opts)
-    if not ok then
-      pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
-      return
-    end
+    cursorline = true,
+    close_keys = {},
+  })
+  if not win then
+    pcall(vim.api.nvim_buf_delete, float_buf, { force = true })
+    return
   end
 
   vim.wo[win].winbar = lines[1]
-  vim.wo[win].cursorline = true
 
   for i, r in ipairs(rows) do
     local c = cells[i + 1]
@@ -340,6 +333,9 @@ function M.show_inspector()
   local function close()
     pcall(vim.api.nvim_win_close, win, true)
   end
+
+  vim.keymap.set("n", "q", close, { buffer = float_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "<Esc>", close, { buffer = float_buf, noremap = true, silent = true })
 
   local function jump_to_def()
     local cur = vim.api.nvim_win_get_cursor(win)

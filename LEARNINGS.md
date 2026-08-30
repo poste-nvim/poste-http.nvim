@@ -3,6 +3,23 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-08-30: ui/ primitives — consolidated the hand-rolled UI boilerplate into
+  `lua/poste-http/ui/`: `float.lua` (centered float with failure cleanup,
+  q/Esc close keys, `WinClosed`→`on_close`; callers with their own keymaps pass
+  `close_keys = {}`), `render.lua` (`set_lines` = modifiable toggle + set-lines
+  + optional filetype), `text.lua` (display-width `truncate`/`middle`), 
+  `semantics.lua` (`method_hl`/`status_hl` single mapping source),
+  `winbar.lua` (`render_tabs`/`cycle`). Pitfalls hit during the extraction:
+  (1) outline.lua has a local function named `render` — alias the module
+  require (`ui_render`) or the local shadows it and `render.set_lines`
+  explodes with "attempt to index upvalue"; (2) `float.open` returns
+  `(buf, win)` — wrapping it in `pcall(function() return float.open(...) end)`
+  truncates to the first value, so you close the buf id as a "window";
+  (3) in `nvim_buf_get_keymap`, `<Esc>` is reported as lhs `"<Esc>"`, not
+  `"\27"`; (4) `nvim_win_get_config().title` is a chunk table `{{text}}`, and
+  `row`/`col` are numbers for `relative="editor"` floats. See
+  `docs/dev/code-review-2026-08-30.md`, `tests/ui_*_spec.lua`.
+
 - 2026-08-12: http/history-empty-list — `render_list` only wrote buffer lines in the non-empty branch; after deleting the last entry the list window kept showing stale rows (and a fresh window showed a blank float instead of "(no history)"). Fix: the "(no history)" line now goes through the same modifiable/set-lines path in `render_list`. See `lua/poste-http/http/history.lua`.
 - 2026-08-13: http/dual-cache-consistency — `get_semantic_blocks` (tree-sitter via `describe.lua`) and `get_buffer_cache` (plain-text scan) both cached `blocks` independently, keyed by `changedtick`. When tree-sitter was unavailable, `get_semantic_blocks` cached `[]` while `get_buffer_cache` held populated blocks — divergent state. `boundary_indicator.find_block` then fell through to the text-scan path every call, and any caller reading `get_semantic_blocks` got empty data while others saw real blocks. Fix: when `describe.describe_content` returns `[]`, `get_semantic_blocks` falls back to `get_buffer_cache().blocks` re-keyed via `normalize_to_semantic` (`start_line` → `line`) so `describe.block_at_line` works. Both caches now always agree. See `lua/poste-http/http/cache.lua:528-590`, `tests/http/cache_spec.lua` (4 new regression tests).
 - 2026-08-12: tests/run.sh — `PlenaryBustedDirectory` was undefined ("Not an editor command"): adding plenary to rtp via `-c "set rtp+=..."` happens after startup, so `plugin/plenary.vim` is never auto-sourced. Fix: source it explicitly (`-c "runtime plugin/plenary.vim"`) before the busted command. See `tests/run.sh`.

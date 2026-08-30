@@ -86,23 +86,18 @@ local commands = {
       vim.bo[buf].bufhidden = "wipe"
       local width = 80
       local height = math.min(#lines + 2, 20)
-      local ok, win = pcall(vim.api.nvim_open_win, buf, true, {
-        relative = "editor",
+      local _, win = require("poste-http.ui.float").open({
+        buf = buf,
         width = width,
         height = height,
-        row = math.max(0, (vim.o.lines - height) / 2 - 1),
-        col = math.max(0, (vim.o.columns - width) / 2),
-        style = "minimal",
+        row = math.max(0, math.floor((vim.o.lines - height) / 2) - 1),
         border = "single",
         title = " Import Resolution Status ",
-        title_pos = "center",
       })
-      if not ok then
+      if not win then
         pcall(vim.api.nvim_buf_delete, buf, { force = true })
         return
       end
-      vim.keymap.set("n", "q", function() pcall(vim.api.nvim_win_close, win, true) end,
-        { buffer = buf, noremap = true, silent = true })
       vim.api.nvim_buf_attach(buf, false, { on_detach = function() pcall(vim.api.nvim_win_close, win, true) end })
     end,
     opts = { desc = "Show import resolution status" },

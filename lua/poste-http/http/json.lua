@@ -104,9 +104,7 @@ function M.apply_filter(query)
   if not result then return end
 
   local buf = require("poste-http.http.buffer").get_buf()
-  vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(result, "\n"))
-  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  require("poste-http.ui.render").set_lines(buf, vim.split(result, "\n"))
 
   state._json.query = query
   state._json.is_filtered = true
@@ -118,9 +116,7 @@ function M.restore_original()
   if not state._json.original_lines then return end
 
   local buf = require("poste-http.http.buffer").get_buf()
-  vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, state._json.original_lines)
-  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  require("poste-http.ui.render").set_lines(buf, state._json.original_lines)
 
   state._json.original_lines = nil
   state._json.query = nil

@@ -3,6 +3,7 @@
 --- Supports image.nvim, snacks.image, Kitty protocol, and external viewer fallback.
 --- Extracted from the former format.lua god module.
 local M = {}
+local float = require("poste-http.ui.float")
 
 local image_preview_state = {
   image = nil,
@@ -595,18 +596,35 @@ function M.render_image_float(file_path, content_type)
   local meta_lines = build_meta_lines(meta)
   local width, height, img_cols, img_rows = calc_float_size(meta, #meta_lines)
 
-  -- Create floating window with a scratch buffer.
-  -- Row 0 is a blank anchor below which the image renders; meta text follows.
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-  vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
-
+  -- Floating window: row 0 is a blank anchor below which the image renders;
+  -- meta text follows. modifiable stays open for the external-viewer fallback
+  -- that appends file info below.
+  -- q/<Esc> close via on_close → close_image_preview (also covers :q/<C-w>c
+  -- through the WinClosed autocmd inside ui/float).
   local lines = { "" }
   for _, l in ipairs(meta_lines) do
     table.insert(lines, l)
   end
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+
+  local title_parts = { "Preview" }
+  if meta.format then table.insert(title_parts, meta.format) end
+  if meta.width and meta.height then
+    table.insert(title_parts, string.format("%d*%d", meta.width, meta.height))
+  end
+  if meta.size_human then table.insert(title_parts, meta.size_human) end
+
+  local buf, win = float.open({
+    lines = lines,
+    width = width,
+    height = height,
+    title = " " .. table.concat(title_parts, "  ") .. " ",
+    modifiable = true,
+    on_close = function() M.close_image_preview() end,
+  })
+  if not win then return false end
+
+  image_preview_state.float_win = win
+  image_preview_state.float_buf = buf
 
   -- Gray meta lines below the image
   ensure_meta_highlight()
@@ -617,39 +635,6 @@ function M.render_image_float(file_path, content_type)
       end_col = 0,
     })
   end
-
-  local row = math.max(0, math.floor((vim.o.lines - height) / 2))
-  local col = math.max(0, math.floor((vim.o.columns - width) / 2))
-
-  local title_parts = { "Preview" }
-  if meta.format then table.insert(title_parts, meta.format) end
-  if meta.width and meta.height then
-    table.insert(title_parts, string.format("%d*%d", meta.width, meta.height))
-  end
-  if meta.size_human then table.insert(title_parts, meta.size_human) end
-
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = row,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-    title = " " .. table.concat(title_parts, "  ") .. " ",
-    title_pos = "center",
-  })
-
-  image_preview_state.float_win = win
-  image_preview_state.float_buf = buf
-
-  -- Set up keymaps to close the floating window
-  vim.keymap.set("n", "<Esc>", function()
-    M.close_image_preview()
-  end, { buffer = buf, nowait = true })
-  vim.keymap.set("n", "q", function()
-    M.close_image_preview()
-  end, { buffer = buf, nowait = true })
 
   -- Try snacks.image first (image anchored on the blank row 0)
   if try_snacks_image_float(buf, win, file_path, 1, img_cols, img_rows) then

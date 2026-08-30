@@ -1,6 +1,8 @@
 --- Response buffer/window management and winbar tab indicators.
 local state = require("poste-http.state")
 local format = require("poste-http.http.format")
+local winbar = require("poste-http.ui.winbar")
+local render = require("poste-http.ui.render")
 
 local M = {}
 
@@ -93,7 +95,6 @@ function M.update_winbar(active)
     return
   end
 
-  local tabs = get_active_tabs()
   local parts = {}
 
   -- Multi-response index: [1/3] GetIP
@@ -104,13 +105,7 @@ function M.update_winbar(active)
     table.insert(parts, "%#TabLineFill# " .. label .. " %*")
   end
 
-  for _, tab in ipairs(tabs) do
-    if tab.id == active then
-      table.insert(parts, "%#TabLineSel# " .. tab.label .. " %*")
-    else
-      table.insert(parts, "%#TabLine# " .. tab.label .. " %*")
-    end
-  end
+  table.insert(parts, winbar.render_tabs(get_active_tabs(), active))
 
   vim.wo[response_window].winbar = table.concat(parts)
 end
@@ -215,22 +210,11 @@ end
 --- Cycle to the next/previous tab. direction: 1 = forward, -1 = backward
 function M.cycle_tab(direction)
   if not M.on_show_view then return end
-  local tabs = get_active_tabs()
-  if #tabs == 0 then return end
   direction = direction or 1
-
-  -- Find current tab index
-  local current_idx = 1
-  for i, tab in ipairs(tabs) do
-    if tab.id == state.current_view then
-      current_idx = i
-      break
-    end
+  local next_id = winbar.cycle(get_active_tabs(), state.current_view, direction)
+  if next_id then
+    M.on_show_view(next_id)
   end
-
-  -- Move to next/previous tab (wrap around)
-  local next_idx = ((current_idx - 1 + direction) % #tabs) + 1
-  M.on_show_view(tabs[next_idx].id)
 end
 
 ---------------------------------------------------------------------------
@@ -578,10 +562,8 @@ function M.render_buffer(lines, filetype)
   format.cleanup_url_preview()
   local buf = get_response_buffer()
 
-  -- Make buffer modifiable, write lines, lock again
-  vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, M.sanitize_lines(lines))
-  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  -- Write lines (ui/render toggles modifiable around the write)
+  render.set_lines(buf, M.sanitize_lines(lines))
 
   -- Set filetype for treesitter highlighting (skip if same to avoid reattach)
   local new_ft = filetype or "text"

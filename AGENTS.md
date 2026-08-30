@@ -55,7 +55,7 @@ load the `lua-patterns` skill before writing any `string.match`/`gmatch`/`gsub`.
 | Want | Go to |
 |------|-------|
 |**Shared infra (state, cli, select, install, indicators, buffer_setup, help, etc.)**|`lua/poste-http/` — edit there|
-|**UI components (columns, …)**|`lua/poste-http/ui/` — pure, unit-tested, window-free|
+|**UI components (columns, text, semantics, winbar, render, float, …)**|`lua/poste-http/ui/` — reusable primitives; pure modules are unit-tested, window code stays in the thin `float.lua` primitive and out of `http/` business modules|
 | File index | `docs/dev/file-index.md` |
 | Architecture | `docs/dev/architecture-overview.md` |
 | Build & test | `docs/dev/testing.md` |

@@ -34,11 +34,19 @@
 ### UI Components (`lua/poste-http/ui/`)
 
 Reusable rendering components — the seed of a standalone Neovim UI component
-library. Pure functions, unit-tested without windows.
+library. Pure functions, unit-tested without windows (`float.lua` is the one
+thin window primitive; its geometry helper is unit-tested and its `open()`
+adds the guards — failure cleanup, close-keymaps, `WinClosed`/`on_close` —
+that hand-rolled floats used to apply unevenly).
 
 | File | Description |
 |------|-------------|
 | `columns.lua` | Column-aligned list layout: `render(rows, cols, opts)` → aligned lines + per-cell byte ranges for extmarks. Per-column align (left/right), fixed/max/flex widths, ellipsis truncation, display-width aware (CJK-safe) |
+| `text.lua` | Display-width aware truncation: `truncate(s, max)` (end `…`) and `middle(s, max)` (middle `…`). Single source replacing the byte/char-based copies |
+| `semantics.lua` | HTTP semantics → highlight groups: `method_hl(method)`, `status_hl(status)`. Single mapping source (groups defined in `http/highlights.lua`) |
+| `winbar.lua` | Winbar tab rows: `render_tabs(tabs, active_id)` and tab cycling `cycle(tabs, current_id, direction)` |
+| `render.lua` | Scratch-buffer line writer: `set_lines(buf, lines, opts)` — modifiable toggle + optional filetype |
+| `float.lua` | Centered floating window: `open(opts)` (scratch buffer, border/title, close keys, `on_close`, failure cleanup) and pure `center(w, h)` |
 
 ### HTTP Module (`lua/poste-http/http/`)
 

@@ -1,4 +1,5 @@
 local M = {}
+local float = require("poste-http.ui.float")
 
 local function normalize_items(items)
   local result = {}
@@ -67,18 +68,16 @@ local function pick_float(items, prompt, on_select)
   vim.api.nvim_buf_set_option(list_buf, "filetype", "PosteSelect")
   local width = math.min(80, vim.o.columns - 4)
   local height = math.min(24, #items + 2)
-  local row = math.floor((vim.o.lines - height) / 2)
-  local col = math.floor((vim.o.columns - width) / 2)
-  local ok, win = pcall(vim.api.nvim_open_win, list_buf, true, {
-    relative = "editor",
+  -- close_keys = {}: the picker maps j/k/<CR>/<Esc>/i and its own search flow;
+  -- its WinClosed autocmd covers the external-close path.
+  local _, win = float.open({
+    buf = list_buf,
     width = width, height = height,
-    row = row, col = col,
-    style = "minimal",
     border = "rounded",
     title = prompt,
-    title_pos = "center",
+    close_keys = {},
   })
-  if not ok then
+  if not win then
     pcall(vim.api.nvim_buf_delete, list_buf, { force = true })
     return
   end
