@@ -1,5 +1,5 @@
 local M = {}
-local float = require("poste-http.ui.float")
+local picker = require("poste-http.ui.picker")
 
 local function normalize_items(items)
   local result = {}
@@ -62,110 +62,6 @@ local function pick_snacks(items, prompt, on_select)
   )
 end
 
-local function pick_float(items, prompt, on_select)
-  local list_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(list_buf, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(list_buf, "filetype", "PosteSelect")
-  local width = math.min(80, vim.o.columns - 4)
-  local height = math.min(24, #items + 2)
-  -- close_keys = {}: the picker maps j/k/<CR>/<Esc>/i and its own search flow;
-  -- its WinClosed autocmd covers the external-close path.
-  local _, win = float.open({
-    buf = list_buf,
-    width = width, height = height,
-    border = "rounded",
-    title = prompt,
-    close_keys = {},
-  })
-  if not win then
-    pcall(vim.api.nvim_buf_delete, list_buf, { force = true })
-    return
-  end
-  local selected_idx = 1
-  local search_text = ""
-  local filtered = vim.deepcopy(items)
-  local resolved = false
-  local function resolve(result)
-    if resolved then return end
-    resolved = true
-    pcall(vim.api.nvim_win_close, win, true)
-    vim.schedule(function() pcall(on_select, result) end)
-  end
-  local function render()
-    local display = {}
-    for _, item in ipairs(filtered) do
-      local label = item.name
-      if item.description ~= "" then
-        label = label .. "  (" .. item.description .. ")"
-      end
-      table.insert(display, label)
-    end
-    local lines = { "\239\134\133 " .. search_text }
-    for idx, label in ipairs(display) do
-      local prefix = (idx == selected_idx) and "▶ " or "  "
-      table.insert(lines, prefix .. label)
-    end
-    while #lines < height do table.insert(lines, "") end
-    vim.api.nvim_buf_set_lines(list_buf, 0, -1, false, lines)
-    vim.api.nvim_buf_clear_namespace(list_buf, -1, 0, -1)
-    if selected_idx > 0 and selected_idx <= #filtered then
-      vim.api.nvim_buf_add_highlight(list_buf, -1, "Visual", selected_idx, 0, -1)
-    end
-  end
-  local function filter_items()
-    filtered = {}
-    if search_text == "" then
-      filtered = vim.deepcopy(items)
-      selected_idx = 1
-    else
-      local lower = search_text:lower()
-      for _, item in ipairs(items) do
-        if item.name:lower():find(lower, 1, true)
-          or item.description:lower():find(lower, 1, true) then
-          table.insert(filtered, item)
-        end
-      end
-      selected_idx = 1
-    end
-    render()
-  end
-  local function map(mode, key, action)
-    vim.keymap.set(mode, key, action, { buffer = list_buf, nowait = true })
-  end
-  map("n", "j",      function() selected_idx = math.min(selected_idx + 1, #filtered); render() end)
-  map("n", "k",      function() selected_idx = math.max(selected_idx - 1, 1);         render() end)
-  map("n", "<Down>", function() selected_idx = math.min(selected_idx + 1, #filtered); render() end)
-  map("n", "<Up>",   function() selected_idx = math.max(selected_idx - 1, 1);         render() end)
-  map("n", "<CR>", function() resolve(#filtered > 0 and filtered[selected_idx].key or nil) end)
-  map("n", "<Esc>", function() resolve(nil) end)
-  map("n", "q",     function() resolve(nil) end)
-  vim.api.nvim_create_autocmd("WinClosed", {
-    buffer = list_buf,
-    once = true,
-    callback = function() resolve(nil) end,
-  })
-  map("n", "i",     function() vim.cmd("startinsert!") end)
-  map("n", "a",     function() vim.cmd("startinsert!") end)
-  map("i", "<CR>",   function() vim.cmd("stopinsert"); resolve(#filtered > 0 and filtered[selected_idx].key or nil) end)
-  map("i", "<Esc>",  function() vim.cmd("stopinsert"); resolve(nil) end)
-  map("i", "<Down>", function() selected_idx = math.min(selected_idx + 1, #filtered); render() end)
-  map("i", "<Up>",   function() selected_idx = math.max(selected_idx - 1, 1);         render() end)
-  vim.api.nvim_create_autocmd("TextChangedI", {
-    buffer = list_buf,
-    callback = function()
-      if resolved then return end
-      local lines = vim.api.nvim_buf_get_lines(list_buf, 0, 1, false)
-      local new_search = (lines[1] or ""):match("^\239\134\133 (.*)$") or ""
-      if new_search ~= search_text then
-        search_text = new_search
-        filter_items()
-      end
-    end,
-  })
-  render()
-  vim.cmd("startinsert!")
-end
-
 local function pick_vimui(items, prompt, on_select)
   vim.ui.select(items, {
     prompt = prompt,
@@ -191,9 +87,11 @@ function M.select(items, prompt, on_select)
     pick_snacks(normalized, prompt, on_select)
     return
   end
-  local ok, _ = pcall(pick_float, normalized, prompt, on_select)
-  if ok then return end
-  pick_vimui(normalized, prompt, on_select)
+  local ok, err = pcall(picker.open, normalized, prompt, on_select)
+  if not ok then
+    vim.notify("poste-http picker failed: " .. tostring(err), vim.log.levels.WARN)
+    pick_vimui(normalized, prompt, on_select)
+  end
 end
 
 return M
