@@ -134,24 +134,35 @@ format/verbose.lua（method/status 映射）、symbols.lua。
 AGENTS.md 约定更新：`lua/poste-http/ui/` 定位从「纯函数、window-free」调整为
 「纯函数组件 + 保留少数薄窗口原语（float），窗口逻辑仍不得散落在 http/ 业务模块」。
 
-## 4. 后续路线（按收益/风险排序）
+## 4. 后续路线（U6–U8 已于同日实施，各为独立 commit）
 
-1. U6：image.lua 拆分（下载缓存出 format/）。
-2. U8：select.pick_float → `ui/picker.lua`。
-3. U7：buffer.lua keymap 表格化；view/history tab 模型合一。
-4. state.lua setter 化（R7）。
+1. ~~U6：image.lua 拆分~~ **已完成** — 下载/TTL/hash/临时文件与内容类型表迁入
+   `http/image_cache.lua`（10 个单测），`format/image.lua` 保留渲染/适配器并重导出，
+   format.lua facade 与既有测试打桩方式不变。
+2. ~~U8：select.pick_float → `ui/picker.lua`~~ **已完成** — 独立选择器组件，外关路径
+   改走 ui/float 的 `on_close`（pattern 版 WinClosed），浮窗创建失败会 resolve(nil)
+   而非挂死调用方；select.lua 保留 snacks 优先 + vim.ui.select 异常兜底。
+3. ~~U7：buffer.lua keymap 表格化~~ **已完成** — 新增 `ui/keymaps.lua`
+   （`register`/`register_all`，统一「config 覆盖默认、false 停用」语义），
+   buffer.lua ~160 行 setup_keymaps 与 history.lua 两个 keymap setup 改为数据驱动。
+   view/history 的 tab 模型已通过 U5 的 `ui/winbar.lua`（render_tabs/cycle）收敛，
+   剩余的 get_active_tabs 差异是两个 surface 各自的状态派生，属合理边界，不再合并。
+4. state.lua setter 化（R7，2026-07 计划遗留）：仍开放，待有真实一致性 bug 驱动时再做。
 
 ## 5. 验收（已执行）
 
 - TDD：`tests/ui_text_spec.lua`（9）、`tests/ui_semantics_spec.lua`（6）、
   `tests/ui_winbar_spec.lua`（7）、`tests/ui_render_spec.lua`（6）、
-  `tests/ui_float_spec.lua`（9）先行 red→green，共 37 个新用例。
-- 全量 `tests/run.sh` 全绿：76 个 spec 文件（grammar/injection 脚本 + Lua 用例），
+  `tests/ui_float_spec.lua`（9）、`tests/http/image_cache_spec.lua`（10）、
+  `tests/ui_picker_spec.lua`（8）、`tests/ui_keymaps_spec.lua`（5）先行 red→green，
+  共 60 个新用例。
+- 全量 `tests/run.sh` 全绿：79 个 spec 文件（grammar/injection 脚本 + Lua 用例），
   exit 0；luacheck 维持基线 70 warnings / 0 errors（本轮 0 新增）。
 - Headless 冒烟：help / outline 开关、history 双浮窗、变量检查器、body/verbose
   视图渲染均通过。
-- 实施中发现并修正的三类坑已记入 `LEARNINGS.md`（本地 `render` 函数名遮蔽、
-  pcall 截断多返回值、`nvim_win_get_config` 返回形状）。
+- 实施中发现并修正的坑已记入 `LEARNINGS.md`（本地 `render` 函数名遮蔽、
+  pcall 截断多返回值、`nvim_win_get_config` 返回形状、headless feedkeys 的
+  startinsert 竞争、PlenaryBustedFile 不带 minimal_init）。
 
 ---
 

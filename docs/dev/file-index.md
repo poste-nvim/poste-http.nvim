@@ -47,6 +47,8 @@ that hand-rolled floats used to apply unevenly).
 | `winbar.lua` | Winbar tab rows: `render_tabs(tabs, active_id)` and tab cycling `cycle(tabs, current_id, direction)` |
 | `render.lua` | Scratch-buffer line writer: `set_lines(buf, lines, opts)` — modifiable toggle + optional filetype |
 | `float.lua` | Centered floating window: `open(opts)` (scratch buffer, border/title, close keys, `on_close`, failure cleanup) and pure `center(w, h)` |
+| `picker.lua` | Floating list picker with incremental search — snacks-less fallback used by `select.lua`; every close path resolves `on_select` exactly once |
+| `keymaps.lua` | Config-driven keymap registration: `register(buf, section, action, default, handler)` / `register_all(buf, section, specs, base_opts)`; `false` in config disables an action |
 
 ### HTTP Module (`lua/poste-http/http/`)
 
@@ -132,6 +134,7 @@ that hand-rolled floats used to apply unevenly).
 | `import_swagger.lua` | Swagger 2.0 spec → `.http` files (pure Lua) |
 | `import_postman.lua` | Postman Collection v2.1 → `.http` files (pure Lua) |
 | `import_parser.lua` | Shared import utilities (schema-to-example, `$ref` resolution, `env.json` generation) |
+| `image_cache.lua` | Image URL download + disk cache (TTL, stale fallback, temp-file tracking) and the content-type tables shared with `format/image.lua` |
 | `copy.lua` | Curl command export |
 | `curl.lua` | Paste curl command as `.http` format |
 

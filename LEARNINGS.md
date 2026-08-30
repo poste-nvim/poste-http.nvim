@@ -3,6 +3,17 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-08-30: ui/picker headless testing — the picker queues `vim.cmd("startinsert!")`
+  on open; under headless `nvim_feedkeys` that deferred mode switch races with
+  multi-key blobs (`feedkeys("jj<CR>", "mx")` ran one normal-mapped `j`, then the
+  queued startinsert swallowed the second). Rules: feed one key per feedkeys call
+  with a wait between; headless never actually enters insert mode, so drive the
+  TextChangedI search path by editing the search line + `doautocmd TextChangedI`.
+  Also: `PlenaryBustedFile` does NOT pass `minimal_init`, so specs needing
+  `package.path` extras (`helpers.*`) only run under `PlenaryBustedDirectory`
+  (i.e. `tests/run.sh`) — single-file runs fail with "module 'helpers.mock_nvim'
+  not found" for unrelated-looking reasons.
+
 - 2026-08-30: ui/ primitives — consolidated the hand-rolled UI boilerplate into
   `lua/poste-http/ui/`: `float.lua` (centered float with failure cleanup,
   q/Esc close keys, `WinClosed`→`on_close`; callers with their own keymaps pass
