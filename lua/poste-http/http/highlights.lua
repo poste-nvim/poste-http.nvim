@@ -164,7 +164,7 @@ function M.setup()
 
   -- HTTP request block boundary: full-width rectangle background for the
   -- request under the cursor (poste_ai-style hl_eol extmarks)
-  vim.api.nvim_set_hl(0, "PosteHttpBoundary", { bg = 0x24301f, fg = 0x9ece6a })
+  vim.api.nvim_set_hl(0, "PosteHttpBoundary", { bg = 0x24301f })
   vim.api.nvim_set_hl(0, "PosteHttpBoundaryBorder", { fg = 0x246e3b, bold = true })
 
   -- Status code coloring in verbose view
