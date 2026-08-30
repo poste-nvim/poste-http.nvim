@@ -1,4 +1,4 @@
-*poste.txt*   Poste - File-driven multi-protocol request executor
+*poste.txt*   Poste HTTP - File-driven HTTP request executor
 
 ==============================================================================
 CONTENTS                                                    *poste-contents*
@@ -16,9 +16,9 @@ CONTENTS                                                    *poste-contents*
 ==============================================================================
 1. INTRODUCTION                                          *poste-intro*
 
-Poste is a keyboard-first multi-protocol request executor for Neovim.
-Write requests in `.http`, `.sql`, or `.redis` files and execute them
-inline with `<CR>`.
+Poste HTTP is a keyboard-first HTTP request executor for Neovim.
+Write requests in `.http` / `.rest` files and execute them inline
+with `<CR>`.
 
 ==============================================================================
 2. HTTP SYNTAX                                        *poste-http-syntax*
@@ -127,7 +127,7 @@ Create `.env.json` files:
       }
     }
 
-Switch environments with |PosteEnvCycle| or the `:lua` command.
+Switch environments with `:PosteHttpEnv [name]` or `<leader>vv`.
 
 ==============================================================================
 4. PRE/POST SCRIPTS                                      *poste-scripts*
@@ -241,26 +241,55 @@ directory. See |poste-http-env-file| for format.
 
 SWITCHING ~
                             *poste-http-env-switch*
-Use |PosteEnvCycle| to cycle through available environments.
-The current environment is shown in the winbar.
+Use `:PosteHttpEnv [name]` to switch, `<leader>vv` for the environment
+picker. The current environment is shown in the winbar.
 
 ==============================================================================
 8. KEYMAPS                                              *poste-keymaps*
 
     <CR>                   Execute request at cursor
-    <leader>r              Execute request at cursor
-    <leader>h              Show request history
-    <leader>e              Cycle environment
+    <M-CR>                 Execute request (horizontal split)
+    ]] / [[                Jump to next/previous request block
+    gd                     Go to variable/request definition
+    grr                    List variable references (quickfix)
+    gs                     Toggle request outline
+    K                      Show variable value / response chain
+    gi                     Open variable inspector
+    <leader>rp             Paste curl command as request
+    <leader>rc             Copy request as curl command
+    <leader>vv             Pick environment
+    <leader>l              Show request history
+    ga                     Ask the AI about the request (poste-ai.nvim)
+    g?                     Show keymap help window
 
-Keymaps are set in `poste_http` buffers.
+Keymaps are set in `poste_http` buffers. See the help window (g?) for the
+response/history keymaps; all of them are configurable via `setup()`.
 
 ==============================================================================
 9. COMMANDS                                            *poste-commands*
 
-    :PosteHttpHistory      Show HTTP request history
-    :PosteEnvCycle         Cycle through environments
-    :PosteHttpBoundary     Toggle HTTP block boundary highlight
-    :PosteSQLBoundary      Toggle SQL statement boundary highlight
+All commands use the `PosteHttp` prefix.
+
+    :PosteHttpRun            Execute request at cursor
+    :PosteHttpEnv [name]     Show/switch environment
+    :PosteHttpHistory        Show HTTP request history
+    :PosteHttpOutline        Request outline picker
+    :PosteHttpSymbols        Request symbol picker
+    :PosteHttpFormat         Format the current .http buffer
+    :PosteHttpImportResolve  Show import resolution status
+    :PosteHttpPasteCurl      Paste curl command as request
+    :PosteHttpCopyAsCurl     Copy request as curl command
+    :PosteHttpImportOpenAPI  Import OpenAPI 3.x spec
+    :PosteHttpImportSwagger  Import Swagger 2.0 spec
+    :PosteHttpImportPostman  Import Postman collection
+    :PosteHttpChat           AI chat scoped to current file (poste-ai.nvim)
+    :PosteHttpHelp           Keymap help window
+    :PosteHttpBuildParsers   (Re)compile tree-sitter parsers
+    :PosteHttpClearCache     Remove cached response files
+    :PosteHttpTSInspect      Inspect tree-sitter parse tree
+    :PosteHttpTSStatus       Show tree-sitter feature status
+    :PosteHttpInfo           Show plugin environment info
+    :PosteHttpBoundary       Toggle block boundary indicators
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:

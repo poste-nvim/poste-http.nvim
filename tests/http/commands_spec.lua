@@ -10,24 +10,33 @@ describe("commands", function()
     harness.teardown()
   end)
 
-  it("registers all Poste commands", function()
+  it("registers all commands with the PosteHttp prefix", function()
     local commands = require("poste-http.commands")
     commands.setup()
 
     local cmds = harness.get_user_commands()
 
     local expected = {
-      "PosteRun", "PosteEnv", "PostePasteCurl",
-      "PosteImportOpenAPI", "PosteImportSwagger", "PosteImportPostman",
-      "PosteCopyAsCurl", "PosteHelp", "PosteImportResolve",
-      "PosteCmpStatus", "PosteCmpProfile",
-      "PosteSymbols", "PosteOutline", "PosteFormatHttp", "PosteHttpHistory",
-      "PosteClearCache", "PosteTSInspect",
+      "PosteHttpRun", "PosteHttpEnv", "PosteHttpPasteCurl",
+      "PosteHttpImportOpenAPI", "PosteHttpImportSwagger", "PosteHttpImportPostman",
+      "PosteHttpCopyAsCurl", "PosteHttpHelp", "PosteHttpImportResolve",
+      "PosteHttpCmpStatus", "PosteHttpCmpProfile",
+      "PosteHttpSymbols", "PosteHttpOutline", "PosteHttpFormat", "PosteHttpHistory",
+      "PosteHttpClearCache", "PosteHttpTSInspect",
     }
 
     for _, name in ipairs(expected) do
       assert.is_not_nil(cmds[name],
         string.format("command '%s' should be registered", name))
+    end
+  end)
+
+  it("never registers a command without the PosteHttp prefix", function()
+    local commands = require("poste-http.commands")
+    commands.setup()
+
+    for name in pairs(harness.get_user_commands()) do
+      assert.truthy(name:match("^PosteHttp"), name .. " must start with PosteHttp")
     end
   end)
 end)

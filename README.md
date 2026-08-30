@@ -27,9 +27,9 @@ Convert API specs to `.http` files. Supports OpenAPI 3.x, Swagger 2.0, and Postm
 ### Neovim
 
 ```vim
-:PosteImportOpenAPI      " Browse for spec → choose output directory
-:PosteImportSwagger
-:PosteImportPostman
+:PosteHttpImportOpenAPI      " Browse for spec → choose output directory
+:PosteHttpImportSwagger
+:PosteHttpImportPostman
 ```
 
 ## Orchestration
@@ -76,7 +76,7 @@ chain. Full docs: [Scripts](https://github.com/beyondlex/poste-http.nvim/wiki/Sc
 ```
 
 Tree-sitter parsers are compiled automatically on first setup (requires a C compiler).
-Run `:PosteBuildParsers` to recompile after an update.
+Run `:PosteHttpBuildParsers` to recompile after an update.
 
 ### Create a request file
 
@@ -221,10 +221,10 @@ Prompt variables allow interactive input when running a request.
 
 There is no standalone CLI. Requests run directly from Neovim:
 
-- `:PosteRun` (or the `run` keymap) to run the request under the cursor
-- `:PosteCopyAsCurl` to copy the request as a curl command
+- `:PosteHttpRun` (or the `run` keymap) to run the request under the cursor
+- `:PosteHttpCopyAsCurl` to copy the request as a curl command
 - `:PosteHttpChat` to open the AI chat scoped to the current `.http` file (needs poste-ai.nvim)
-- `:PosteImportOpenAPI` / `:PosteImportSwagger` / `:PosteImportPostman` to import specs
+- `:PosteHttpImportOpenAPI` / `:PosteHttpImportSwagger` / `:PosteHttpImportPostman` to import specs
 
 ## License
 

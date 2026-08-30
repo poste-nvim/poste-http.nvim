@@ -44,16 +44,16 @@ Then add to your init.vim:
 lua require("poste-http").setup()
 ```
 
-Run `:PosteBuildParsers` to recompile after an update.
+Run `:PosteHttpBuildParsers` to recompile after an update.
 
 ## Usage
 
 ### Commands
 
-- `:PosteRun` - Execute the request at the current cursor position
-- `:PosteEnv` - Show the current environment
-- `:PosteEnv <name>` - Switch to the specified environment
-- `:PosteBuildParsers` - Compile or recompile tree-sitter parsers
+- `:PosteHttpRun` - Execute the request at the current cursor position
+- `:PosteHttpEnv` - Show the current environment
+- `:PosteHttpEnv <name>` - Switch to the specified environment
+- `:PosteHttpBuildParsers` - Compile or recompile tree-sitter parsers
 
 ### Keymaps (in .http files)
 

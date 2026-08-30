@@ -157,7 +157,7 @@ Full keymap reference in [Keymaps](../keymaps.md). Quick overview:
 |---------------|----------|
 | `<leader>rr` | Execute current request |
 | `]]` / `[[` | Jump to next/previous request |
-| `:PosteEnv [name]` | Show/switch environment |
+| `:PosteHttpEnv [name]` | Show/switch environment |
 | `K` | Show variable value / response chain |
 | `<leader>rc` | Copy request as curl |
 | `<leader>l` | Open request history |

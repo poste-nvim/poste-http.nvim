@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # Run the request library as a sequence of function-like calls. Place the
-# cursor on the SCRIPT request line and press <CR> (or :PosteRun).
+# cursor on the SCRIPT request line and press <CR> (or :PosteHttpRun).
 #
 # What this demo covers:
 #   1. login → use response.body.token in the next call (typed response)

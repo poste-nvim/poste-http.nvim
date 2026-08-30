@@ -6,14 +6,14 @@ local M = {}
 
 local commands = {
   {
-    name = "PosteRun",
+    name = "PosteHttpRun",
     handler = function()
       require("poste-http.http.run").run_request()
     end,
     opts = { desc = "Run request at cursor" },
   },
   {
-    name = "PosteEnv",
+    name = "PosteHttpEnv",
     handler = function(args)
       local env_mod = require("poste-http.http.env")
       if args.args == "" then
@@ -25,35 +25,35 @@ local commands = {
     opts = { nargs = "?", desc = "Switch environment or show current" },
   },
   {
-    name = "PostePasteCurl",
+    name = "PosteHttpPasteCurl",
     handler = function()
       require("poste-http.http.curl").paste_curl("+")
     end,
     opts = { desc = "Paste curl command from clipboard as HTTP request" },
   },
   {
-    name = "PosteImportOpenAPI",
+    name = "PosteHttpImportOpenAPI",
     handler = function()
       require("poste-http.http.import_openapi").run()
     end,
     opts = { desc = "Import OpenAPI 3.x spec as .http files" },
   },
   {
-    name = "PosteImportSwagger",
+    name = "PosteHttpImportSwagger",
     handler = function()
       require("poste-http.http.import_swagger").run()
     end,
     opts = { desc = "Import Swagger 2.0 spec as .http files" },
   },
   {
-    name = "PosteImportPostman",
+    name = "PosteHttpImportPostman",
     handler = function()
       require("poste-http.http.import_postman").run()
     end,
     opts = { desc = "Import Postman collection as .http files" },
   },
   {
-    name = "PosteCopyAsCurl",
+    name = "PosteHttpCopyAsCurl",
     handler = function()
       require("poste-http.http.copy").copy_to_clipboard("+")
     end,
@@ -67,14 +67,14 @@ local commands = {
     opts = { desc = "Open the AI chat scoped to the current .http file (needs poste-ai.nvim)" },
   },
   {
-    name = "PosteHelp",
+    name = "PosteHttpHelp",
     handler = function()
       require("poste-http.help").open()
     end,
     opts = { desc = "Show Poste keymap help" },
   },
   {
-    name = "PosteImportResolve",
+    name = "PosteHttpImportResolve",
     handler = function()
       local import = require("poste-http.http.import")
       local lines = import.status()
@@ -103,35 +103,35 @@ local commands = {
     opts = { desc = "Show import resolution status" },
   },
   {
-    name = "PosteCmpStatus",
+    name = "PosteHttpCmpStatus",
     handler = function()
       vim.notify(completion.status(), vim.log.levels.INFO)
     end,
     opts = { desc = "Check poste completion status" },
   },
   {
-    name = "PosteCmpProfile",
+    name = "PosteHttpCmpProfile",
     handler = function()
       completion.profile()
     end,
     opts = { desc = "Profile poste completion performance" },
   },
   {
-    name = "PosteSymbols",
+    name = "PosteHttpSymbols",
     handler = function()
       symbols.show_symbols()
     end,
     opts = { desc = "Show symbol outline (all HTTP requests)" },
   },
   {
-    name = "PosteOutline",
+    name = "PosteHttpOutline",
     handler = function()
       symbols.show_symbols()
     end,
     opts = { desc = "Show symbol picker (all HTTP requests)" },
   },
   {
-    name = "PosteFormatHttp",
+    name = "PosteHttpFormat",
     handler = function()
       local format_file = require("poste-http.http.format_file")
       local changed = format_file.format_buffer()
@@ -151,7 +151,7 @@ local commands = {
     opts = { desc = "Show HTTP request history" },
   },
   {
-    name = "PosteClearCache",
+    name = "PosteHttpClearCache",
     handler = function()
       local format = require("poste-http.http.format")
       local cleaned = format.clean_response_cache()
@@ -160,7 +160,7 @@ local commands = {
     opts = { desc = "Remove old cached response files from stdpath(cache)/poste_res/" },
   },
   {
-    name = "PosteTSInspect",
+    name = "PosteHttpTSInspect",
     handler = function()
       require("poste-http.http.treesitter").inspect()
     end,

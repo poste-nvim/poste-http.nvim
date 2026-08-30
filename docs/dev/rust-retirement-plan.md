@@ -51,7 +51,7 @@ No Rust. One language. One parse authority (tree-sitter). One variable resolver.
 ### Phase 4: Formatter in Lua ✅
 
 - `format_file.lua` — tree-sitter based `.http` file formatter
-- `PosteFormatHttp` command in `init.lua` uses Lua formatter, no longer needs `poste fmt`
+- `PosteHttpFormat` command in `init.lua` uses Lua formatter, no longer needs `poste fmt`
 
 ### Phase 5: Import parsers in Lua ✅
 

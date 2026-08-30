@@ -274,7 +274,7 @@ end
 
 ## Phase 7: Formatting (Optional)
 
-**Current:** `PosteFormatHttp` delegates to an in-editor Lua formatter.
+**Current:** `PosteHttpFormat` delegates to an in-editor Lua formatter.
 
 **Target:** Optionally enhance formatting with tree-sitter to:
 - Sort headers alphabetically

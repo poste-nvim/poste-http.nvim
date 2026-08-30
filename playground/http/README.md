@@ -43,7 +43,7 @@ curl -sf http://localhost:8888/health
 cargo run -- run --line 6 scenarios/test_server.http
 
 # In Neovim: open a scenario file, put the cursor on a request/run/SCRIPT line,
-# and press <CR> (or :PosteRun).
+# and press <CR> (or :PosteHttpRun).
 
 # Stop the server
 docker compose -f server/docker-compose.yml down

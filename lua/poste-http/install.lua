@@ -61,7 +61,7 @@ local function compile_one(grammar)
   local c = cc()
   if not c then
     vim.notify(
-      "[Poste] C compiler not found. Install cc/gcc or run :PosteBuildParsers manually.",
+      "[Poste] C compiler not found. Install cc/gcc or run :PosteHttpBuildParsers manually.",
       vim.log.levels.WARN
     )
     return false

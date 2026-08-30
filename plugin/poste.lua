@@ -90,13 +90,8 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 end
 
 -- PosteHttpInfo: show binary, version, and completion engine status.
+-- (PosteTree was a duplicate of PosteHttpTSInspect and was removed.)
 pcall(vim.api.nvim_del_user_command, "PosteHttpInfo")
--- PosteTree: show treesitter parse tree for debugging highlight issues.
-pcall(vim.api.nvim_del_user_command, "PosteTree")
-vim.api.nvim_create_user_command("PosteTree", function()
-  local ok, mod = pcall(require, "poste-http.http.treesitter")
-  if ok then mod.inspect() end
-end, { desc = "Show tree-sitter parse tree for current buffer" })
 
 vim.api.nvim_create_user_command("PosteHttpInfo", function()
   local state = require("poste-http.state")
@@ -152,11 +147,11 @@ vim.api.nvim_create_user_command("PosteHttpInfo", function()
   vim.notify(table.concat(parts, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Poste HTTP environment info" })
 
-vim.api.nvim_create_user_command("PosteBuildParsers", function()
+vim.api.nvim_create_user_command("PosteHttpBuildParsers", function()
   require("poste-http.install").force_build()
 end, { desc = "Compile tree-sitter parsers for poste-http" })
 
-vim.api.nvim_create_user_command("PosteTSStatus", function()
+vim.api.nvim_create_user_command("PosteHttpTSStatus", function()
   local state = require("poste-http.state")
   local ts = state.config.use_treesitter or {}
   local buf = vim.api.nvim_get_current_buf()

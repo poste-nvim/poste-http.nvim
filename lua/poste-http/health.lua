@@ -40,7 +40,7 @@ function M.check()
   if vim.fn.executable("cc") == 1 or vim.fn.executable("gcc") == 1 then
     vim.health.ok("C compiler found")
   else
-    vim.health.warn("C compiler not found. Run :PosteBuildParsers or :checkhealth poste-http after installing a C compiler.")
+    vim.health.warn("C compiler not found. Run :PosteHttpBuildParsers or :checkhealth poste-http after installing a C compiler.")
   end
 
   vim.health.start("tree-sitter-poste-http")
@@ -64,7 +64,7 @@ function M.check()
     if vim.fn.filereadable(so_path) == 1 then
       vim.health.ok(grammar.name .. " parser compiled: " .. grammar.so)
     else
-      vim.health.warn(grammar.name .. " parser not compiled. Run :PosteBuildParsers to compile.")
+      vim.health.warn(grammar.name .. " parser not compiled. Run :PosteHttpBuildParsers to compile.")
     end
 
     local ok, _ = pcall(vim.treesitter.get_parser, 0, grammar.name)
