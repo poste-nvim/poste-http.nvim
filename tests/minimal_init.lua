@@ -4,6 +4,11 @@
 -- Add the plugin to runtime path
 vim.opt.runtimepath:append(".")
 
+-- Optional: poste-ai.nvim (AI integration specs are skipped when absent)
+if vim.fn.isdirectory("../poste-ai.nvim") == 1 then
+  vim.opt.runtimepath:append("../poste-ai.nvim")
+end
+
 -- Make test helper modules loadable via require("helpers.*")
 package.path = package.path
   .. ";./lua/poste-http/?.lua"

@@ -33,6 +33,7 @@ M.config = {
       show_var_value = "K",
       show_variable_inspector = "gi",
       show_history = "<leader>l",
+      ask_ai = "ga",
       help = "g?",
     },
     http_response = {
@@ -53,6 +54,7 @@ M.config = {
       json_toggle_raw = "<leader>jr",
       json_outline = "<leader>jo",
       image_preview = "K",
+      ask_ai = "a",
     },
     http_history = {
       close = "q",

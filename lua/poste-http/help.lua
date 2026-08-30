@@ -18,11 +18,13 @@ local DESCRIPTIONS = {
     show_var_value = "Show variable value / response chain",
     show_variable_inspector = "Open variable inspector",
     show_history = "Open request history",
+    ask_ai = "Ask the AI about the request under cursor (poste-ai.nvim)",
     help = "Show this help window",
   },
   http_response = {
     close = "Close response window",
     rerun = "Re-run request",
+    ask_ai = "Ask the AI about this response / errors (poste-ai.nvim)",
     view_body = "View response body",
     view_verbose = "View verbose output",
     view_assertions = "View assertion results",

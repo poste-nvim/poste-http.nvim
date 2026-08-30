@@ -15,6 +15,10 @@
 - **Multi-tab response** — Body, verbose, request, assertions, script logs
 - **History** — Request history with quick re-runs
 - **Import** — Convert OpenAPI 3.x, Swagger 2.0, and Postman collections to `.http` files
+- **AI chat** (optional) — With [poste-ai.nvim](https://github.com/beyondlex/poste-ai.nvim)
+  installed: ask about requests/responses with real context, and execute
+  AI-generated ```http blocks through the regular pipeline. See
+  [AI integration](docs/dev/ai-integration.md).
 
 ## Import
 
@@ -127,6 +131,7 @@ Open a `.http` file. With cursor on a request block, press `<CR>` to execute. Re
 | `K` | Show variable value / response chain |
 | `<leader>vv` | Pick environment |
 | `<leader>l` | Open request history |
+| `ga` | Ask the AI about the request under cursor (poste-ai.nvim) |
 | `g?` | Open help window |
 
 ### HTTP response buffer
@@ -143,6 +148,7 @@ Open a `.http` file. With cursor on a request block, press `<CR>` to execute. Re
 | `<leader>jc` | Restore original JSON |
 | `<leader>jr` | Toggle raw/pretty |
 | `<leader>jo` | JSON outline |
+| `a` | Ask the AI about this response / errors (poste-ai.nvim) |
 
 ## Configuration
 
@@ -217,6 +223,7 @@ There is no standalone CLI. Requests run directly from Neovim:
 
 - `:PosteRun` (or the `run` keymap) to run the request under the cursor
 - `:PosteCopyAsCurl` to copy the request as a curl command
+- `:PosteHttpChat` to open the AI chat scoped to the current `.http` file (needs poste-ai.nvim)
 - `:PosteImportOpenAPI` / `:PosteImportSwagger` / `:PosteImportPostman` to import specs
 
 ## License

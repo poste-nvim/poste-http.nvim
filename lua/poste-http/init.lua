@@ -66,6 +66,9 @@ function M.setup(opts)
   require("poste-http.http.script_snippet").setup()
   commands.setup()
 
+  -- Optional AI chat integration (poste-ai.nvim); retried on :PosteHttpChat
+  pcall(function() require("poste-http.ai").register() end)
+
   pcall(function()
     require("poste-http.http.history").load()
   end)

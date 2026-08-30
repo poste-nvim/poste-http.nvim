@@ -26,6 +26,24 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
   `data.lua`'s `http_methods` too — `tests/http/methods_spec.lua` fails if they
   drift.
 
+## Relationship with ../poste-ai.nvim
+
+**Inverted optional dependency — poste-http optionally extends poste-ai.**
+
+- AI integration lives in `lua/poste-http/ai/`: it registers an `http` context
+  on poste-ai.nvim via `register_context(id, spec)` (`pcall(require, "poste-ai")`
+  in `setup()` and on `:PosteHttpChat`, so both install orders work)
+- This repo must never be required by poste-ai; poste-ai knows nothing about HTTP
+- The context contract in poste-ai's `lua/poste-ai/context_api.lua` is a
+  cross-repo API shared with poste-db.nvim — changing its shape requires
+  updating `lua/poste-db/ai/` and this directory in the same change set, and
+  running all test suites
+- **Prompt hygiene**: prompt context carries raw `{{var}}` placeholders only.
+  Never inject resolved env values or resolved request headers (they hold
+  credentials); response bodies are truncated before entering the chat
+- Design: `docs/dev/ai-integration.md`; tests in `tests/http/ai_*_spec.lua` are
+  conditional on poste-ai being on rtp (`tests/minimal_init.lua` appends it)
+
 ## Lua Patterns ≠ Regex
 
 **Never import regex habits.** Lua patterns are a different, simpler language.

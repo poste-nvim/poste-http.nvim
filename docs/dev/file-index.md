@@ -19,6 +19,18 @@
 | `errors.lua` | Structured error collection |
 | `help.lua` | Help window |
 
+### AI integration (`lua/poste-http/ai/`, optional poste-ai.nvim extension)
+
+| File | Description |
+|------|-------------|
+| `ai/init.lua` | Context registration on poste-ai.nvim, `:PosteHttpChat`, `a`/`ga` ask prefill |
+| `ai/blocks.lua` | Pure `.http` block helpers (list/slice/refs/truncate) + `focus()` seam |
+| `ai/system_prompt.lua` | `http` context system prompt (poste-http dialect knowledge) |
+| `ai/mentions.lua` | `@req/<Name>` mention match/complete/resolve |
+| `ai/auto_context.lua` | Implicit focused-request + dependency-chain context block |
+| `ai/commands.lua` | `/requests`, `/env` slash commands |
+| `ai/actions.lua` | ```http codeblock confirm/execute (regular pipeline) + `ga` header |
+
 ### UI Components (`lua/poste-http/ui/`)
 
 Reusable rendering components — the seed of a standalone Neovim UI component

@@ -60,6 +60,13 @@ local commands = {
     opts = { desc = "Copy current request as curl command to clipboard" },
   },
   {
+    name = "PosteHttpChat",
+    handler = function()
+      require("poste-http.ai").open_chat()
+    end,
+    opts = { desc = "Open the AI chat scoped to the current .http file (needs poste-ai.nvim)" },
+  },
+  {
     name = "PosteHelp",
     handler = function()
       require("poste-http.help").open()

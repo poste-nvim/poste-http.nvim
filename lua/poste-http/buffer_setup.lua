@@ -79,6 +79,12 @@ function M.setup_buffer_keymaps(buf)
   if k then
     vim.keymap.set("n", k, function() require("poste-http.help").open() end, keymap_opts)
   end
+  k = km("http_source", "ask_ai", "ga")
+  if k then
+    vim.keymap.set({ "n", "x" }, k, function()
+      require("poste-http.ai").ask_request()
+    end, keymap_opts)
+  end
 
   local indicator_ns = vim.api.nvim_create_namespace("poste_indicator")
   local group = vim.api.nvim_create_augroup("PosteClearIndicators_" .. buf, { clear = true })

@@ -54,6 +54,7 @@ Override in `setup({ keymaps = { <group_name> = { ... } } })`.
 | `<leader>vv` | `pick_env` | Select environment |
 | `K` | `show_var_value` | Show variable value / response chain |
 | `<leader>l` | `show_history` | Open request history |
+| `ga` | `ask_ai` | Ask the AI about the request under cursor (needs poste-ai.nvim) |
 | `g?` | `help` | Open help window |
 
 ## 2. HTTP Response Buffer (`http_response`)
@@ -72,6 +73,7 @@ Override in `setup({ keymaps = { <group_name> = { ... } } })`.
 | `]` | `next_response` | Next response (multi-response mode) |
 | `[` | `prev_response` | Previous response (multi-response mode) |
 | `K` | `image_preview` | Inline image preview; fallback to external viewer |
+| `a` | `ask_ai` | Ask the AI about this response / errors (needs poste-ai.nvim) |
 | `<leader>j` | `json_filter` | Interactive jq filter |
 | `<leader>jc` | `json_restore` | Restore original JSON |
 | `<leader>jr` | `json_toggle_raw` | Toggle raw/pretty mode |
@@ -149,6 +151,7 @@ require("poste-http").setup({
       pick_env = "<leader>vv",
       show_var_value = "K",
       show_history = "<leader>l",
+      ask_ai = "ga",
       help = "g?",
     },
     http_response = {
@@ -167,6 +170,7 @@ require("poste-http").setup({
       json_restore = "<leader>jc",
       json_toggle_raw = "<leader>jr",
       json_outline = "<leader>jo",
+      ask_ai = "a",
     },
     http_history = {
       close = "q",

@@ -384,6 +384,14 @@ setup_keymaps = function(buf)
     end, opts)
   end
 
+  -- Ask the AI about the shown response/errors (needs poste-ai.nvim)
+  k = state.get_keymap("http_response", "ask_ai", "a")
+  if k then
+    vim.keymap.set("n", k, function()
+      require("poste-http.ai").ask_view()
+    end, opts)
+  end
+
   -- Multi-response navigation
   k = state.get_keymap("http_response", "next_response", "]")
   if k then
