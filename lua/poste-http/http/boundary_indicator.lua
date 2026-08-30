@@ -2,55 +2,38 @@ local M = {}
 
 local _prev_buf = nil
 local _disabled = false
-local _sign_ids = {}  -- { line_0 = sign_id, ... }
-local _sign_group = "poste_boundary_sg"
-local _sign_gen = 0
 local _boundary_augroup = nil
-
-local function define_signs()
-  pcall(vim.fn.sign_define, "PosteBoundaryTop",    { text = "┌", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundaryMid",    { text = "│ ", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundaryBot",    { text = "└", texthl = "PosteHttpBoundaryBorder" })
-  pcall(vim.fn.sign_define, "PosteBoundarySingle", { text = "─", texthl = "PosteHttpBoundaryBorder" })
-end
-define_signs()
+local ns = vim.api.nvim_create_namespace("poste_boundary")
 
 local function clear_all(buf)
-  _sign_gen = _sign_gen + 1
-  for _, sid in pairs(_sign_ids) do
-    pcall(vim.fn.sign_unplace, _sign_group, { id = sid })
-  end
-  _sign_ids = {}
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   _prev_buf = nil
 end
 
+--- Paint the request block as a full-width rectangle: one extmark per row
+--- with hl_eol, so the background reaches the window edge on every screen
+--- row (auto-wrapped lines included). This replaces the old sign-column
+--- border, freeing the sign column for the execution status indicator.
 local function apply_range(buf, start, stop)
   if _prev_buf and _prev_buf ~= buf then
     clear_all(_prev_buf)
   end
   if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
-  clear_all(buf)
-  _sign_ids = {}
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   local line_count = vim.api.nvim_buf_line_count(buf)
   if line_count == 0 then return end
   start = math.max(0, math.min(start, line_count - 1))
   stop  = math.max(0, math.min(stop,  line_count - 1))
   for line = start, stop do
-    local sign_name
-    if start == stop then
-      sign_name = "PosteBoundarySingle"
-    elseif line == start then
-      sign_name = "PosteBoundaryTop"
-    elseif line == stop then
-      sign_name = "PosteBoundaryBot"
-    else
-      sign_name = "PosteBoundaryMid"
-    end
-    local sid = vim.fn.sign_place(0, _sign_group, sign_name, buf, { lnum = line + 1 })
-    if sid and sid > 0 then
-      _sign_ids[line] = sid
-    end
+    vim.api.nvim_buf_set_extmark(buf, ns, line, 0, {
+      end_row = line + 1,
+      end_col = 0,
+      hl_group = "PosteHttpBoundary",
+      hl_eol = true,
+      hl_mode = "combine",
+    })
   end
   _prev_buf = buf
 end

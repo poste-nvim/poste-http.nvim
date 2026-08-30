@@ -2,9 +2,30 @@ local uv = vim.uv or vim.loop
 local C = require("poste-http.constants")
 local M = {}
 local ns = vim.api.nvim_create_namespace(C.INDICATOR_NS_NAME)
-local _extmarks = {}  -- buf -> { line_0 = extmark_id, ... }
+local _extmarks = {}  -- buf -> { line_0 = extmark_id, ... } (payload on the separator line)
 local spinners = {}   -- buf -> { line_0 = { timer, gen }, ... }
 local spinner_frames = C.SPINNER_FRAMES
+local sign_group = "poste_indicator_sg"
+
+-- status icons live in the sign column (freed by the boundary bg), so they
+-- never overlap request text even when the method/URL line is long
+local function define_signs()
+  for i, frame in ipairs(spinner_frames) do
+    pcall(vim.fn.sign_define, "PosteSpin" .. i, { text = frame .. " ", texthl = "PosteSpinner" })
+  end
+  pcall(vim.fn.sign_define, "PosteIndicatorSuccess", { text = "✓ ", texthl = "PosteSuccess" })
+  pcall(vim.fn.sign_define, "PosteIndicatorError",   { text = "✘ ", texthl = "PosteError" })
+end
+define_signs()
+
+local function place_sign(buf, line_0, name)
+  vim.fn.sign_unplace(sign_group, { buffer = buf, lnum = line_0 + 1 })
+  vim.fn.sign_place(0, sign_group, name, buf, { lnum = line_0 + 1 })
+end
+
+local function unplace_sign(buf, line_0)
+  vim.fn.sign_unplace(sign_group, { buffer = buf, lnum = line_0 + 1 })
+end
 
 local function stop_timer(buf, line_0)
   if not spinners[buf] then return end
@@ -29,17 +50,13 @@ function M.clear_all(buf)
   if _extmarks[buf] then _extmarks[buf] = {} end
   stop_all_timers(buf)
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  vim.fn.sign_unplace(sign_group, { buffer = buf })
 end
 
 function M.clear_other_requests(buf, line_0)
-  if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
-  if not _extmarks[buf] then return end
-  for other_line_0, _ in pairs(_extmarks[buf]) do
-    if other_line_0 ~= line_0 then
-      _extmarks[buf][other_line_0] = nil
-      vim.api.nvim_buf_clear_namespace(buf, ns, other_line_0, other_line_0 + 1)
-    end
-  end
+  -- single-flight execution policy: wiping everything is equivalent (the
+  -- caller places the current line's indicator right afterwards)
+  M.clear_all(buf)
 end
 
 local function format_latency(latency_ms)
@@ -71,10 +88,24 @@ local function build_virt_text(latency_ms, assertion_results)
   return virt_text
 end
 
-local function set_extmark(buf, line_0, virt_text)
-  vim.api.nvim_buf_clear_namespace(buf, ns, line_0, line_0 + 1)
+--- Payload (latency / assertion results) is right-aligned on the request's
+--- `###` separator line — short by construction, so it never overlaps the
+--- method/URL even for long URLs. Falls back to the request line itself.
+local function separator_line(buf, line_0)
+  local ok, cache = pcall(require, "poste-http.http.cache")
+  if not ok then return line_0 end
+  local ok_b, block = pcall(cache.get_block_at_line, buf, line_0 + 1)
+  if ok_b and block and block.start_line then
+    return block.start_line - 1
+  end
+  return line_0
+end
+
+local function set_payload_extmark(buf, line_0, virt_text)
+  local sep = separator_line(buf, line_0)
+  vim.api.nvim_buf_clear_namespace(buf, ns, sep, sep + 1)
   if virt_text and #virt_text > 0 then
-    local id = vim.api.nvim_buf_set_extmark(buf, ns, line_0, 0, {
+    local id = vim.api.nvim_buf_set_extmark(buf, ns, sep, 0, {
       virt_text = virt_text,
       virt_text_pos = "right_align",
       hl_mode = "combine",
@@ -91,7 +122,7 @@ function M.set_indicator(buf, line_0, status, latency_ms, assertion_results)
 
   if status == "running" then
     stop_timer(buf, line_0)
-    set_extmark(buf, line_0, { { spinner_frames[1], "PosteSpinner" } })
+    place_sign(buf, line_0, "PosteSpin1")
     local frame = 1
     local timer = uv.new_timer()
     if not spinners[buf] then spinners[buf] = {} end
@@ -100,19 +131,19 @@ function M.set_indicator(buf, line_0, status, latency_ms, assertion_results)
       if not spinners[buf] or not spinners[buf][line_0] then return end
       if not vim.api.nvim_buf_is_valid(buf) then return end
       frame = (frame % #spinner_frames) + 1
-      set_extmark(buf, line_0, { { spinner_frames[frame], "PosteSpinner" } })
+      place_sign(buf, line_0, "PosteSpin" .. frame)
     end
     timer:start(C.SPINNER_INTERVAL_MS, C.SPINNER_INTERVAL_MS, vim.schedule_wrap(update_spinner))
   elseif status == "success" then
     stop_timer(buf, line_0)
-    local virt_text = build_virt_text(latency_ms, assertion_results)
-    table.insert(virt_text, 1, { "✓ ", "PosteSuccess" })
-    set_extmark(buf, line_0, virt_text)
+    unplace_sign(buf, line_0)
+    place_sign(buf, line_0, "PosteIndicatorSuccess")
+    set_payload_extmark(buf, line_0, build_virt_text(latency_ms, assertion_results))
   elseif status == "error" then
     stop_timer(buf, line_0)
-    local virt_text = build_virt_text(latency_ms, assertion_results)
-    table.insert(virt_text, 1, { "✘ ", "PosteError" })
-    set_extmark(buf, line_0, virt_text)
+    unplace_sign(buf, line_0)
+    place_sign(buf, line_0, "PosteIndicatorError")
+    set_payload_extmark(buf, line_0, build_virt_text(latency_ms, assertion_results))
   end
 end
 

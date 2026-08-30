@@ -262,12 +262,14 @@ end
   -- Mock sign_place
   vim.fn.sign_place = function(id, group, name, buf, opts2)
     table.insert(M.calls, "sign_place")
+    table.insert(M.calls, { id = id, group = group, name = name, buf = buf, opts = opts2 })
     return 1  -- sign id
   end
 
   -- Mock sign_unplace
   vim.fn.sign_unplace = function(group, opts2)
     table.insert(M.calls, "sign_unplace")
+    table.insert(M.calls, { group = group, opts = opts2 })
   end
 
   -- Mock jobstart

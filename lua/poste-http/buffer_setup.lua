@@ -86,12 +86,13 @@ function M.setup_buffer_keymaps(buf)
     end, keymap_opts)
   end
 
-  local indicator_ns = vim.api.nvim_create_namespace("poste_indicator")
   local group = vim.api.nvim_create_augroup("PosteClearIndicators_" .. buf, { clear = true })
   vim.api.nvim_create_autocmd("TextChanged", {
     group = group, buffer = buf,
     callback = function()
-      vim.api.nvim_buf_clear_namespace(buf, indicator_ns, 0, -1)
+      -- clear signs + spinner timers too (the namespace wipe alone left
+      -- stale timer bookkeeping behind)
+      require("poste-http.indicators").clear_all(buf)
     end,
   })
   vim.api.nvim_create_autocmd("BufDelete", {

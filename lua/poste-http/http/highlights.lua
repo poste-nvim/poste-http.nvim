@@ -162,7 +162,9 @@ function M.setup()
   vim.api.nvim_set_hl(0, "PosteSymbolCurrent", { bg = 0x3e4452, bold = true }) -- highlighted bg
   vim.api.nvim_set_hl(0, "PosteSymbolMethod", { fg = 0x98c379, bold = true })  -- green for [GET] [POST] etc
 
-  -- HTTP request block boundary (same visual style)
+  -- HTTP request block boundary: full-width rectangle background for the
+  -- request under the cursor (poste_ai-style hl_eol extmarks)
+  vim.api.nvim_set_hl(0, "PosteHttpBoundary", { bg = 0x24301f, fg = 0x9ece6a })
   vim.api.nvim_set_hl(0, "PosteHttpBoundaryBorder", { fg = 0x246e3b, bold = true })
 
   -- Status code coloring in verbose view
@@ -220,6 +222,7 @@ function M.setup()
     "PosteJsonEscape",
     "PosteSymbolCurrent", "PosteSymbolMethod",
     "PosteHttpBoundaryBorder",
+    "PosteHttpBoundary",
     "PosteStatus2xx", "PosteStatus3xx", "PosteStatus4xx", "PosteStatus5xx",
     "PosteVerboseSeparator", "PosteVerboseSection", "PosteVerboseSubHeader", "PosteVerboseKey", "PosteVerboseValue",
     "PosteRequestKey", "PosteRequestValue",
