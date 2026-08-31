@@ -46,6 +46,9 @@ local function stop_all_timers(buf)
 end
 
 function M.clear_all(buf)
+  -- 0 = current-buffer sentinel; sign_unplace rejects 0 (E158), so resolve
+  -- before the guard (0 is truthy and nvim_buf_is_valid(0) is true).
+  if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
   if _extmarks[buf] then _extmarks[buf] = {} end
   stop_all_timers(buf)

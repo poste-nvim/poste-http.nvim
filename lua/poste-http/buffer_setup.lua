@@ -5,6 +5,10 @@ local M = {}
 local fileref_ns = vim.api.nvim_create_namespace("poste_fileref")
 
 function M.setup_buffer_keymaps(buf)
+  -- 0 = current-buffer sentinel (plugin/poste.lua passes it from BufRead).
+  -- Resolve now: closures below pass `buf` to nvim_buf_*/sign_* APIs that
+  -- reject 0 (sign_unplace(buffer=0) raises E158).
+  if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   local keymap_opts = { buffer = buf, noremap = true, silent = true }
   local km = state.get_keymap
   local nav_ok, nav = pcall(require, "poste-http.http.nav")
