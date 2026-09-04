@@ -163,4 +163,7 @@ function M.paste_curl(register)
   vim.notify("Inserted HTTP request from clipboard", vim.log.levels.INFO, { title = "Poste" })
 end
 
+--- Exposed for tests and future importers; paste_curl is the user entry.
+M.parse_curl = parse_curl
+
 return M
