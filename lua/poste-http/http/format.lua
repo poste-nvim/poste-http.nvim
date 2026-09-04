@@ -235,6 +235,9 @@ function M.format_view(view, r, opts)
     local ct = M.get_request_content_type(r)
     local ft = (ct == "" or ct:lower():find("multipart/form%-data")) and "text" or M.detect_filetype(ct)
     return lines, ft
+  elseif view == "messages" then
+    local messages_mod = require("poste-http.http.format.messages")
+    return messages_mod.format_messages(r), "text"
   end
   return { "Unknown view: " .. view }, "text"
 end

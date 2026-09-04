@@ -145,6 +145,10 @@ local function choose_view_tab(parsed, assertion_results)
   if response_mod.is_error(parsed) then
     return "verbose"
   end
+  -- WebSocket frame transcripts are the payload: default to Messages.
+  if parsed.protocol == "websocket" and parsed.metadata and parsed.metadata.frames then
+    return "messages"
+  end
   return state.config.default_view or "body"
 end
 

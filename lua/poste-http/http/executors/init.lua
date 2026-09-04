@@ -17,7 +17,7 @@ local M = {}
 local registry = {
   ["GRAPHQL"] = "poste-http.http.executors.graphql",
   ["GRPC"] = "poste-http.http.executors.grpc",
-  -- ["WEBSOCKET"] = "poste-http.http.executors.websocket", -- Phase 3
+  ["WEBSOCKET"] = "poste-http.http.executors.websocket",
 }
 
 --- Resolve the executor module for a request-line method.

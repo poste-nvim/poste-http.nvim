@@ -36,6 +36,7 @@ local TAB_META = {
   request     = { name = "Rqst",     section = "http_response", action = "view_request" },
   verbose     = { name = "Verb",     section = "http_response", action = "view_verbose" },
   assertions  = { name = "Asserts",  section = "http_response", action = "view_assertions" },
+  messages    = { name = "Msgs",     section = "http_response", action = "view_messages" },
   script_logs = { name = "Script",   section = "http_response", action = "view_script_logs" },
   errors      = { name = "Error",    section = "http_response", action = "view_errors" },
 }
@@ -68,6 +69,10 @@ local function get_active_tabs()
   end
   if r and r.metadata and r.metadata.request_body and r.metadata.request_body ~= "" then
     table.insert(tabs, { id = "request", label = tab_label("request") })
+  end
+  -- Messages tab for WebSocket frame transcripts
+  if r and r.metadata and r.metadata.frames then
+    table.insert(tabs, { id = "messages", label = tab_label("messages") })
   end
   table.insert(tabs, { id = "verbose", label = tab_label("verbose") })
   -- Show Error tab when errors were collected. When the request never sent
@@ -301,6 +306,7 @@ setup_keymaps = function(buf)
     end },
     { action = "view_body", default = "B", handler = function() if M.on_show_view then M.on_show_view("body") end end },
     { action = "view_request", default = "R", handler = function() if M.on_show_view then M.on_show_view("request") end end },
+    { action = "view_messages", default = "M", handler = function() if M.on_show_view then M.on_show_view("messages") end end },
     { action = "view_verbose", default = "E", handler = function() if M.on_show_view then M.on_show_view("verbose") end end },
     { action = "view_assertions", default = "A", handler = function() if M.on_show_view then M.on_show_view("assertions") end end },
     { action = "view_errors", default = "X", handler = function() if M.on_show_view then M.on_show_view("errors") end end },
