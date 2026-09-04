@@ -194,4 +194,23 @@ describe("websocket.run", function()
     assert.is_false(response.ok)
     assert.matches("Failed to start websocat", response.body)
   end)
+
+  it("routes # @ws-interactive to the interactive session", function()
+    local calls = {}
+    local session_mod = {
+      start = function(req, cb) calls[#calls + 1] = { req = req, cb = cb } end,
+    }
+    local orig = package.loaded["poste-http.http.ws_session"]
+    package.loaded["poste-http.http.ws_session"] = session_mod
+
+    local ok, err = pcall(ws.run, {
+      url = "wss://x", headers = {}, body = "",
+      operators = { ["ws-interactive"] = { "" } },
+    }, function() end)
+
+    package.loaded["poste-http.http.ws_session"] = orig
+    assert.is_true(ok)
+    assert.is_nil(err)
+    assert.equals(1, #calls)
+  end)
 end)

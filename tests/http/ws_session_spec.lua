@@ -1,0 +1,129 @@
+-- Tests for the interactive WebSocket session (Phase 4 of
+-- docs/dev/multi-protocol-design.md).
+--
+-- An interactive session keeps the websocat job alive: inbound frames
+-- stream to req.on_progress as they arrive, `send` pushes a text frame,
+-- `close` finalizes the canonical response and clears state.live_session.
+
+local ws_session = require("poste-http.http.ws_session")
+local state = require("poste-http.state")
+
+describe("ws_session.start", function()
+  local orig_jobstart, orig_chansend, orig_chanclose, orig_executable, orig_jobstop
+  local captured_opts, sent, stopped
+
+  before_each(function()
+    orig_jobstart, orig_chansend, orig_chanclose, orig_executable, orig_jobstop =
+      vim.fn.jobstart, vim.fn.chansend, vim.fn.chanclose, vim.fn.executable, vim.fn.jobstop
+    captured_opts, sent, stopped = nil, nil, nil
+    vim.fn.executable = function(cmd) return cmd == "websocat" and 1 or 0 end
+    vim.fn.jobstart = function(cmd, opts)
+      captured_opts = opts
+      return 900
+    end
+    vim.fn.chansend = function(_, data) sent = data return #data end
+    vim.fn.chanclose = function() end
+    vim.fn.jobstop = function(id) stopped = id return 1 end
+    state.live_session = nil
+  end)
+
+  after_each(function()
+    vim.fn.jobstart, vim.fn.chansend, vim.fn.chanclose, vim.fn.executable, vim.fn.jobstop =
+      orig_jobstart, orig_chansend, orig_chanclose, orig_executable, orig_jobstop
+    -- A started session leaks into the next test unless closed here.
+    if ws_session.is_active() then ws_session.close() end
+    state.live_session = nil
+  end)
+
+  it("reports a canonical error when websocat is missing", function()
+    vim.fn.executable = function() return 0 end
+    local response
+    ws_session.start({ url = "wss://x", headers = {}, body = "" }, function(r) response = r end)
+    assert.is_false(response.ok)
+    assert.matches("websocat", response.body)
+    assert.is_nil(state.live_session)
+  end)
+
+  it("streams inbound frames through on_progress and registers live_session", function()
+    local progress = {}
+    ws_session.start({
+      url = "wss://x", headers = {}, body = "",
+      on_progress = function(r) table.insert(progress, r) end,
+    }, function() end)
+
+    assert.is_not_nil(state.live_session)
+
+    captured_opts.on_stdout(900, { '{"hello": 1}' }, nil)
+    vim.wait(200, function() return #progress > 0 end)
+
+    assert.equals(1, #progress)
+    assert.equals("websocket", progress[1].protocol)
+    assert.equals(1, #progress[1].metadata.frames.received)
+    assert.equals('{"hello": 1}', progress[1].metadata.frames.received[1].data)
+  end)
+
+  it("send pushes a text frame over stdin and into the transcript", function()
+    local progress = {}
+    ws_session.start({
+      url = "wss://x", headers = {}, body = "",
+      on_progress = function(r) table.insert(progress, r) end,
+    }, function() end)
+
+    assert.is_true(ws_session.send("ping"))
+    assert.equals("ping\n", sent)
+    assert.equals(1, #state.live_session.frames.sent)
+
+    captured_opts.on_stdout(900, { 'pong' }, nil)
+    vim.wait(200, function() return #progress > 0 end)
+    assert.equals(1, #state.live_session.frames.received)
+  end)
+
+  it("close finalizes the response and clears live_session", function()
+    local responses = {}
+    local progress = {}
+    ws_session.start({
+      url = "wss://x", headers = {}, body = "",
+      on_progress = function(r) table.insert(progress, r) end,
+    }, function(r) table.insert(responses, r) end)
+
+    captured_opts.on_stdout(900, { 'a' }, nil)
+    vim.wait(200, function() return #progress > 0 end)
+    ws_session.close()
+
+    vim.wait(200, function() return #responses > 0 end)
+    assert.equals(1, #responses)
+    assert.is_true(responses[1].ok)
+    assert.equals(1, #responses[1].metadata.frames.received)
+    assert.equals("a", responses[1].body)
+    assert.is_nil(state.live_session)
+
+    -- A late frame after close must not resurrect anything.
+    captured_opts.on_stdout(900, { 'late' }, nil)
+    assert.equals(1, #responses)
+  end)
+
+  it("finalizes with an abnormal closure when the process exits before frames", function()
+    local responses = {}
+    ws_session.start({
+      url = "wss://x", headers = {}, body = "",
+    }, function(r) table.insert(responses, r) end)
+
+    captured_opts.on_stderr(900, { "websocat: Connection refused" }, nil)
+    captured_opts.on_exit(900, 1)
+    vim.wait(200, function() return #responses > 0 end)
+
+    assert.equals(1, #responses)
+    assert.is_false(responses[1].ok)
+    assert.equals(1006, responses[1].status)
+    assert.is_nil(state.live_session)
+  end)
+
+  it("closing twice is safe", function()
+    local responses = {}
+    ws_session.start({ url = "wss://x", headers = {}, body = "" }, function(r) table.insert(responses, r) end)
+    ws_session.close()
+    ws_session.close()
+    vim.wait(200, function() return #responses > 0 end)
+    assert.equals(1, #responses)
+  end)
+end)

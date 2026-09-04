@@ -80,17 +80,24 @@ end
 --- Build the canonical response.
 --- opts.deadline_reached distinguishes "collection window elapsed" from
 --- "process exited": a non-zero exit before the deadline is an abnormal
---- closure (status 1006).
+--- closure (status 1006). opts.frames overrides the transcript for
+--- interactive sessions, which accumulate frames outside stdin/stdout.
 function M.build_response(req, stdout, stderr, exit_code, opts)
   opts = opts or {}
-  local outgoing = M.split_messages(req.body)
-  local received = M.parse_frames(stdout)
+  local frames
+  local received
+  if opts.frames then
+    frames = opts.frames
+    received = frames.received or {}
+  else
+    frames = { sent = M.split_messages(req.body), received = M.parse_frames(stdout) }
+    received = frames.received
+  end
   local stderr_text = table.concat(stderr or {}, "\n")
-  local frames = { sent = outgoing, received = received }
 
   local body_parts = {}
   for _, f in ipairs(received) do
-    table.insert(body_parts, f.data)
+    table.insert(body_parts, type(f) == "table" and f.data or f)
   end
   local body = table.concat(body_parts, "\n")
   if body == "" and stderr_text ~= "" and exit_code ~= 0 then
@@ -154,8 +161,17 @@ local function error_response(req, msg)
   }
 end
 
---- Run the batch session through websocat.
+M.error_response = error_response
+
+--- Run the session through websocat. `# @ws-interactive` keeps the job
+--- alive (see http/ws_session.lua); the default is a batch session.
 function M.run(req, callback)
+  if req.operators and req.operators["ws-interactive"] then
+    local session = require("poste-http.http.ws_session")
+    session.start(req, callback)
+    return
+  end
+
   if vim.fn.executable("websocat") ~= 1 then
     callback(error_response(req,
       "websocat executable not found — install it (e.g. `brew install websocat` or `cargo install websocat`) to run WEBSOCKET requests"))

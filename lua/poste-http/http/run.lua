@@ -629,6 +629,23 @@ local function start_curl_exec(ctx)
     vim.split(resolved_content, "\n", { plain = true }),
     block_start or 1, block_end)
 
+  -- Interactive WebSocket sessions stream frames through this hook; other
+  -- protocols never call it. The identity check stops a live session from
+  -- stomping a newer response's view, and the busy flag is released so a
+  -- long-lived session cannot block other requests.
+  local ws_switched = false
+  local on_progress = function(resp)
+    if state.last_response ~= nil and state.last_response ~= resp then
+      return
+    end
+    state.set_response(resp)
+    state._busy = false
+    if not ws_switched or state.current_view == "messages" then
+      ws_switched = true
+      view.show_view("messages")
+    end
+  end
+
   executors.run({
     method = method,
     url = url,
@@ -637,6 +654,7 @@ local function start_curl_exec(ctx)
     buf_dir = buf_dir,
     timeout = state.config.timeout,
     operators = operators,
+    on_progress = on_progress,
   }, function(response)
     handle_curl_response(response, ctx)
   end)
