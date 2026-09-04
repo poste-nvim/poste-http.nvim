@@ -107,5 +107,9 @@ check "GRPC request line" \
   "GRPC localhost:50051/pkg.Service/Method" \
   "method_grpc"
 
+check "WEBSOCKET request line" \
+  "WEBSOCKET wss://stream.example.com/feed" \
+  "method_websocket"
+
 echo "=== Results: $pass passed, $fail failed ==="
 exit $fail

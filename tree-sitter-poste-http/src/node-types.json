@@ -213,6 +213,10 @@
         {
           "type": "method_trace",
           "named": true
+        },
+        {
+          "type": "method_websocket",
+          "named": true
         }
       ]
     }
@@ -764,6 +768,10 @@
   },
   {
     "type": "method_trace",
+    "named": true
+  },
+  {
+    "type": "method_websocket",
     "named": true
   },
   {

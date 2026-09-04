@@ -333,6 +333,10 @@
         {
           "type": "SYMBOL",
           "name": "method_grpc"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "method_websocket"
         }
       ]
     },
@@ -383,6 +387,10 @@
     "method_grpc": {
       "type": "STRING",
       "value": "GRPC"
+    },
+    "method_websocket": {
+      "type": "STRING",
+      "value": "WEBSOCKET"
     },
     "url": {
       "type": "SEQ",

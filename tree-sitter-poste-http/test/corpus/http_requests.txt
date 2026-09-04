@@ -707,3 +707,18 @@ GRPC localhost:50051/grpc.examples.echo.EchoService/Echo
       (method_grpc))
     (url
       (url_path))))
+
+================================================================================
+WebSocket request line
+================================================================================
+
+WEBSOCKET wss://stream.example.com/v1/feed
+
+--------------------------------------------------------------------------------
+
+(document
+  (request_line
+    (method
+      (method_websocket))
+    (url
+      (url_path))))

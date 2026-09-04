@@ -24,6 +24,7 @@
 (method_script) @PosteMethodScript
 (method_graphql) @PosteMethodScript
 (method_grpc) @PosteMethodScript
+(method_websocket) @PosteMethodScript
 ; TRACE, CONNECT -> gray
 (method_trace) @PosteMethodOther
 (method_connect) @PosteMethodOther
