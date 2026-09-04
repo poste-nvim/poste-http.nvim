@@ -125,6 +125,21 @@ function M.restore_original()
   require("poste-http.http.buffer").update_winbar(state.current_view)
 end
 
+--- Split one dot-path step into traversal tokens: "items[1]" becomes
+--- {"items", "[1]"}, "[0]" stays {"[0]"}, "items[]" becomes
+--- {"items", "[]"}. Keeps the evaluator symmetric with the paths that
+--- get_key_paths() generates.
+local function parse_step_tokens(step)
+  local tokens = {}
+  local base = step:match("^([^%[%]]*)")
+  if base ~= "" then tokens[#tokens + 1] = base end
+  for bracket in step:gmatch("%[[%d]*%]") do
+    tokens[#tokens + 1] = bracket
+  end
+  if #tokens == 0 then tokens[1] = step end
+  return tokens
+end
+
 function M._jsonpath_query(body, query)
   local ok, data = pcall(vim.json.decode, body)
   if not ok then
@@ -139,27 +154,29 @@ function M._jsonpath_query(body, query)
 
   local current = data
   for _, step in ipairs(steps) do
-    if type(current) ~= "table" then
-      vim.notify("Cannot traverse: value is " .. type(current), vim.log.levels.WARN)
-      return nil
-    end
-
-    local idx = step:match("^%[(%d+)%]$")
-    if idx then
-      current = current[tonumber(idx) + 1]
-    elseif step:match("^%[%]$") then
-      local results = {}
-      for _, item in ipairs(current) do
-        table.insert(results, item)
-      end
-      current = results
-    else
-      local key = step:match("^%.(.+)") or step
-      if current[key] ~= nil then
-        current = current[key]
-      else
-        vim.notify("Key '" .. key .. "' not found", vim.log.levels.WARN)
+    for _, token in ipairs(parse_step_tokens(step)) do
+      if type(current) ~= "table" then
+        vim.notify("Cannot traverse: value is " .. type(current), vim.log.levels.WARN)
         return nil
+      end
+
+      local idx = token:match("^%[(%d+)%]$")
+      if idx then
+        current = current[tonumber(idx) + 1]
+      elseif token == "[]" then
+        local results = {}
+        for _, item in ipairs(current) do
+          table.insert(results, item)
+        end
+        current = results
+      else
+        local key = token:match("^%.(.+)") or token
+        if current[key] ~= nil then
+          current = current[key]
+        else
+          vim.notify("Key '" .. key .. "' not found", vim.log.levels.WARN)
+          return nil
+        end
       end
     end
   end
