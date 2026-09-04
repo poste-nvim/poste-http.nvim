@@ -1,0 +1,44 @@
+# Poste Multi-Protocol Test Services
+#
+# Local backends for manually testing Poste's non-HTTP protocols:
+#   GRAPHQL   -> poste-graphql    :8890  (real graphql-js engine)
+#   GRPC      -> poste-grpc       :8891  (grpcio echo, server reflection on)
+#   WEBSOCKET -> poste-websocket  :8892  (JSON-aware echo)
+#
+# Usage:
+#   docker compose -f playground/multi-protocol/docker-compose.yml up -d --build
+#   docker compose -f playground/multi-protocol/docker-compose.yml logs -f
+#   docker compose -f playground/multi-protocol/docker-compose.yml down
+#
+# Client tools for manual testing (optional, Poste needs them too):
+#   brew install grpcurl websocat
+#
+# Quick checks without any client tools:
+#   curl -s localhost:8890/health
+#   docker compose -f playground/multi-protocol/docker-compose.yml exec grpc \
+#     python -c "import grpc; print(grpc.channel_ready_future(grpc.insecure_channel('localhost:8891')).result(timeout=3))"
+
+services:
+  graphql:
+    build: ./graphql/server
+    container_name: poste-graphql
+    ports:
+      - "8890:8890"
+    environment:
+      - POSTE_GRAPHQL_PORT=8890
+
+  grpc:
+    build: ./grpc/server
+    container_name: poste-grpc
+    ports:
+      - "8891:8891"
+    environment:
+      - POSTE_GRPC_PORT=8891
+
+  websocket:
+    build: ./websocket/server
+    container_name: poste-websocket
+    ports:
+      - "8892:8892"
+    environment:
+      - POSTE_WS_PORT=8892

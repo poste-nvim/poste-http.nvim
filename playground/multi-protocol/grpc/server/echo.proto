@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package poste.test.v1;
+
+// Echo service for manual testing of Poste's GRPC requests.
+// Server reflection is enabled, so grpcurl/Poste need no proto files.
+service EchoService {
+  // Unary: echoes the message back together with request metadata.
+  rpc Echo(EchoRequest) returns (EchoResponse);
+
+  // Server-streaming: yields `repeat` responses (default 3).
+  rpc EchoStream(EchoRequest) returns (stream EchoResponse);
+
+  // Always fails with the requested gRPC status code — for testing
+  // status-code mapping (e.g. NOT_FOUND -> status 5).
+  rpc Fail(FailRequest) returns (EchoResponse);
+}
+
+message EchoRequest {
+  string message = 1;
+  int32 repeat = 2;                 // EchoStream: number of responses
+  map<string, string> metadata = 3; // (unused on input)
+}
+
+message EchoResponse {
+  string message = 1;
+  int32 seq = 2;                    // EchoStream: 0-based sequence number
+  map<string, string> metadata = 3; // request metadata echoed back (lowercase keys)
+}
+
+message FailRequest {
+  string code = 1;    // gRPC status name: NOT_FOUND, UNAVAILABLE, ...
+  string message = 2; // details surfaced as the status message
+}

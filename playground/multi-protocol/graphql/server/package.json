@@ -1,0 +1,8 @@
+{
+  "name": "poste-graphql",
+  "private": true,
+  "description": "Minimal real GraphQL server for manual testing of Poste's GRAPHQL requests",
+  "dependencies": {
+    "graphql": "^16.9.0"
+  }
+}
