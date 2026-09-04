@@ -13,7 +13,7 @@ local history = require("poste-http.http.history")
 local event = require("poste-http.event")
 local session = require("poste-http.http.session")
 local describe = require("poste-http.http.describe")
-local curl_exec = require("poste-http.http.curl_exec")
+local executors = require("poste-http.http.executors")
 local vars = require("poste-http.http.vars")
 local orchestration = require("poste-http.http.orchestration")
 local errors = require("poste-http.http.errors")
@@ -618,7 +618,7 @@ local function start_curl_exec(ctx)
 
   local start_hires = (vim.uv or vim.loop).hrtime()
 
-  curl_exec.execute({
+  executors.run({
     method = method,
     url = url,
     headers = merged_headers,
