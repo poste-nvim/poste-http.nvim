@@ -75,3 +75,30 @@ describe("response ok stamping", function()
     assert.is_true(response_mod.is_error(r))
   end)
 end)
+
+describe("response.error_response", function()
+  it("builds the shared canonical error shape for protocol executors", function()
+    local r = response_mod.error_response({
+      url = "localhost:50051/pkg.Svc/Method",
+      headers = { { "X-Trace-Id", "t" } },
+    }, "GRPC", "grpcurl not found")
+    assert.equals("error", r.protocol)
+    assert.equals(0, r.status)
+    assert.is_false(r.ok)
+    assert.equals("grpcurl not found", r.body)
+    assert.equals("grpcurl not found", r.status_text)
+    assert.equals("GRPC", r.metadata.method)
+    assert.equals("grpcurl not found", r.metadata.error)
+    assert.equals("GRPC localhost:50051/pkg.Svc/Method", r.metadata.request_line)
+    assert.same({ { "X-Trace-Id", "t" } }, r.headers)
+    -- The pre-request shape callers route on must hold.
+    assert.is_true(response_mod.is_error(r))
+  end)
+
+  it("tolerates a request without url or headers", function()
+    local r = response_mod.error_response({}, "WEBSOCKET", "boom")
+    assert.equals("WEBSOCKET", r.metadata.method)
+    assert.equals("WEBSOCKET ", r.metadata.request_line)
+    assert.is_false(r.ok)
+  end)
+end)

@@ -24,4 +24,30 @@ function M.is_error(response)
   return type(status) == "number" and status >= 400
 end
 
+--- Shared canonical error response for protocol executors.
+--- `method` is the request-line keyword ("GRAPHQL" / "GRPC" / "WEBSOCKET")
+--- used for metadata.method and the request-line echo; `msg` is the
+--- user-facing failure reason.
+function M.error_response(req, method, msg)
+  req = req or {}
+  return {
+    protocol = "error",
+    status = 0,
+    status_text = msg,
+    latency_ms = 0,
+    url = req.url or "",
+    content_type = "text/plain",
+    headers = req.headers or {},
+    body = msg,
+    cookies = {},
+    ok = false,
+    metadata = {
+      method = method,
+      error = msg,
+      exit_code = "0",
+      request_line = (req.method or method) .. " " .. (req.url or ""),
+    },
+  }
+end
+
 return M

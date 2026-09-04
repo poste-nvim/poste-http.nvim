@@ -201,25 +201,9 @@ function M.build_response(req, stdout, stderr, exit_code, start_hires)
   }
 end
 
+local response_mod = require("poste-http.http.response")
 local function error_response(req, msg)
-  return {
-    protocol = "error",
-    status = 0,
-    status_text = msg,
-    latency_ms = 0,
-    url = req.url or "",
-    content_type = "text/plain",
-    headers = req.headers or {},
-    body = msg,
-    cookies = {},
-    ok = false,
-    metadata = {
-      method = "GRPC",
-      error = msg,
-      exit_code = "0",
-      request_line = (req.method or "GRPC") .. " " .. (req.url or ""),
-    },
-  }
+  return response_mod.error_response(req, "GRPC", msg)
 end
 
 --- Run the request through grpcurl.
