@@ -98,10 +98,10 @@ PUT http://localhost:8080/api/items/1
 <METHOD> <URL> [HTTP/<version>]
 ```
 
-**Supported METHODS** (from `completion.lua`):
+**Supported METHODS** (from `data.lua` `http_methods`):
 
 ```
-GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT
+GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL
 ```
 
 **Rules**:
@@ -431,6 +431,47 @@ SCRIPT
 **Implementation status**: `client.run`, sequential execution, typed responses,
 logs and error rendering are implemented. `client.run` for `./path` batch
 targets and parallel execution are not yet implemented.
+
+### 2.15 GraphQL Requests
+
+Use `GRAPHQL` instead of `POST`. The body is the query text; an optional
+variables JSON object follows after a blank line.
+
+**Syntax**:
+
+```
+### Get user
+GRAPHQL {{base_url}}/graphql
+Authorization: Bearer {{token}}
+
+query User($id: ID!) {
+  user(id: $id) { name email }
+}
+
+{
+  "id": "42"
+}
+```
+
+**Rules**:
+
+- `GRAPHQL` requests execute as HTTP `POST` with `Content-Type: application/json`
+- The request body is sent as `{"query": ..., "variables": ...}`
+- The variables block is the last blank-line-separated body chunk when it
+  parses as a JSON object; a broken `{`/`[`-shaped tail fails the request
+  with a clear error instead of being sent
+- Set `Content-Type: application/graphql` explicitly to send the raw query
+  text without any transformation (variables must then be embedded in the
+  query string itself)
+- All standard machinery applies: `{{var}}` resolution, pre-scripts,
+  `> {% %}` assertions (`response.body` is the raw GraphQL JSON response,
+  including its `errors` array), cross-request references
+  (`{{GetUser.response.body.data.user.name}}`), and jq filtering
+- Requires no external tooling — plain HTTP under the hood
+
+**Implementation status**: Implemented (parser, executor, completion,
+highlighting). GraphQL-specific extras (error surfacing, query injections)
+are not yet implemented.
 
 ## 3. Variable Resolution Order
 
