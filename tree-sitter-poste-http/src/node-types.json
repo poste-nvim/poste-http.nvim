@@ -183,6 +183,10 @@
           "named": true
         },
         {
+          "type": "method_grpc",
+          "named": true
+        },
+        {
           "type": "method_head",
           "named": true
         },
@@ -728,6 +732,10 @@
   },
   {
     "type": "method_graphql",
+    "named": true
+  },
+  {
+    "type": "method_grpc",
     "named": true
   },
   {

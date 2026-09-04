@@ -23,6 +23,7 @@
 (method_options) @PosteMethodOPTIONS
 (method_script) @PosteMethodScript
 (method_graphql) @PosteMethodScript
+(method_grpc) @PosteMethodScript
 ; TRACE, CONNECT -> gray
 (method_trace) @PosteMethodOther
 (method_connect) @PosteMethodOther

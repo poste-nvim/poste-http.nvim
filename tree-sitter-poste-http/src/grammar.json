@@ -329,6 +329,10 @@
         {
           "type": "SYMBOL",
           "name": "method_graphql"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "method_grpc"
         }
       ]
     },
@@ -375,6 +379,10 @@
     "method_graphql": {
       "type": "STRING",
       "value": "GRAPHQL"
+    },
+    "method_grpc": {
+      "type": "STRING",
+      "value": "GRPC"
     },
     "url": {
       "type": "SEQ",

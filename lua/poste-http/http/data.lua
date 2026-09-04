@@ -11,6 +11,7 @@ M.http_methods = {
   "DELETE",
   "GET",
   "GRAPHQL",
+  "GRPC",
   "HEAD",
   "OPTIONS",
   "PATCH",

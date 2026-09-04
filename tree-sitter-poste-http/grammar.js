@@ -69,7 +69,7 @@ module.exports = grammar({
       $.method_get, $.method_post, $.method_put, $.method_delete,
       $.method_patch, $.method_head, $.method_options,
       $.method_trace, $.method_connect, $.method_script,
-      $.method_graphql,
+      $.method_graphql, $.method_grpc,
     ),
 
     method_get: $ => 'GET',
@@ -83,6 +83,7 @@ module.exports = grammar({
     method_connect: $ => 'CONNECT',
     method_script: $ => 'SCRIPT',
     method_graphql: $ => 'GRAPHQL',
+    method_grpc: $ => 'GRPC',
 
     url: $ => seq(
       $.url_path,

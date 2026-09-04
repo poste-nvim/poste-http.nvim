@@ -692,3 +692,18 @@ Authorization: Bearer token
   (header
     (header_key)
     (header_value)))
+
+================================================================================
+gRPC request line
+================================================================================
+
+GRPC localhost:50051/grpc.examples.echo.EchoService/Echo
+
+--------------------------------------------------------------------------------
+
+(document
+  (request_line
+    (method
+      (method_grpc))
+    (url
+      (url_path))))

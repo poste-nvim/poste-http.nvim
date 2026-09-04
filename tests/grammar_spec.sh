@@ -103,5 +103,9 @@ check "GRAPHQL request line" \
   "GRAPHQL https://api.example.com/graphql" \
   "method_graphql"
 
+check "GRPC request line" \
+  "GRPC localhost:50051/pkg.Service/Method" \
+  "method_grpc"
+
 echo "=== Results: $pass passed, $fail failed ==="
 exit $fail
