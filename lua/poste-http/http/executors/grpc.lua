@@ -118,6 +118,8 @@ function M.build_args(req)
   end
 
   table.insert(args, target.host)
+  -- grpcurl's reflection listing needs the explicit subcommand.
+  table.insert(args, "list")
   return args, nil, nil
 end
 

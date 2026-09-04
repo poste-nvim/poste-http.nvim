@@ -208,8 +208,11 @@ function M.run(req, callback)
     callback(response)
   end
 
-  job_id = vim.fn.jobstart(args, {    stdout_buffered = true,
-    stderr_buffered = true,
+  job_id = vim.fn.jobstart(args, {
+    -- Unbuffered: frames must arrive live (we kill the job at the
+    -- deadline, and buffered stdout never flushes for a killed process).
+    stdout_buffered = false,
+    stderr_buffered = false,
     on_stdout = function(_, data)
       data = util.ensure_job_data(data)
       for _, l in ipairs(data) do
@@ -243,7 +246,8 @@ function M.run(req, callback)
 
   if #outgoing > 0 then
     vim.fn.chansend(job_id, table.concat(outgoing, "\n") .. "\n")
-    vim.fn.chanclose(job_id, "stdin")
+    -- stdin stays open: closing it EOFs websocat, which closes the
+    -- websocket before the responses arrive. The deadline jobstops us.
   end
 
   timer = uv.new_timer()

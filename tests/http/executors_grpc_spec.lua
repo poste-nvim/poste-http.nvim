@@ -114,7 +114,9 @@ describe("grpc.build_args", function()
     local args = grpc.build_args({
       url = "localhost:50051", headers = {}, body = "", timeout = 30000,
     })
-    assert.equals("localhost:50051", args[#args])
+    -- grpcurl's list invocation needs the explicit subcommand.
+    assert.equals("list", args[#args])
+    assert.equals("localhost:50051", args[#args - 1])
     assert.is_nil(vim.tbl_contains(args, "-d") and true or nil)
   end)
 end)

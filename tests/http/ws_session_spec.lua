@@ -51,6 +51,8 @@ describe("ws_session.start", function()
       on_progress = function(r) table.insert(progress, r) end,
     }, function() end)
 
+    -- A live session must receive frames in real time.
+    assert.is_false(captured_opts.stdout_buffered)
     assert.is_not_nil(state.live_session)
 
     captured_opts.on_stdout(900, { '{"hello": 1}' }, nil)

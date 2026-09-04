@@ -147,11 +147,17 @@ describe("websocket.run", function()
     assert.matches("websocat", response.body)
   end)
 
-  it("sends the outgoing frames over stdin", function()
+  it("sends the outgoing frames over stdin and keeps stdin open", function()
     ws.run({
       url = "wss://x", headers = {}, body = 'a\nb\n', wait_ms = 10,
     }, function() end)
     assert.equals("a\nb\n", sent)
+    -- Closing stdin would EOF websocat, which closes the websocket before
+    -- the responses arrive.
+    assert.is_nil(closed)
+    -- Frames must arrive live: buffered stdout would never flush for a
+    -- process we kill at the deadline.
+    assert.is_false(captured_opts.stdout_buffered)
   end)
 
   it("finishes once via the deadline timer", function()

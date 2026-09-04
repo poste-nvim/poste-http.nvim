@@ -114,8 +114,9 @@ function M.start(req, callback)
   }
 
   session.job_id = vim.fn.jobstart(args, {
-    stdout_buffered = true,
-    stderr_buffered = true,
+    -- Unbuffered so inbound frames stream as they arrive.
+    stdout_buffered = false,
+    stderr_buffered = false,
     on_stdout = function(_, data)
       if session.finished then return end
       data = util.ensure_job_data(data)
