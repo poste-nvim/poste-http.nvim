@@ -1,0 +1,97 @@
+# Poste multi-protocol manual test scenarios.
+# Requires the playground services:
+#   docker compose -f playground/multi-protocol/docker-compose.yml up -d --build
+# Requires client tools (Poste checks them via :checkhealth poste-http):
+#   brew install grpcurl websocat
+
+@graphql_url = http://localhost:8890
+@grpc_host = localhost:8891
+@ws_url = ws://localhost:8892
+
+### GraphQL: trivial query
+GRAPHQL {{graphql_url}}
+
+{ hello }
+
+### GraphQL: query with variables
+GRAPHQL {{graphql_url}}
+
+query User($id: ID!) {
+  user(id: $id) { id name email }
+}
+
+{
+  "id": "1"
+}
+
+### GraphQL: mutation
+GRAPHQL {{graphql_url}}
+
+mutation {
+  add(a: 19, b: 23)
+}
+
+### GraphQL: validation errors surface in the errors envelope
+GRAPHQL {{graphql_url}}
+
+{
+  nonexistentField
+}
+
+### GraphQL: application/graphql passthrough (raw query body)
+GRAPHQL {{graphql_url}}
+Content-Type: application/graphql
+
+{ hello(name: "passthrough") }
+
+### gRPC: unary echo — metadata comes back in response.metadata
+# @grpc-plaintext
+GRPC {{grpc_host}}/poste.test.v1.EchoService/Echo
+X-Trace-Id: manual-test
+
+{
+  "message": "hello from poste"
+}
+
+### gRPC: server streaming — three frames append to the body
+# @grpc-plaintext
+GRPC {{grpc_host}}/poste.test.v1.EchoService/EchoStream
+
+{
+  "message": "tick",
+  "repeat": 3
+}
+
+### gRPC: reflection list — bare host lists the server's services
+# @grpc-plaintext
+GRPC {{grpc_host}}
+
+### gRPC: error mapping — expect status 5 (NotFound) and the error indicator
+# @grpc-plaintext
+GRPC {{grpc_host}}/poste.test.v1.EchoService/Fail
+
+{
+  "code": "NOT_FOUND",
+  "message": "user 42 does not exist"
+}
+
+### WebSocket: batch send and collect — check the Msgs tab (M)
+# @ws-wait-ms 2000
+WEBSOCKET {{ws_url}}
+
+{"type": "subscribe", "channel": "news"}
+{"type": "ping"}
+plain echo frame
+
+### WebSocket: server push — emit asks for 3 pushed frames
+# @ws-wait-ms 2000
+WEBSOCKET {{ws_url}}
+
+{"type": "emit", "channel": "news"}
+
+### WebSocket: interactive session — frames stream live;
+### press s to send a message, c to close
+# @ws-interactive
+WEBSOCKET {{ws_url}}
+
+{"type": "subscribe", "channel": "news"}
