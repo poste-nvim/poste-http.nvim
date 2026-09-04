@@ -59,6 +59,9 @@ that hand-rolled floats used to apply unevenly).
 | `run.lua` | Request execution orchestration (entry point) |
 | `executors/init.lua` | Protocol executor dispatch — request-line method → executor; unknown methods fall back to HTTP |
 | `executors/http.lua` | HTTP executor — thin wrapper over `curl_exec` |
+| `executors/graphql.lua` | GraphQL executor — lowers `GRAPHQL` blocks to HTTP POST via curl |
+| `executors/grpc.lua` | gRPC executor — wraps `grpcurl`, maps gRPC status codes onto the canonical response |
+| `block_operators.lua` | Extract `# @name value` operator comments from a request block |
 | `response.lua` | Canonical response helpers — protocol-aware `ok` flag and `is_error` |
 | `curl_exec.lua` | Build curl args, spawn via `jobstart`, temp file management |
 | `response_parser.lua` | Parse curl `-D` headers, status, cookies, stderr verbose |

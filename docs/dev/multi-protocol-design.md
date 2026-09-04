@@ -273,7 +273,7 @@ parse as JSON reuse the existing JSON highlighting. Direction arrows (→ sent /
 |-------|-------|------------|------|--------|
 | 0 | Executor abstraction + `ok` semantics + redaction sink, pure refactor, all tests green | — | Small | ✅ Done |
 | 1 | GraphQL (method token + lowering executor + docs) | Phase 0 | Small | ✅ Done |
-| 2 | gRPC (grpcurl executor + `# @grpc-*` operators + unary/server-streaming + health checks) | Phase 0 | Medium | |
+| 2 | gRPC (grpcurl executor + `# @grpc-*` operators + unary/server-streaming + health checks) | Phase 0 | Medium | ✅ Done |
 | 3 | WebSocket v1 batch + messages tab | Phase 0, websocat | Med-Large | |
 | 4 | WebSocket v2 interactive session (live_session, keymaps, streaming append) | Phase 3 | Large | |
 
@@ -304,4 +304,4 @@ parse as JSON reuse the existing JSON highlighting. Direction arrows (→ sent /
 
 ---
 
-*Multi-protocol design — Created: 2026-09-04; Phases 0-1 implemented*
+*Multi-protocol design — Created: 2026-09-04; Phases 0-2 implemented*

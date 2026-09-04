@@ -101,7 +101,7 @@ PUT http://localhost:8080/api/items/1
 **Supported METHODS** (from `data.lua` `http_methods`):
 
 ```
-GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL
+GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL, GRPC
 ```
 
 **Rules**:
@@ -472,6 +472,57 @@ query User($id: ID!) {
 **Implementation status**: Implemented (parser, executor, completion,
 highlighting). GraphQL-specific extras (error surfacing, query injections)
 are not yet implemented.
+
+### 2.16 gRPC Requests
+
+Use `GRPC` with a `host:port/package.Service/Method` target. Requires the
+`grpcurl` binary (`:checkhealth poste-http` verifies it).
+
+**Syntax**:
+
+```
+### gRPC echo
+# @grpc-import-path ./protos
+# @grpc-proto echo.proto
+GRPC {{grpc_host}}/grpc.examples.echo.EchoService/Echo
+X-Trace-Id: {{trace_id}}
+
+{
+  "message": "hello {{name}}"
+}
+```
+
+**Rules**:
+
+- Header lines become gRPC metadata
+- The body is the request message JSON, sent once the connection is open
+- Proto resolution prefers server reflection; use the operators below when
+  the server has reflection disabled
+- Supported operator comments:
+
+| Operator | grpcurl flag | Repeatable |
+|----------|--------------|------------|
+| `# @grpc-import-path <dir>` | `-import-path` | yes |
+| `# @grpc-proto <file>` | `-proto` | yes |
+| `# @grpc-proto-set <file>` | `-proto-set` | yes |
+| `# @grpc-plaintext` | `-plaintext` | — |
+| `# @grpc-tls` | `-tls` | — |
+| `# @grpc-flags <raw args>` | appended verbatim | yes |
+
+- `GRPC host:port` without a method path lists the server's services via
+  reflection (`grpcurl list`)
+- Assertions see gRPC semantics: `response.status` is the gRPC status code
+  (0 = OK, 1–16 = error codes, e.g. 5 = NotFound), `response.body` is the
+  response message JSON, and `response.ok`/the response indicator reflect
+  gRPC success rather than HTTP >= 400
+- Supported call types: unary and server-streaming. Client-streaming and
+  bidirectional streaming are not supported
+- The full grpcurl command line is logged with sensitive header values
+  redacted
+
+**Implementation status**: Implemented (parser, executor, operators,
+health check). Client-streaming / bidi and streaming-frame rendering are
+not yet implemented.
 
 ## 3. Variable Resolution Order
 

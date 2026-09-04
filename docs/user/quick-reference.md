@@ -63,7 +63,7 @@ Header-Key: Header-Value                   ← Headers (multiple allowed)
 
 `GET` `POST` `PUT` `DELETE` `PATCH` `HEAD` `OPTIONS` `TRACE` `CONNECT`
 
-Special: `SCRIPT` (orchestration), `GRAPHQL` (HTTP POST with query body)
+Special: `SCRIPT` (orchestration), `GRAPHQL` (HTTP POST with query body), `GRPC` (grpcurl, needs `grpcurl` binary)
 
 ---
 
