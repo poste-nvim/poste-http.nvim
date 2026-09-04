@@ -67,6 +67,22 @@ describe("poste-http.ui.keymaps", function()
     assert.is_nil(found["dd"], "disabled action must not be mapped")
   end)
 
+  it("supports extra vim.keymap opts via spec.opts without a base_opts", function()
+    local called = false
+    keymaps.register_all(buf, "test_section", {
+      { action = "ask", default = "ga", handler = function() called = true end, opts = { modes = { "n", "x" } } },
+    })
+    local found = {}
+    for _, mode in ipairs({ "n", "x" }) do
+      for _, m in ipairs(vim.api.nvim_buf_get_keymap(buf, mode)) do
+        found[mode .. m.lhs] = true
+      end
+    end
+    assert.is_truthy(found["nga"], "normal mode mapping missing")
+    assert.is_truthy(found["xga"], "visual mode mapping missing — spec.opts must apply without base_opts")
+    assert.is_false(called)
+  end)
+
   it("invokes the handler when the mapped key is pressed", function()
     local called = false
     keymaps.register(buf, "test_section", "close", "q", function() called = true end)

@@ -15,15 +15,18 @@ local M = {}
 --- @param action string  action name inside the section
 --- @param default string|nil  key used when the action is not configured
 --- @param handler function|string  rhs for vim.keymap.set
---- @param opts table|nil  extra vim.keymap.set opts (buffer/noremap/silent set here)
+--- @param opts table|nil  extra vim.keymap.set opts (buffer/noremap/silent set
+---   here; `opts.modes` overrides the default "n" and is not passed through)
 --- @return boolean  true when a mapping was registered (config value or
 ---   default), false when the action is disabled (`false`) in config
 function M.register(buf, section, action, default, handler, opts)
   local key = state.get_keymap(section, action, default)
   if not key then return false end
+  local modes = (opts and opts.modes) or "n"
   local map_opts = vim.tbl_extend("force",
     { buffer = buf, noremap = true, silent = true }, opts or {})
-  vim.keymap.set("n", key, handler, map_opts)
+  map_opts.modes = nil
+  vim.keymap.set(modes, key, handler, map_opts)
   return true
 end
 
@@ -36,7 +39,7 @@ end
 function M.register_all(buf, section, specs, base_opts)
   local results = {}
   for _, spec in ipairs(specs) do
-    local opts = base_opts
+    local opts = spec.opts or base_opts
     if spec.opts and base_opts then
       opts = vim.tbl_extend("force", base_opts, spec.opts)
     end
