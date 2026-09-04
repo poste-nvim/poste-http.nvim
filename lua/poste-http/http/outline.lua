@@ -1,7 +1,6 @@
 local _ = require("poste-http.state")
 local request_vars = require("poste-http.http.request_vars")
 local ts_query = require("poste-http.http.ts_query")
-local state = require("poste-http.state")
 local text = require("poste-http.ui.text")
 local semantics = require("poste-http.ui.semantics")
 -- ui/render is aliased: this module has its own local render() below.
@@ -11,7 +10,7 @@ local float = require("poste-http.ui.float")
 local M = {}
 
 local function use_ts()
-  return state.config.use_treesitter and state.config.use_treesitter.outline ~= false
+  return require("poste-http.http.ts_query").feature_enabled("outline")
 end
 
 local active = nil

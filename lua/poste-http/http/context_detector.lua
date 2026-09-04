@@ -4,18 +4,11 @@ local M = {}
 local data = require("poste-http.http.data")
 local cache = require("poste-http.http.cache")
 local ts_query = require("poste-http.http.ts_query")
-local state = require("poste-http.state")
-
-local function use_ts()
-  return state.config.use_treesitter and state.config.use_treesitter.context_detector ~= false
-end
 
 --- Whether tree-sitter should be used for context detection for this buffer.
 --- Falls back to regex-based detection when the parser is unavailable.
 local function use_ts_effective(buf)
-  if not use_ts() then return false end
-  if not buf then return true end
-  return ts_query.is_available(buf)
+  return ts_query.enabled_for(buf, "context_detector")
 end
 
 --- Detect completion context for client.run("#target", ...) inside SCRIPT

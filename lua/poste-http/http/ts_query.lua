@@ -1,3 +1,5 @@
+local state = require("poste-http.state")
+
 local M = {}
 
 local LANG = "poste_http"
@@ -13,6 +15,26 @@ end
 --- invalid injection query), so callers can fall back to regex-based logic.
 function M.is_available(buf)
   return M.get_parser(buf) ~= nil
+end
+
+--- Whether tree-sitter is switched on for `feature` in the config:
+--- `use_treesitter = true`, or a per-feature table without
+--- `use_treesitter[feature] = false`. Callers needing the parser check too
+--- want M.enabled_for.
+function M.feature_enabled(feature)
+  local cfg = state.config.use_treesitter
+  if not cfg then return false end
+  if type(cfg) ~= "table" then return true end
+  return cfg[feature] ~= false
+end
+
+--- feature_enabled + parser availability — the shared "should this feature
+--- use tree-sitter on this buffer" switch (nav, outline, context_detector).
+--- A nil buf skips the parser check (callers without a concrete buffer
+--- assume the feature works and fall back at parse time).
+function M.enabled_for(buf, feature)
+  if not buf then return M.feature_enabled(feature) end
+  return M.feature_enabled(feature) and M.is_available(buf)
 end
 
 function M.get_root(buf)

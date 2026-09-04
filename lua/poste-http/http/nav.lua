@@ -10,11 +10,8 @@ local util = require("poste-http.util")
 local M = {}
 
 local function use_ts()
-  if not (state.config.use_treesitter and state.config.use_treesitter.nav ~= false) then
-    return false
-  end
-  local buf = vim.api.nvim_get_current_buf()
-  return require("poste-http.http.ts_query").is_available(buf)
+  return require("poste-http.http.ts_query").enabled_for(
+    vim.api.nvim_get_current_buf(), "nav")
 end
 
 function M.show_script_api_doc()

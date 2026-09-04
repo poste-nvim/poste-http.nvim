@@ -1,4 +1,63 @@
 local ts_query = require("poste-http.http.ts_query")
+local state = require("poste-http.state")
+
+describe("ts_query.feature_enabled", function()
+  after_each(function()
+    state.config.use_treesitter = true
+  end)
+
+  it("is off when use_treesitter is unset", function()
+    state.config.use_treesitter = nil
+    assert.is_false(ts_query.feature_enabled("nav"))
+  end)
+
+  it("is on for every feature when use_treesitter is true", function()
+    state.config.use_treesitter = true
+    assert.is_true(ts_query.feature_enabled("nav"))
+    assert.is_true(ts_query.feature_enabled("outline"))
+  end)
+
+  it("is on unless the feature flag is explicitly false", function()
+    state.config.use_treesitter = { nav = false }
+    assert.is_false(ts_query.feature_enabled("nav"))
+    assert.is_true(ts_query.feature_enabled("outline"))
+  end)
+end)
+
+describe("ts_query.enabled_for", function()
+  after_each(function()
+    state.config.use_treesitter = true
+  end)
+
+  it("is off when the feature is disabled, regardless of the parser", function()
+    state.config.use_treesitter = { nav = false }
+    assert.is_false(ts_query.enabled_for(0, "nav"))
+  end)
+
+  it("is off when the parser is unavailable for the buffer", function()
+    local orig = ts_query.is_available
+    ts_query.is_available = function() return false end
+    local ok = ts_query.enabled_for(0, "nav")
+    ts_query.is_available = orig
+    assert.is_false(ok)
+  end)
+
+  it("skips the parser check for a nil buffer", function()
+    local orig = ts_query.is_available
+    ts_query.is_available = function() return false end
+    local ok = ts_query.enabled_for(nil, "nav")
+    ts_query.is_available = orig
+    assert.is_true(ok)
+  end)
+
+  it("is on when enabled and the parser is available", function()
+    local orig = ts_query.is_available
+    ts_query.is_available = function() return true end
+    local ok = ts_query.enabled_for(0, "nav")
+    ts_query.is_available = orig
+    assert.is_true(ok)
+  end)
+end)
 
 describe("ts_query.query_nodes", function()
   local buf
