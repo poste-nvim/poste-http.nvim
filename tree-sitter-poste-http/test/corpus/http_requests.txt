@@ -669,3 +669,26 @@ SCRIPT
     (method_script))
   (post_script
     (script_block)))
+
+================================================================================
+GraphQL request line
+================================================================================
+
+### Get user
+GRAPHQL https://api.example.com/graphql
+Authorization: Bearer token
+
+--------------------------------------------------------------------------------
+
+(document
+  (request_block
+    (separator)
+    (request_name))
+  (request_line
+    (method
+      (method_graphql))
+    (url
+      (url_path)))
+  (header
+    (header_key)
+    (header_value)))

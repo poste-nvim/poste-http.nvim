@@ -17,6 +17,7 @@ local METHOD_HL = {
   HEAD = "PosteMethodHEAD",
   OPTIONS = "PosteMethodOPTIONS",
   SCRIPT = "PosteMethodScript",
+  GRAPHQL = "PosteMethodScript",
   RUN = "PosteRun",
 }
 

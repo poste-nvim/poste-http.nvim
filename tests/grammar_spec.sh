@@ -99,5 +99,9 @@ check "run directive with alias.name" \
   "run #auth.LoginWithToken (@token=abc)" \
   "run_target_prefix"
 
+check "GRAPHQL request line" \
+  "GRAPHQL https://api.example.com/graphql" \
+  "method_graphql"
+
 echo "=== Results: $pass passed, $fail failed ==="
 exit $fail

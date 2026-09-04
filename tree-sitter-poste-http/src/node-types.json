@@ -179,6 +179,10 @@
           "named": true
         },
         {
+          "type": "method_graphql",
+          "named": true
+        },
+        {
           "type": "method_head",
           "named": true
         },
@@ -720,6 +724,10 @@
   },
   {
     "type": "method_get",
+    "named": true
+  },
+  {
+    "type": "method_graphql",
     "named": true
   },
   {

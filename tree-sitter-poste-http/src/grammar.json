@@ -325,6 +325,10 @@
         {
           "type": "SYMBOL",
           "name": "method_script"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "method_graphql"
         }
       ]
     },
@@ -367,6 +371,10 @@
     "method_script": {
       "type": "STRING",
       "value": "SCRIPT"
+    },
+    "method_graphql": {
+      "type": "STRING",
+      "value": "GRAPHQL"
     },
     "url": {
       "type": "SEQ",
