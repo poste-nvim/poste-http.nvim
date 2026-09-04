@@ -23,6 +23,7 @@
 | [JSON Response UX](./json-response-ux.md) | JSON folding and jq filter experience |
 | [HTTP History Design](./http-history.md) | Request history UI and persistence |
 | [Tree-sitter Migration](./treesitter-migration.md) | Tree-sitter as single parse authority |
+| [Multi-Protocol Design](./multi-protocol-design.md) | GraphQL / gRPC / WebSocket via executor abstraction (design only) |
 
 ## Archived
 
@@ -33,4 +34,4 @@
 
 ---
 
-*Developer documentation — Last updated: 2026-08-15*
+*Developer documentation — Last updated: 2026-09-04*
