@@ -29,6 +29,11 @@ describe("executors.get", function()
     local graphql = require("poste-http.http.executors.graphql")
     assert.equals(graphql, executors.get("GRAPHQL"))
   end)
+
+  it("routes GRPC to the grpc executor", function()
+    local grpc = require("poste-http.http.executors.grpc")
+    assert.equals(grpc, executors.get("GRPC"))
+  end)
 end)
 
 describe("executors.run", function()

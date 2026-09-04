@@ -16,7 +16,7 @@ local M = {}
 -- HTTP verbs, unknown methods) falls back to the HTTP executor.
 local registry = {
   ["GRAPHQL"] = "poste-http.http.executors.graphql",
-  -- ["GRPC"] = "poste-http.http.executors.grpc",           -- Phase 2
+  ["GRPC"] = "poste-http.http.executors.grpc",
   -- ["WEBSOCKET"] = "poste-http.http.executors.websocket", -- Phase 3
 }
 

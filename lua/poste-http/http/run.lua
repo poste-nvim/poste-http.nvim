@@ -18,6 +18,7 @@ local vars = require("poste-http.http.vars")
 local orchestration = require("poste-http.http.orchestration")
 local errors = require("poste-http.http.errors")
 local global_headers = require("poste-http.http.global_headers")
+local block_operators = require("poste-http.http.block_operators")
 local response_mod = require("poste-http.http.response")
 
 local M = {}
@@ -618,6 +619,12 @@ local function start_curl_exec(ctx)
 
   local start_hires = (vim.uv or vim.loop).hrtime()
 
+  -- `# @name value` operator comments carry per-protocol executor options
+  -- (e.g. `# @grpc-proto echo.proto`); extraction is protocol-neutral.
+  local operators = block_operators.extract(
+    vim.split(resolved_content, "\n", { plain = true }),
+    block_start or 1, block_end)
+
   executors.run({
     method = method,
     url = url,
@@ -625,6 +632,7 @@ local function start_curl_exec(ctx)
     body = body,
     buf_dir = buf_dir,
     timeout = state.config.timeout,
+    operators = operators,
   }, function(response)
     handle_curl_response(response, ctx)
   end)

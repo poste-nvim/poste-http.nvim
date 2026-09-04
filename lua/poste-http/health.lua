@@ -36,6 +36,13 @@ function M.check()
     vim.health.error("curl not found. Install curl to execute HTTP requests.")
   end
 
+  vim.health.start("Protocol backends")
+  if vim.fn.executable("grpcurl") == 1 then
+    vim.health.ok("grpcurl is installed (GRPC requests)")
+  else
+    vim.health.warn("grpcurl not found. Install grpcurl to run GRPC requests (https://github.com/fullstorydev/grpcurl).")
+  end
+
   vim.health.start("C compiler")
   if vim.fn.executable("cc") == 1 or vim.fn.executable("gcc") == 1 then
     vim.health.ok("C compiler found")
