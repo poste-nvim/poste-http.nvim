@@ -244,3 +244,44 @@ describe("redact_url_query", function()
     assert.equals("", util.redact_url_query(""))
   end)
 end)
+
+--------------------------------------------------------------------------
+-- redacted_cmd / SENSITIVE_HEADERS
+--------------------------------------------------------------------------
+
+describe("redacted_cmd", function()
+  it("exposes the sensitive header name set", function()
+    assert.is_true(util.SENSITIVE_HEADERS["authorization"])
+    assert.is_true(util.SENSITIVE_HEADERS["x-api-key"])
+    assert.is_nil(util.SENSITIVE_HEADERS["content-type"])
+  end)
+
+  it("redacts sensitive header values from an arg list", function()
+    local out = util.redacted_cmd({
+      "curl", "-H", "Authorization: Bearer sekrit-token",
+      "-H", "Content-Type: application/json", "https://api.example.com",
+    })
+    assert.matches("Authorization: %[REDACTED%]", out)
+    assert.is_nil(out:find("sekrit%-token", 1, true),
+      "Authorization value must not appear in the rendered command")
+    assert.matches("Content%-Type: application/json", out)
+    assert.matches("https://api%.example%.com", out)
+  end)
+
+  it("is case-insensitive on header names", function()
+    local out = util.redacted_cmd({ "-H", "cookie: session=abc123" })
+    assert.matches("cookie: %[REDACTED%]", out)
+    assert.is_nil(out:find("abc123", 1, true))
+  end)
+
+  it("shell-escapes args with spaces or quotes", function()
+    local out = util.redacted_cmd({ "echo", "two words", "it's" })
+    assert.matches("'two words'", out)
+    assert.is_not_nil(out:find("it'\\''s", 1, true))
+  end)
+
+  it("handles nil and empty arg lists", function()
+    assert.equals("", util.redacted_cmd(nil))
+    assert.equals("", util.redacted_cmd({}))
+  end)
+end)

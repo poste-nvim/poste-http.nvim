@@ -18,52 +18,6 @@ local function cleanup_temp_dir(dir)
   return ok
 end
 
-local function shell_escape(s)
-  if not s or s == "" then return "''" end
-  if s:match("^[a-zA-Z0-9_./:=-]+$") then
-    return s
-  end
-  local escaped = s:gsub("'", "'\\''")
-  return "'" .. escaped .. "'"
-end
-
---- Header names whose values must not be written to logs.
-local SENSITIVE_HEADERS = {
-  ["authorization"] = true,
-  ["proxy-authorization"] = true,
-  ["cookie"] = true,
-  ["set-cookie"] = true,
-  ["x-api-key"] = true,
-  ["api-key"] = true,
-}
-
---- Redact sensitive header values from a raw curl arg list.
---- Returns a log-safe string of the command.
-local function redacted_curl_cmd(args)
-  local parts = {}
-  local i = 1
-  while i <= #args do
-    local a = args[i]
-    if a == "-H" and args[i + 1] then
-      local raw = args[i + 1]
-      local k, v = raw:match("^([^:]+):%s*(.*)$")
-      if k and SENSITIVE_HEADERS[k:lower()] then
-        table.insert(parts, shell_escape(a))
-        table.insert(parts, shell_escape(k .. ": [REDACTED]"))
-        i = i + 1
-      else
-        table.insert(parts, shell_escape(a))
-        table.insert(parts, shell_escape(raw))
-        i = i + 1
-      end
-    else
-      table.insert(parts, shell_escape(a))
-    end
-    i = i + 1
-  end
-  return table.concat(parts, " ")
-end
-
 function M.execute(opts, callback)
   if not callback then
     callback = opts.on_complete or function() end
@@ -141,11 +95,11 @@ function M.execute(opts, callback)
 
   table.insert(args, url)
 
-  state.log("INFO", "curl: " .. redacted_curl_cmd(args):sub(1, 500))
+  state.log("INFO", "curl: " .. util.redacted_cmd(args):sub(1, 500))
 
   local cmd_parts = {}
   for _, a in ipairs(args) do
-    table.insert(cmd_parts, shell_escape(a))
+    table.insert(cmd_parts, util.shell_escape(a))
   end
   local cmd = table.concat(cmd_parts, " ")
 

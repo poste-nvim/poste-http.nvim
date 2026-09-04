@@ -88,6 +88,57 @@ function M.redact_url_query(url)
   return base .. "?" .. table.concat(parts, "&")
 end
 
+--- Header names whose values must not appear in command logs.
+--- Shared by every protocol executor (curl, grpcurl, websocat): metadata
+--- and headers carry credentials just like HTTP headers do.
+M.SENSITIVE_HEADERS = {
+  ["authorization"] = true,
+  ["proxy-authorization"] = true,
+  ["cookie"] = true,
+  ["set-cookie"] = true,
+  ["x-api-key"] = true,
+  ["api-key"] = true,
+}
+
+--- Shell-escape a single argument. Safe characters pass through unquoted.
+function M.shell_escape(s)
+  if not s or s == "" then return "''" end
+  if s:match("^[a-zA-Z0-9_./:=-]+$") then
+    return s
+  end
+  local escaped = s:gsub("'", "'\\''")
+  return "'" .. escaped .. "'"
+end
+
+--- Render an argv list as a log-safe command string.
+--- Values of sensitive headers (see M.SENSITIVE_HEADERS) are replaced with
+--- [REDACTED]; every argument is shell-escaped.
+function M.redacted_cmd(args)
+  if not args then return "" end
+  local parts = {}
+  local i = 1
+  while i <= #args do
+    local a = args[i]
+    if (a == "-H" or a == "--header") and args[i + 1] then
+      local raw = args[i + 1]
+      local k = raw:match("^([^:]+):%s*")
+      if k and M.SENSITIVE_HEADERS[k:lower()] then
+        table.insert(parts, M.shell_escape(a))
+        table.insert(parts, M.shell_escape(k .. ": [REDACTED]"))
+        i = i + 1
+      else
+        table.insert(parts, M.shell_escape(a))
+        table.insert(parts, M.shell_escape(raw))
+        i = i + 1
+      end
+    else
+      table.insert(parts, M.shell_escape(a))
+    end
+    i = i + 1
+  end
+  return table.concat(parts, " ")
+end
+
 --- Open a markdown doc preview in a floating window.
 --- Returns float_buf, win, reused (boolean — true if an existing tracked window was re-focused).
 --- opts:
