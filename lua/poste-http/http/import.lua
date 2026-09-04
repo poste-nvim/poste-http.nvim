@@ -460,7 +460,7 @@ end
 --- Creates a scratch buffer so prompt handling has a stable buffer context.
 local function resolve_import_content(content, block_start, file_path, env_name, mode, on_complete)
   local buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_option, buf, "buftype", "nofile")
+  pcall(vim.api.nvim_set_option_value, "buftype", "nofile", { buf = buf })
   local lines = vim.split(content, "\n", { plain = true })
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 

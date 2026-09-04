@@ -18,8 +18,8 @@ local float = require("poste-http.ui.float")
 --- @param on_select function
 function M.open(items, prompt, on_select)
   local list_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(list_buf, "bufhidden", "wipe")
-  vim.api.nvim_buf_set_option(list_buf, "filetype", "PosteSelect")
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = list_buf })
+  vim.api.nvim_set_option_value("filetype", "PosteSelect", { buf = list_buf })
   local width = math.min(80, vim.o.columns - 4)
   local height = math.min(24, #items + 2)
 
