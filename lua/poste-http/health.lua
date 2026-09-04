@@ -42,6 +42,11 @@ function M.check()
   else
     vim.health.warn("grpcurl not found. Install grpcurl to run GRPC requests (https://github.com/fullstorydev/grpcurl).")
   end
+  if vim.fn.executable("websocat") == 1 then
+    vim.health.ok("websocat is installed (WEBSOCKET requests)")
+  else
+    vim.health.warn("websocat not found. Install websocat to run WEBSOCKET requests (https://github.com/nickelc/websocat).")
+  end
 
   vim.health.start("C compiler")
   if vim.fn.executable("cc") == 1 or vim.fn.executable("gcc") == 1 then

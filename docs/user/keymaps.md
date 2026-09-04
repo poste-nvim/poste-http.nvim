@@ -67,6 +67,7 @@ Override in `setup({ keymaps = { <group_name> = { ... } } })`.
 | `E` | `view_verbose` | Switch to Verbose tab |
 | `A` | `view_assertions` | Switch to Assertions tab |
 | `S` | `view_script_logs` | Switch to Script Logs tab |
+| `M` | `view_messages` | Switch to Messages tab (WebSocket frames) |
 | `<Tab>` | `next_tab` | Next tab |
 | `<S-Tab>` | `prev_tab` | Previous tab |
 | `r` | `rerun` | Re-execute current request |
@@ -161,6 +162,7 @@ require("poste-http").setup({
       view_verbose = "E",
       view_assertions = "A",
       view_script_logs = "S",
+      view_messages = "M",
       next_tab = "<Tab>",
       prev_tab = "<S-Tab>",
       rerun = "r",

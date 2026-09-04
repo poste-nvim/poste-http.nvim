@@ -101,7 +101,7 @@ PUT http://localhost:8080/api/items/1
 **Supported METHODS** (from `data.lua` `http_methods`):
 
 ```
-GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL, GRPC
+GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL, GRPC, WEBSOCKET
 ```
 
 **Rules**:
@@ -523,6 +523,46 @@ X-Trace-Id: {{trace_id}}
 **Implementation status**: Implemented (parser, executor, operators,
 health check). Client-streaming / bidi and streaming-frame rendering are
 not yet implemented.
+
+### 2.17 WebSocket Requests
+
+Use `WEBSOCKET` with a `ws://` or `wss://` URL. Requires the `websocat`
+binary (`:checkhealth poste-http` verifies it).
+
+**Syntax**:
+
+```
+### Subscribe to the feed
+# @ws-wait-ms 5000
+WEBSOCKET wss://stream.example.com/v1/feed
+Sec-WebSocket-Protocol: chat.v1
+
+{"type": "subscribe", "channel": "news"}
+{"type": "ping"}
+```
+
+**Rules**:
+
+- Header lines are sent as extra handshake headers
+- Every non-empty body line is sent as one text frame once the connection
+  is open
+- After all frames are sent, the response is collected until the wait
+  window elapses or the server closes, then rendered
+- `# @ws-wait-ms <ms>` sets the collection window (default 3000);
+  `# @ws-flags <raw args>` passes extra websocat options (repeatable)
+- The response renders in the **Msgs** tab (`M`): `→` outgoing frames,
+  `←` incoming frames. The Body tab shows the received transcript
+- `response.status` is the WebSocket close code (1000 = normal,
+  1006 = abnormal); `response.ok` reflects it, and assertions can inspect
+  `response.metadata.frames`
+- Frames are line-based: a frame containing newlines shows as multiple
+  rows
+- v1 runs the session to completion before rendering (live frame append
+  and interactive sending are not yet implemented)
+
+**Implementation status**: Implemented (parser, executor, batch session,
+messages tab). Interactive sessions and live streaming render are not yet
+implemented.
 
 ## 3. Variable Resolution Order
 

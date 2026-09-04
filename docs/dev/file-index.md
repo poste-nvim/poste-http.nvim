@@ -61,6 +61,8 @@ that hand-rolled floats used to apply unevenly).
 | `executors/http.lua` | HTTP executor — thin wrapper over `curl_exec` |
 | `executors/graphql.lua` | GraphQL executor — lowers `GRAPHQL` blocks to HTTP POST via curl |
 | `executors/grpc.lua` | gRPC executor — wraps `grpcurl`, maps gRPC status codes onto the canonical response |
+| `executors/websocket.lua` | WebSocket executor — batch session over `websocat`, frames into `metadata.frames` |
+| `format/messages.lua` | Messages view formatter — WebSocket frame transcript to lines |
 | `block_operators.lua` | Extract `# @name value` operator comments from a request block |
 | `response.lua` | Canonical response helpers — protocol-aware `ok` flag and `is_error` |
 | `curl_exec.lua` | Build curl args, spawn via `jobstart`, temp file management |
