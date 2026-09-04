@@ -41,6 +41,7 @@ function M.build_response(raw)
     url = raw.url,
     cookies = raw.cookies,
     protocol = raw.protocol,
+    ok = raw.ok,
     metadata = raw.metadata,
   }, {
     __index = function(t, k)

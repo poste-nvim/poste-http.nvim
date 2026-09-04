@@ -194,6 +194,7 @@ function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, m
     headers = parsed.headers,
     body = body,
     cookies = cookies,
+    ok = parsed.status < 400,
     metadata = {
       method = method or "",
       redirect_count = redirect_count,
@@ -264,6 +265,7 @@ function M.parse_error(headers_file, stdout_data, stderr_data, start_hires, meth
     headers = parsed.headers,
     body = display_body,
     cookies = {},
+    ok = false,
     metadata = {
       method = method or "",
       error = stderr,

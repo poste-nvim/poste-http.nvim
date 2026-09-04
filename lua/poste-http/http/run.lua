@@ -18,6 +18,7 @@ local vars = require("poste-http.http.vars")
 local orchestration = require("poste-http.http.orchestration")
 local errors = require("poste-http.http.errors")
 local global_headers = require("poste-http.http.global_headers")
+local response_mod = require("poste-http.http.response")
 
 local M = {}
 
@@ -37,6 +38,7 @@ local function make_script_response(req_text, req_block)
     headers = req_block and req_block.headers or {},
     body = "Script executed. See Assertions or Script Logs tab for details.",
     cookies = {},
+    ok = true,
     metadata = {
       method = "SCRIPT",
       exit_code = "0",
@@ -58,6 +60,7 @@ local function make_error_response(req_text, req_block, body_text, err_msg, exit
     headers = req_block and req_block.headers or {},
     body = body_text,
     cookies = {},
+    ok = false,
     metadata = {
       method = "",
       error = body_text,
@@ -138,7 +141,7 @@ local function choose_view_tab(parsed, assertion_results)
   if assertion_results and assertion_results.failed > 0 then
     return "assertions"
   end
-  if parsed.status and parsed.status >= 400 then
+  if response_mod.is_error(parsed) then
     return "verbose"
   end
   return state.config.default_view or "body"
@@ -146,10 +149,10 @@ end
 
 --- Set indicator based on status and assertions.
 local function set_result_indicator(src_buf, line_0, parsed, assertion_results)
-  local is_error = parsed.status and parsed.status >= 400
+  local failed = response_mod.is_error(parsed)
   local has_failures = assertion_results and assertion_results.failed > 0
 
-  if has_failures or is_error then
+  if has_failures or failed then
     indicators.set_indicator(src_buf, line_0, "error", parsed.latency_ms, assertion_results)
   else
     indicators.set_indicator(src_buf, line_0, "success", parsed.latency_ms, assertion_results)
@@ -191,6 +194,7 @@ local function handle_curl_response(response, ctx)
           protocol = "error", status = 0, status_text = response.error,
           latency_ms = 0, url = "", content_type = "text/plain",
           headers = {}, body = response.error, cookies = {},
+          ok = false,
           metadata = { method = "", error = response.error, exit_code = "1" },
         }
       end
