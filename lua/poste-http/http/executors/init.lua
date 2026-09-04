@@ -15,7 +15,8 @@ local M = {}
 -- Request-line methods with a dedicated executor. Everything else (plain
 -- HTTP verbs, unknown methods) falls back to the HTTP executor.
 local registry = {
-  -- ["GRPC"] = "poste-http.http.executors.grpc",        -- Phase 2
+  ["GRAPHQL"] = "poste-http.http.executors.graphql",
+  -- ["GRPC"] = "poste-http.http.executors.grpc",           -- Phase 2
   -- ["WEBSOCKET"] = "poste-http.http.executors.websocket", -- Phase 3
 }
 

@@ -614,7 +614,7 @@ local function start_curl_exec(ctx)
   end
 
   local merged_headers = global_headers.merge(headers, resolver)
-  state.log("INFO", string.format("curl: %s %s (%d headers, %d global)", method, util.redact_url_query(url), #headers, #merged_headers - #headers))
+  state.log("INFO", string.format("%s %s (%d headers, %d global)", method, util.redact_url_query(url), #headers, #merged_headers - #headers))
 
   local start_hires = (vim.uv or vim.loop).hrtime()
 
