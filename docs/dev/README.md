@@ -9,6 +9,7 @@
 | [Testing Guide](./testing.md) | How to run tests (tree-sitter + Lua + contract) |
 | [Code Review 2026-08-13](./code-review-2026-08-13.md) | Full review report (29 findings + doc drift) |
 | [Review Todo](./code-review-todo.md) | Fix tracking checklist (all done) |
+| [Code Review 2026-09-05](./code-review-2026-09-05.md) | Quality audit: DRY / responsibilities / coverage / conventions |
 | [Error Patterns](./error-patterns-review.md) | Recurring bug patterns and antidotes |
 | [Refactoring Plan](./refactoring-plan.md) | R1–R7 refactoring roadmap |
 | [Rust Retirement](./rust-retirement-plan.md) | Rust CLI removal log (all phases done) |
@@ -34,4 +35,4 @@
 
 ---
 
-*Developer documentation — Last updated: 2026-09-04*
+*Developer documentation — Last updated: 2026-09-05*
