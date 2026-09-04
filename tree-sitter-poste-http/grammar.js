@@ -29,6 +29,7 @@ module.exports = grammar({
       $.external_script,
       $.external_assertion,
       $.json_body,
+      $.graphql_body,
       $.multipart_boundary,
       $.multipart_form_data,
       $.form_body,
@@ -315,6 +316,20 @@ module.exports = grammar({
     json_body: $ => token(seq(
       /[\[{][^\n]*/,
       /(?:\n[^\n]+)*/,
+    )),
+
+    // ─── GraphQL Query Body ─────────────────────────
+    // Query/mutation/subscription/fragment text for GRAPHQL request
+    // blocks. Anchored to those keywords followed by whitespace so it
+    // never competes with headers (`query: x`) or form bodies
+    // (`query=x`); '{'-starting segments (anonymous queries, variables)
+    // stay with json_body.
+    graphql_body: $ => token(seq(
+      choice(/query[ \t]/, /mutation[ \t]/, /subscription[ \t]/, /fragment[ \t]/),
+      /[^\n]*/,
+      // Continuation lines stop at blank lines, so the variables JSON
+      // after the query parses as json_body.
+      repeat(seq('\n', /[^\n]+/)),
     )),
 
     // ─── Multipart Boundary ─────────────────────────

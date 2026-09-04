@@ -111,6 +111,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "graphql_body"
+        },
+        {
+          "type": "SYMBOL",
           "name": "multipart_boundary"
         },
         {
@@ -1458,6 +1462,55 @@
           {
             "type": "PATTERN",
             "value": "(?:\\n[^\\n]+)*"
+          }
+        ]
+      }
+    },
+    "graphql_body": {
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "PATTERN",
+                "value": "query[ \\t]"
+              },
+              {
+                "type": "PATTERN",
+                "value": "mutation[ \\t]"
+              },
+              {
+                "type": "PATTERN",
+                "value": "subscription[ \\t]"
+              },
+              {
+                "type": "PATTERN",
+                "value": "fragment[ \\t]"
+              }
+            ]
+          },
+          {
+            "type": "PATTERN",
+            "value": "[^\\n]*"
+          },
+          {
+            "type": "REPEAT",
+            "content": {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "\n"
+                },
+                {
+                  "type": "PATTERN",
+                  "value": "[^\\n]+"
+                }
+              ]
+            }
           }
         ]
       }

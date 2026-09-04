@@ -77,6 +77,9 @@
 ; JSON body
 (json_body) @PosteRequestBody
 
+; GraphQL query body
+(graphql_body) @PosteRequestBody
+
 ; Multipart boundary
 (multipart_boundary) @PosteMultipartBoundary
 

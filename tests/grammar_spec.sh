@@ -111,5 +111,9 @@ check "WEBSOCKET request line" \
   "WEBSOCKET wss://stream.example.com/feed" \
   "method_websocket"
 
+check "GRAPHQL query body" \
+$'GRAPHQL https://api.example.com/graphql\n\nquery User($id: ID!) {\n  user(id: $id) { id name email }\n}' \
+  "graphql_body"
+
 echo "=== Results: $pass passed, $fail failed ==="
 exit $fail

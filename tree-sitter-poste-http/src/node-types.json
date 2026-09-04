@@ -29,6 +29,10 @@
           "named": true
         },
         {
+          "type": "graphql_body",
+          "named": true
+        },
+        {
           "type": "header",
           "named": true
         },
@@ -688,6 +692,10 @@
   },
   {
     "type": "form_body",
+    "named": true
+  },
+  {
+    "type": "graphql_body",
     "named": true
   },
   {

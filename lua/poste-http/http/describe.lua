@@ -28,6 +28,19 @@ local function get_children_by_type(node, type_name)
   return results
 end
 
+--- Line-based body assembly: every non-excluded line from body_start to
+--- end_line. Used when the grammar's body nodes don't cover the body's
+--- first line (e.g. GRAPHQL query text precedes the variables JSON).
+local function assemble_line_body(block, body_start, end_line, lines)
+  local parts = {}
+  for i = body_start, end_line do
+    if not block._non_body_lines[i] then
+      table.insert(parts, lines[i])
+    end
+  end
+  return table.concat(parts, "\n")
+end
+
 local function describe_via_treesitter(content)
   if not content or content == "" then
     return {}, nil
@@ -71,8 +84,30 @@ local function describe_via_treesitter(content)
     end
 
     current_block.body = ""
-    if current_block._body_text then
-      current_block.body = current_block._body_text
+    if current_block._body_parts and #current_block._body_parts > 0 then
+      local body_start = (current_block._last_header_row or current_block._request_line_row or -1) + 1
+      while body_start <= end_line do
+        local line = lines[body_start]
+        if line and line:match("%S") then
+          break
+        end
+        body_start = body_start + 1
+      end
+
+      if current_block._body_parts[1].start_row == body_start then
+        -- The grammar covered the body from its first line. Multiple
+        -- segments (an anonymous GRAPHQL query plus its variables block)
+        -- are joined with the blank line that separated them.
+        local texts = {}
+        for _, part in ipairs(current_block._body_parts) do
+          table.insert(texts, part.text)
+        end
+        current_block.body = table.concat(texts, "\n\n")
+      else
+        -- Content precedes the first body node (a GRAPHQL query text):
+        -- fall back to line-based assembly so nothing is dropped.
+        current_block.body = assemble_line_body(current_block, body_start, end_line, lines)
+      end
     elseif current_block._request_line_row then
       local body_start = (current_block._last_header_row or current_block._request_line_row) + 1
       while body_start <= end_line do
@@ -85,20 +120,14 @@ local function describe_via_treesitter(content)
       if body_start <= end_line then
         local first_line = lines[body_start]
         if first_line and not current_block._non_body_lines[body_start] then
-          local body_parts = {}
-          for i = body_start, end_line do
-            if not current_block._non_body_lines[i] then
-              table.insert(body_parts, lines[i])
-            end
-          end
-          current_block.body = table.concat(body_parts, "\n")
+          current_block.body = assemble_line_body(current_block, body_start, end_line, lines)
         end
       end
     end
     current_block._line = nil
     current_block._request_line_row = nil
     current_block._last_header_row = nil
-    current_block._body_text = nil
+    current_block._body_parts = nil
     current_block._non_body_lines = nil
     table.insert(blocks, current_block)
     current_block = nil
@@ -129,7 +158,7 @@ local function describe_via_treesitter(content)
         _line = line_num,
         _request_line_row = nil,
         _last_header_row = nil,
-        _body_text = nil,
+        _body_parts = {},
         _non_body_lines = {},
       }
     elseif type == "request_line" then
@@ -157,9 +186,14 @@ local function describe_via_treesitter(content)
         table.insert(current_block.headers, { vim.trim(key), vim.trim(value) })
         current_block._last_header_row = line_num
       end
-    elseif type == "json_body" or type == "form_body" then
+    elseif type == "json_body" or type == "form_body" or type == "graphql_body" then
       if current_block then
-        current_block._body_text = get_node_text(child, content)
+        -- Collect every body node in order; finalize_block decides between
+        -- node texts and line-based assembly (see the GRAPHQL case).
+        table.insert(current_block._body_parts, {
+          start_row = line_num,
+          text = get_node_text(child, content),
+        })
       end
     elseif type == "external_assertion" or type == "external_script" or type == "file_upload" or type == "comment" or type == "pre_script" or type == "post_script" then
       if current_block then

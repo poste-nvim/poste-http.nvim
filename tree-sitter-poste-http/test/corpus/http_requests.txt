@@ -722,3 +722,32 @@ WEBSOCKET wss://stream.example.com/v1/feed
       (method_websocket))
     (url
       (url_path))))
+
+================================================================================
+GraphQL query body with variables
+================================================================================
+
+GRAPHQL https://api.example.com/graphql
+Authorization: Bearer token
+
+query User($id: ID!) {
+  user(id: $id) { id name email }
+}
+
+{
+  "id": "2"
+}
+
+--------------------------------------------------------------------------------
+
+(document
+  (request_line
+    (method
+      (method_graphql))
+    (url
+      (url_path)))
+  (header
+    (header_key)
+    (header_value))
+  (graphql_body)
+  (json_body))
