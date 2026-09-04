@@ -6,10 +6,16 @@
 
 ## Core Design Principles
 
-1. **Protocol isolation** — HTTP is fully isolated from other protocols; this repo is HTTP-only
+1. **Protocol isolation behind executors** — each protocol (HTTP, GraphQL, gRPC,
+   WebSocket) is isolated behind a common executor contract
+   (`lua/poste-http/http/executors/`); HTTP is the fallback executor. See
+   [Multi-Protocol Design](./multi-protocol-design.md)
 2. **File-driven** — All requests originate from `.http` / `.rest` files
 3. **Keyboard-first** — Neovim plugin uses keyboard as primary interaction mode
-4. **Lua + curl** — HTTP uses pure Lua for parsing, resolving, and execution; curl is the only subprocess
+4. **Lua + one subprocess per protocol** — HTTP uses pure Lua for parsing,
+   resolving, and formatting; curl is the HTTP backend, grpcurl backs `GRPC`,
+   and websocat backs `WEBSOCKET` (`:checkhealth poste-http` verifies them).
+   GraphQL lowers to plain HTTP POST — no extra tooling
 
 ---
 
@@ -36,14 +42,18 @@
 │              poste_http → http.init.run_request()           │
 │                              │                              │
 │                              ↓                              │
-│                    curl subprocess                          │
+│              protocol executor (by request line)            │
+│    HTTP → curl   GRAPHQL → curl (POST)   GRPC → grpcurl     │
+│                  WEBSOCKET → websocat                       │
 │              (vim.fn.jobstart)                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 The Rust CLI (`poste`) is no longer used. All parsing, variable resolution,
-formatting, and import parsing are done in pure Lua. The only subprocess is `curl`,
-spawned via `vim.fn.jobstart`.
+formatting, and import parsing are done in pure Lua. `run.lua` dispatches to a
+protocol executor (`http/executors/`), which owns the one subprocess for its
+protocol, spawned via `vim.fn.jobstart`; every executor returns the same
+canonical response shape (with the protocol-aware `ok` flag).
 
 ---
 
@@ -126,9 +136,11 @@ poste-http.nvim (Lua)
   │
   ├── lua/poste-http/ (shared infra: state, select, indicators)
   │
-  └── curl (subprocess for HTTP execution)
+  ├── curl (HTTP + GraphQL execution)
+  ├── grpcurl (optional, GRPC)
+  └── websocat (optional, WEBSOCKET)
 
-No Rust dependency for HTTP.
+No Rust dependency.
 ```
 
 ---
@@ -152,4 +164,4 @@ No Rust dependency for HTTP.
 
 ---
 
-*Architecture overview — Last updated: 2026-08-12*
+*Architecture overview — Last updated: 2026-09-04*
