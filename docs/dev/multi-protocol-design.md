@@ -111,7 +111,7 @@ Sec-WebSocket-Protocol: chat.v1
 ```
 
 v1 semantics: connect → send all lines → collect inbound frames until a deadline or
-server close → render. See the WebSocket section for interactive (v2) semantics.
+server close → render. `# @ws-wait-ms` and `# @ws-flags` are operator comments; `# @ws-interactive` keeps the connection open for interactive sessions (see http/ws_session.lua).
 
 ---
 
@@ -275,7 +275,7 @@ parse as JSON reuse the existing JSON highlighting. Direction arrows (→ sent /
 | 1 | GraphQL (method token + lowering executor + docs) | Phase 0 | Small | ✅ Done |
 | 2 | gRPC (grpcurl executor + `# @grpc-*` operators + unary/server-streaming + health checks) | Phase 0 | Medium | ✅ Done |
 | 3 | WebSocket v1 batch + messages tab | Phase 0, websocat | Med-Large | ✅ Done |
-| 4 | WebSocket v2 interactive session (live_session, keymaps, streaming append) | Phase 3 | Large | |
+| 4 | WebSocket v2 interactive session (live_session, keymaps, streaming append) | Phase 3 | Large | ✅ Done |
 
 ## Test Strategy (TDD first)
 
@@ -304,4 +304,4 @@ parse as JSON reuse the existing JSON highlighting. Direction arrows (→ sent /
 
 ---
 
-*Multi-protocol design — Created: 2026-09-04; Phases 0-3 implemented*
+*Multi-protocol design — Created: 2026-09-04; Phases 0-4 implemented*

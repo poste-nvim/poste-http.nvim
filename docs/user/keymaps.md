@@ -68,6 +68,8 @@ Override in `setup({ keymaps = { <group_name> = { ... } } })`.
 | `A` | `view_assertions` | Switch to Assertions tab |
 | `S` | `view_script_logs` | Switch to Script Logs tab |
 | `M` | `view_messages` | Switch to Messages tab (WebSocket frames) |
+| `s` | `ws_send` | Send a message on the live WebSocket session |
+| `c` | `ws_close` | Close the live WebSocket session |
 | `<Tab>` | `next_tab` | Next tab |
 | `<S-Tab>` | `prev_tab` | Previous tab |
 | `r` | `rerun` | Re-execute current request |
@@ -163,6 +165,8 @@ require("poste-http").setup({
       view_assertions = "A",
       view_script_logs = "S",
       view_messages = "M",
+      ws_send = "s",
+      ws_close = "c",
       next_tab = "<Tab>",
       prev_tab = "<S-Tab>",
       rerun = "r",

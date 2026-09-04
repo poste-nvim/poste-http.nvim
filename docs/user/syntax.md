@@ -557,12 +557,15 @@ Sec-WebSocket-Protocol: chat.v1
   `response.metadata.frames`
 - Frames are line-based: a frame containing newlines shows as multiple
   rows
-- v1 runs the session to completion before rendering (live frame append
-  and interactive sending are not yet implemented)
+- Add `# @ws-interactive` to keep the connection open after the initial
+  frames are sent: incoming frames append to the Msgs tab live, `s` prompts
+  for a message to send, `c` closes the session, and wiping the response
+  buffer closes it too. A live session does not block other requests, but
+  only one session can be live at a time
 
-**Implementation status**: Implemented (parser, executor, batch session,
-messages tab). Interactive sessions and live streaming render are not yet
-implemented.
+**Implementation status**: Implemented (parser, executor, batch and
+interactive sessions, messages tab, live frame append). Client-side frame
+filtering and multiple simultaneous sessions are not yet implemented.
 
 ## 3. Variable Resolution Order
 

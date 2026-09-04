@@ -115,6 +115,8 @@ pitfall, log it here. Check this file before starting any task.
 
 ## Entries
 
+- 2026-09-04: http/executors — async executor tests (grpcurl/websocat) need three stubs working together: stub `vim.fn.jobstart` to capture opts and return a fake id, invoke `captured_opts.on_stdout/on_exit` manually, then `vim.wait` to pump `vim.schedule` callbacks; also stub `vim.fn.chansend/chanclose/jobstop` — real `chansend` on a fake id throws. A uv-timer deadline fires only inside `vim.wait`, so a spec that never pumps hangs silently. Session-style modules with a singleton (`ws_session.active`) leak state across tests — close the session in `after_each`. See `tests/http/executors_grpc_spec.lua`, `tests/http/ws_session_spec.lua`.
+
 - 2026-06-26: agent — `lua local function f()` defined after its first caller causes "nil value" at runtime. Lua requires local functions to be declared before use, or forward-declared via `local f`. Fix: always order helper functions top-down, or add `local f` forward decl at module top. See `lua/poste-http/http/request_vars.lua:155-160`.
 - 2026-06-26: keymaps — renamed `source_buffer` → `http_source` for consistency. Breaking change for users with custom configs using old names. See `lua/poste-http/state.lua:25-133`.
 - 2026-06-30: openapi/http — `string.gsub` returns 2 values (modified + count). Using it directly inside `table.insert()` spills the count as 3rd arg, causing "number expected, got string". Fix: wrap gsub in extra parens to discard count. See `lua/poste-http/http/format.lua:469`.
