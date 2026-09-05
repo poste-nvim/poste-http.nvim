@@ -437,6 +437,14 @@ end
 
 local function navigate_list(direction)
   if #state.http_history == 0 then return end
+  -- The real cursor is authoritative: native motions (gg, G, <C-d>, ...) move
+  -- it without touching current_index. Resync first so j/k are anchored to
+  -- where the cursor actually is, not a stale baseline (history ghost-cursor
+  -- bug: gg/G then j/k landed one line past the visual position).
+  local pos = vim.api.nvim_win_get_cursor(list_win)
+  if pos and pos[1] and pos[1] >= 1 and pos[1] <= #state.http_history then
+    current_index = pos[1]
+  end
   if current_index == nil then
     current_index = direction > 0 and 1 or #state.http_history
   else
@@ -444,6 +452,17 @@ local function navigate_list(direction)
     if current_index < 1 then current_index = #state.http_history
     elseif current_index > #state.http_history then current_index = 1 end
   end
+  pcall(vim.api.nvim_win_set_cursor, list_win, { current_index, 0 })
+  render_detail()
+end
+
+--- Jump the list cursor to a history index (gg / G): syncs current_index,
+--- the buffer cursor, and the detail pane in one step.
+local function jump_to(index)
+  if #state.http_history == 0 then return end
+  if index < 1 then index = 1
+  elseif index > #state.http_history then index = #state.http_history end
+  current_index = index
   pcall(vim.api.nvim_win_set_cursor, list_win, { current_index, 0 })
   render_detail()
 end
@@ -536,6 +555,14 @@ local function setup_list_keymaps()
 
   vim.keymap.set("n", "j", function() navigate_list(1) end, { buffer = list_buf, noremap = true, silent = true })
   vim.keymap.set("n", "k", function() navigate_list(-1) end, { buffer = list_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "gg", function()
+    local c = vim.v.count
+    jump_to(c > 0 and c or 1)
+  end, { buffer = list_buf, noremap = true, silent = true })
+  vim.keymap.set("n", "G", function()
+    local c = vim.v.count
+    jump_to(c > 0 and c or #state.http_history)
+  end, { buffer = list_buf, noremap = true, silent = true })
   vim.keymap.set("n", "<C-l>", wincmd_detail, { buffer = list_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_buf_attach(list_buf, false, {

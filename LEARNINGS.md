@@ -3,6 +3,8 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+- 2026-09-02: http/history-ghost-cursor — `gg`/`G` (native buffer motions) in the history list window moved the visible cursor but not the module-local `current_index`, so the next `j`/`k` moved from a stale "ghost baseline" (jumped-to line + 1; `G` then `k` wrapped to the top) and the detail pane kept showing the old entry. Fix: map `gg`/`G` in `setup_list_keymaps` to a `jump_to(index)` that syncs `current_index` + buffer cursor + detail pane (`G` honors `v:count`), and resync `navigate_list` from `nvim_win_get_cursor(list_win)` first so any unmapped motion (mouse, `<C-d>`) can't desync it either. See `lua/poste-http/http/history.lua`, `tests/http/history_spec.lua`.
+
 - 2026-08-30: read `docs/dev/agent-guardrails.md` before UI or test work —
   it distills this log into MUST rules (ui/ primitives only, format/ layer
   purity, require-shadowing/pcall traps, headless test recipes) with

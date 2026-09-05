@@ -5,6 +5,7 @@
 -- placement is driven by the column offsets it returns.
 
 local history = require("poste-http.http.history")
+local state = require("poste-http.state")
 
 local function entry(name, opts)
   opts = opts or {}
@@ -114,5 +115,91 @@ describe("history.format_list_line", function()
   it("truncates long names with an ellipsis", function()
     local line = history.format_list_line(entry("ThisNameIsWayTooLongForTheList", { latency_ms = 5 }), 53)
     assert.equals("ThisNameIsWayTo...", line:sub(9, 9 + 17))
+  end)
+end)
+
+describe("history list window navigation", function()
+  -- Full verbose-view-renderable entries (render_detail formats entry.response
+  -- through format_verbose on every j/k/gg/G).
+  local function nav_entry(name, url)
+    local e = entry(name, { latency_ms = 5 })
+    e.id = "id-" .. name
+    e.time_usec = 0
+    e.response.url = url
+    e.response.status_text = "200 " .. name
+    e.response.headers = {}
+    e.response.body = "body of " .. name
+    e.response.content_type = "text/plain"
+    e.response.protocol = "HTTP/1.1"
+    return e
+  end
+
+  local saved_history
+
+  before_each(function()
+    saved_history = state.http_history
+    state.http_history = {
+      nav_entry("One", "http://one.example.com/"),
+      nav_entry("Two", "http://two.example.com/"),
+      nav_entry("Three", "http://three.example.com/"),
+    }
+  end)
+
+  after_each(function()
+    state.http_history = saved_history
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_config(w).relative ~= "" then
+        pcall(vim.api.nvim_win_close, w, true)
+      end
+    end
+  end)
+
+  local function feed(keys)
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), "mx", false)
+    vim.wait(80)
+  end
+
+  local function list_cursor()
+    return vim.api.nvim_win_get_cursor(0)[1]
+  end
+
+  local function detail_first_line()
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_config(w).relative ~= "" then
+        local buf = vim.api.nvim_win_get_buf(w)
+        if vim.bo[buf].filetype ~= "poste_history_list" then
+          return vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
+        end
+      end
+    end
+  end
+
+  it("gg then j lands on the second entry, not the stale baseline", function()
+    history.show()
+    feed("j")
+    feed("gg")
+    feed("j")
+    assert.equals(2, list_cursor())
+  end)
+
+  it("gg syncs the detail pane to the first entry", function()
+    history.show()
+    feed("j")
+    feed("gg")
+    assert.matches("one%.example", detail_first_line())
+  end)
+
+  it("G then k lands on the second-to-last entry", function()
+    history.show()
+    feed("G")
+    feed("k")
+    assert.equals(2, list_cursor())
+  end)
+
+  it("j wraps from the last entry back to the first", function()
+    history.show()
+    feed("G")
+    feed("j")
+    assert.equals(1, list_cursor())
   end)
 end)
