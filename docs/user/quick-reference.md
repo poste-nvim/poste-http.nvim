@@ -153,7 +153,7 @@ Usage: `{{api_base}}` → automatically replaced based on current environment
 
 ## Commands & Keymaps
 
-Full keymap reference in [Keymaps](../keymaps.md). Quick overview:
+Full keymap reference in [Keymaps](keymaps.md). Quick overview:
 
 | Command / Key | Function |
 |---------------|----------|
@@ -165,6 +165,6 @@ Full keymap reference in [Keymaps](../keymaps.md). Quick overview:
 | `<leader>l` | Open request history |
 | `q` (response buffer) | Close response window |
 
-For complete keymaps, see [Keymaps Reference](../keymaps.md).
+For complete keymaps, see [Keymaps Reference](keymaps.md).
 
 *HTTP Quick Reference — Last updated: 2026-07-06*

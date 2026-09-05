@@ -12,7 +12,12 @@
 - **Prompt variables** — Interactive `<<var` prompts with picker/text input
 - **Completion** — HTTP methods, headers, values, env vars (blink.cmp / nvim-cmp)
 - **jq filtering** — Interactive JSON exploration in response view
-- **Multi-tab response** — Body, verbose, request, assertions, script logs
+- **Multi-protocol** — `GRAPHQL` (real POST with query+variables), `GRPC` (via
+  grpcurl: unary, server-streaming, reflection), and `WEBSOCKET` (via websocat:
+  batch collect and interactive sessions) in the same `.http` files. See
+  [Multi-protocol design](docs/dev/multi-protocol-design.md)
+- **Multi-tab response** — Body, verbose, request, messages (WebSocket frames),
+  assertions, script logs
 - **History** — Request history with quick re-runs
 - **Import** — Convert OpenAPI 3.x, Swagger 2.0, and Postman collections to `.http` files
 - **AI chat** (optional) — With [poste-ai.nvim](https://github.com/beyondlex/poste-ai.nvim)

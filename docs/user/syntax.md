@@ -313,7 +313,7 @@ GET https://prod.example.com/api
 - Prompt variables are resolved as `@varname = value` injected into the request block
 - Prefix with `# <<varname` to comment out the prompt line
 
-**Implementation status**: Completion (Lua) ❌, Highlight ❌
+**Implementation status**: Execution ✅ (interactive prompt with option lists), Highlight ✅ (`PostePromptVar`), Completion ❌
 
 ### 2.13 File References (import / run)
 
@@ -374,7 +374,7 @@ run ./batch.http
 - Variable override priority: run inline `@var` > block-level `@var` > file-level `@var`
 - File-level compat directives (`# @kulala-*`) propagate to imported blocks
 
-**Implementation status**: All not yet implemented
+**Implementation status**: Implemented — `import` (with `as` aliases), `run #Name` / `run #alias.Name` / `run ./path`, inline variable overrides, nesting, and `client.run` orchestration all work. Spec: `tests/http/import_spec.lua`.
 
 ### 2.14 Request Orchestration (SCRIPT blocks + `client.run`)
 
@@ -591,23 +591,30 @@ See [Variable Resolution](./variables.md) for the complete documentation. Key hi
 
 ## 5. Implementation Status Checklist
 
-| Syntax | Parser (Lua) | Completion (Lua) | Highlight (Lua) | Format (todo) |
-|---|---|---|---|---|
-| `#` comment | ✅ skip | — | ❌ | — |
-| `@variable` definition | ✅ | ✅ | ❌ | ✅ todo |
-| `@xxx =>>> ... <<<` | ✅ | ❌ | ❌ | ❌ |
-| `###` separator | ✅ | ✅ | ❌ | ✅ todo |
-| `@env` block variable | ❌ | ❌ | ❌ | ✅ todo |
-| `METHOD URL` | ✅ | ✅ | ❌ | — |
-| `Key: Value` header | ✅ | ✅ | ❌ | ✅ todo |
-| Blank line separator | ✅ | ✅ | — | ✅ todo |
-| Request body | ✅ | — | ❌ | ✅ todo |
-| `< path` file include/upload | ✅ Lua | — | ✅ `PosteFileUpload` | ✅ todo |
-| `{{var}}` reference | ✅ | ✅ | ❌ | — |
-| `{{$magic}}` | Lua-side | ✅ | ❌ | — |
-| `< {% %} ` | ✅ skip | ✅ | ❌ | ✅ todo |
-| `< ./path.lua` | ✅ skip | ❌ | ❌ | — |
-| `> {% %} ` | ✅ skip | ✅ | ❌ | ✅ todo |
-| `> ./path.lua` | ❌ skip | ❌ | ❌ | — |
-| `<<name` variable prompt | — | ❌ | ❌ | — |
-| `import` / `run` file refs | ❌ | ❌ | ❌ | ❌ |
+Highlighting is tree-sitter based (`tree-sitter-poste-http/queries/highlights.scm`,
+themed in `http/highlights.lua`). Last verified against the code: 2026-09-05.
+
+| Syntax | Execution | Completion | Highlight |
+|---|---|---|---|
+| `#` comment | ✅ | — | ✅ |
+| `@variable` definition | ✅ | ✅ | ✅ |
+| `@xxx =>>> ... <<<` | ✅ | ❌ | ✅ |
+| `###` separator | ✅ | ✅ | ✅ |
+| `@env` block override | ❌ (planned) | ❌ | ✅ |
+| `METHOD URL` | ✅ | ✅ | ✅ |
+| `Key: Value` header | ✅ | ✅ | ✅ |
+| Blank line separator | ✅ | — | — |
+| Request body (JSON/form/multipart) | ✅ | — | ✅ |
+| `< path` file include/upload | ✅ | — | ✅ |
+| `{{var}}` reference | ✅ | ✅ | ✅ |
+| `{{$magic}}` | ✅ | ✅ | ✅ |
+| `< {% %}` pre-script | ✅ | ✅ | ✅ |
+| `< ./path.lua` external script | ✅ | ❌ | ✅ |
+| `> {% %}` assertion | ✅ | ✅ | ✅ |
+| `> ./path.lua` external assertion | ❌ | ❌ | ✅ |
+| `<<name` variable prompt | ✅ | ❌ | ✅ |
+| `import` / `run` file refs | ✅ | ❌ | ✅ |
+| `SCRIPT` orchestration | ✅ | ✅ | ✅ |
+| `GRAPHQL` requests | ✅ | ✅ | ✅ |
+| `GRPC` requests (grpcurl) | ✅ | ✅ | ✅ |
+| `WEBSOCKET` requests (websocat) | ✅ | ✅ | ✅ |

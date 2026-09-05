@@ -157,11 +157,11 @@ No Rust dependency.
 
 ## Related Documents
 
-- [HTTP Developer Docs](./http/README.md)
-- [HTTP TDD Guide](./http/tdd-guide.md)
+- [TDD Guide](./tdd-guide.md)
+- [Multi-Protocol Design](./multi-protocol-design.md)
 - [File Index](./file-index.md)
 - [Testing Guide](./testing.md)
 
 ---
 
-*Architecture overview — Last updated: 2026-09-04*
+*Architecture overview — Last updated: 2026-09-05*

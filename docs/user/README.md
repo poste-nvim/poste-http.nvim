@@ -13,4 +13,4 @@
 
 ---
 
-*User documentation — Last updated: 2026-08-15*
+*User documentation — Last updated: 2026-09-05*

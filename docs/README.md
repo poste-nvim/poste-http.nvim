@@ -24,7 +24,10 @@ See the [project README](../README.md) for features, installation, quick start, 
 | General | [File Index](./dev/file-index.md) | Key files quick reference |
 | General | [Testing Guide](./dev/testing.md) | Lua + tree-sitter grammar testing workflows |
 | General | [Dev Docs](./dev/README.md) | TDD guide, JSON UX, history, tree-sitter migration |
+| General | [Multi-Protocol Design](./dev/multi-protocol-design.md) | GraphQL / gRPC / WebSocket executor design |
+| General | [Agent Guardrails](./dev/agent-guardrails.md) | Hard rules for AI agents working in this repo |
+| General | [Quality Audits](./dev/code-review-2026-09-05.md) | Latest code review + refactor record (2026-09-05) |
 
 ---
 
-*Documentation center — Last updated: 2026-08-15*
+*Documentation center — Last updated: 2026-09-05*
