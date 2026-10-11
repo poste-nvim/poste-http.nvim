@@ -68,7 +68,7 @@ end
 --- `.http` buffer when there is one.
 function M.open_chat()
   if not M.available() then
-    notify("AI chat needs poste-ai.nvim (beyondlex/poste-ai.nvim) installed.",
+    notify("AI chat needs poste-ai.nvim (poste-nvim/poste-ai.nvim) installed.",
       vim.log.levels.WARN)
     return
   end
@@ -163,7 +163,7 @@ end
 --- its file and environment.
 function M.ask_view()
   if not M.available() then
-    notify("AI chat needs poste-ai.nvim (beyondlex/poste-ai.nvim) installed.",
+    notify("AI chat needs poste-ai.nvim (poste-nvim/poste-ai.nvim) installed.",
       vim.log.levels.WARN)
     return
   end
@@ -203,7 +203,7 @@ end
 --- request under the cursor or the visual selection.
 function M.ask_request()
   if not M.available() then
-    notify("AI chat needs poste-ai.nvim (beyondlex/poste-ai.nvim) installed.",
+    notify("AI chat needs poste-ai.nvim (poste-nvim/poste-ai.nvim) installed.",
       vim.log.levels.WARN)
     return
   end
