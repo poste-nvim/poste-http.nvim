@@ -12,7 +12,7 @@ Parsers are compiled automatically on first `setup()` call. No build hooks neede
 
 ```lua
 {
-  "beyondlex/poste-http.nvim",
+  "poste-nvim/poste-http.nvim",
   dependencies = {
     "folke/snacks.nvim",
   },
@@ -26,7 +26,7 @@ Parsers are compiled automatically on first `setup()` call. No build hooks neede
 
 ```lua
 use {
-  "beyondlex/poste-http.nvim",
+  "poste-nvim/poste-http.nvim",
   config = function()
     require("poste-http").setup()
   end,
@@ -36,7 +36,7 @@ use {
 ### Using [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
-Plug 'beyondlex/poste-http.nvim'
+Plug 'poste-nvim/poste-http.nvim'
 ```
 
 Then add to your init.vim:

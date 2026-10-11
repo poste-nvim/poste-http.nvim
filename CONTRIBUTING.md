@@ -6,7 +6,7 @@ change lands with a regression test and a zero-warning lint.
 ## Setup
 
 ```bash
-git clone https://github.com/beyondlex/poste-http.nvim
+git clone https://github.com/poste-nvim/poste-http.nvim
 cd poste-http.nvim
 
 # Lua + tree-sitter + contract tests (needs plenary.nvim and the

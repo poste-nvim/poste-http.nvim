@@ -1,6 +1,6 @@
 # poste-http.nvim
 
-[![CI](https://github.com/beyondlex/poste-http.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/beyondlex/poste-http.nvim/actions/workflows/ci.yml)
+[![CI](https://github.com/poste-nvim/poste-http.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/poste-nvim/poste-http.nvim/actions/workflows/ci.yml)
 
 **HTTP request execution for Neovim.** Define requests in plain `.http`/`.rest`
 files, press `<CR>`, and read the response in an editable, jq-filterable
@@ -8,7 +8,7 @@ buffer — JetBrains HTTP Client ergonomics, Vim-native.
 
 Fully self-contained: pure Lua + tree-sitter, `curl` as the only hard
 subprocess — no binary to install, no plugin host. Part of the
-[Poste](https://github.com/beyondlex/poste.nvim) family, whose plugins are
+[Poste](https://github.com/poste-nvim/poste.nvim) family, whose plugins are
 independent and release on their own.
 
 <!--
@@ -45,7 +45,7 @@ Suggested path: .github/assets/json-ux.png
   assertions, script logs
 - **History** — Request history with quick re-runs
 - **Import** — Convert OpenAPI 3.x, Swagger 2.0, and Postman collections to `.http` files
-- **AI chat** (optional) — With [poste-ai.nvim](https://github.com/beyondlex/poste-ai.nvim)
+- **AI chat** (optional) — With [poste-ai.nvim](https://github.com/poste-nvim/poste-ai.nvim)
   installed: ask about requests/responses with real context, and execute
   AI-generated ```http blocks through the regular pipeline. See
   [AI integration](docs/dev/ai-integration.md).
@@ -66,7 +66,7 @@ Run `:checkhealth poste-http` to verify your installation.
 ```lua
 -- lazy.nvim
 {
-  "beyondlex/poste-http.nvim",
+  "poste-nvim/poste-http.nvim",
   dependencies = {
     "saghen/blink.cmp",        -- completion (nvim-cmp also works)
     "folke/snacks.nvim",       -- optional: picker UI
@@ -258,7 +258,7 @@ SCRIPT
 
 `gd` jumps to the request definition, completion/highlighting work like
 `run #alias.Name`, and every call's response appears in the multi-response
-chain. Full docs: [Scripts](https://github.com/beyondlex/poste-http.nvim/wiki/Scripts).
+chain. Full docs: [Scripts](https://github.com/poste-nvim/poste-http.nvim/wiki/Scripts).
 
 ## Import
 

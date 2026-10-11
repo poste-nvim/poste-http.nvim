@@ -1,6 +1,6 @@
 # poste-http × poste-ai Integration Design
 
-Register an `http` context on [poste-ai.nvim](https://github.com/beyondlex/poste-ai.nvim)
+Register an `http` context on [poste-ai.nvim](https://github.com/poste-nvim/poste-ai.nvim)
 so the generic AI chat understands `.http` files, can answer questions about
 requests/responses with real context attached, and can **execute `http` code
 blocks it generates** through poste-http's regular pipeline.
