@@ -71,7 +71,7 @@ describe("poste-http.ui.winbar", function()
 
   describe("http_env", function()
     it("renders the env name on the left and the help hint on the right", function()
-      assert.equals("%#PosteSqlMeta# Env: dev %=%#PosteSqlMetaDim# g? help ",
+      assert.equals("%#PosteMeta# Env: dev %=%#PosteMetaDim# g? help ",
         winbar.http_env("dev"))
     end)
 
@@ -87,7 +87,7 @@ describe("poste-http.ui.winbar", function()
   describe("live_session_hint", function()
     it("renders the send/close keys right-aligned and dimmed", function()
       local out = winbar.live_session_hint({ "s send", "c close" })
-      assert.equals("%=%*%#PosteSqlMetaDim#ws s send · c close ", out)
+      assert.equals("%=%*%#PosteMetaDim#ws s send · c close ", out)
     end)
 
     it("escapes % in resolved keymaps", function()
