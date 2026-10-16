@@ -149,3 +149,82 @@ describe("verbose.lua", function()
     end)
   end)
 end)
+-- Regression: a response table can be re-rendered from persisted history,
+-- where the load boundary only guarantees the CONTAINER types. Every one of
+-- the drifted shapes below used to raise mid-render and kill the whole
+-- Verbose / Request tab instead of degrading.
+describe("verbose.lua drifted response fields", function()
+  local function drifted(overrides)
+    local r = {
+      url = "http://example.com/foo",
+      metadata = { method = "GET" },
+      status = 200,
+      status_text = "200 OK",
+      headers = {},
+      body = "hello",
+      content_type = "text/plain",
+      latency_ms = 42,
+    }
+    for k, v in pairs(overrides) do r[k] = v end
+    return r
+  end
+
+  it("renders a table-valued url / status_text without raising", function()
+    local r = drifted({ url = {}, status_text = {} })
+    assert.has_no_errors(function()
+      local lines = verbose.format_verbose(r)
+      assert.is_true(#lines > 0)
+    end)
+  end)
+
+  it("renders a string latency without raising", function()
+    -- `ms >= 1000` raised "attempt to compare number with string".
+    local r = drifted({ latency_ms = "slow" })
+    local lines = verbose.format_verbose(r)
+    local joined = table.concat(lines, "\n")
+    assert.is_truthy(joined:find("Elapsed:", 1, true))
+  end)
+
+  it("renders a string metadata.file_size without raising", function()
+    local r = drifted({
+      metadata = { file_path = "/tmp/x.bin", file_size = "big", method = "GET" },
+    })
+    assert.has_no_errors(function()
+      local lines = verbose.format_verbose(r)
+      local joined = table.concat(lines, "\n")
+      assert.is_truthy(joined:find("Path:", 1, true))
+    end)
+  end)
+
+  it("renders table-valued metadata.request_body / request_headers without raising", function()
+    local r = drifted({
+      metadata = { method = "GET", request_body = {}, request_headers = 42 },
+    })
+    assert.has_no_errors(function()
+      verbose.format_verbose(r)
+      verbose.format_request_payload(r)
+    end)
+  end)
+
+  it("renders malformed header pairs without raising", function()
+    local r = drifted({ headers = { { 1, 2 }, "x", {}, { "X-Ok", "yes" } } })
+    local lines = verbose.format_verbose(r)
+    local joined = table.concat(lines, "\n")
+    assert.is_truthy(joined:find("X-Ok: yes", 1, true), "the well-formed pair still renders")
+  end)
+
+  it("format_request_payload tolerates a nil response (persistent Request tab)", function()
+    -- `detail_view` survives navigating to an entry whose response was
+    -- dropped at the load boundary, so the Request tab is reached with nil.
+    local lines = verbose.format_request_payload(nil)
+    assert.same({ "(no request body)" }, lines)
+  end)
+
+  it("format_response_size is total against a non-numeric file_size", function()
+    local r = drifted({ metadata = { file_size = "big" } })
+    assert.has_no_errors(function()
+      local size = verbose.format_response_size(r)
+      assert.is_string(size)
+    end)
+  end)
+end)
