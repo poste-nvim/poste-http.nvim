@@ -70,6 +70,49 @@ describe("poste-http.ui.notify", function()
     assert.truthy(captured[1].msg:find("…$"))
   end)
 
+  it("caps each line of a multi-line message, not the accumulated width", function()
+    -- :PosteHttpTSInspect dumps the whole parse tree and :PosteHttpInfo
+    -- renders a status panel; both are legitimately taller than 200 display
+    -- columns in total. Summing the widths truncated them mid-panel
+    -- ("poste src:  y…") and dropped every line after it.
+    local panel = table.concat({
+      "─ info ─",
+      "curl:      found",
+      "treesitter: active (installed)",
+      "poste_json:active (installed)",
+      "poste_graphql:active (installed)",
+      "blink.cmp: loaded",
+      "  providers:  poste, path, buffer, lsp, snippets",
+      "  poste src:  yes",
+      "nvim-cmp:   loaded",
+      "filetype:   poste_http",
+      "─",
+    }, "\n")
+    assert.is_true(vim.fn.strdisplaywidth(panel) > 200, "fixture must exceed the single-line budget")
+    notify_mod.notify(panel, vim.log.levels.INFO)
+    assert.equals(panel, captured[1].msg)
+  end)
+
+  it("still caps an over-long line inside a multi-line message", function()
+    local msg = "short\n" .. string.rep("b", 500) .. "\nshort"
+    notify_mod.notify(msg, vim.log.levels.WARN)
+    local lines = vim.split(captured[1].msg, "\n", { plain = true })
+    assert.equals(3, #lines)
+    assert.equals("short", lines[1])
+    assert.is_true(vim.fn.strdisplaywidth(lines[2]) <= 200)
+    assert.equals("short", lines[3])
+  end)
+
+  it("bounds the line count so a huge dump cannot flood the notify window", function()
+    local lines = {}
+    for i = 1, 500 do lines[i] = "node" .. i end
+    notify_mod.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+    local out = vim.split(captured[1].msg, "\n", { plain = true })
+    assert.is_true(#out < 500, "line count must be bounded")
+    assert.truthy(out[#out]:find("more lines", 1, true),
+      "the cut must be announced, not silent — got: " .. out[#out])
+  end)
+
   it("mirrors the message into the state log sink", function()
     local tmp = vim.fn.tempname()
     local orig_log_file = state.config.log_file

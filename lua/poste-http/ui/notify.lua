@@ -25,14 +25,35 @@ local LEVEL_NAMES = {
 -- Display-column budget: curl/jq failures embed raw command output that
 -- otherwise floods both the notify window and :messages.
 local MAX_WIDTH = 200
+-- …and a line budget, for the same reason one level up: `:PosteHttpTSInspect`
+-- dumps a whole parse tree.
+local MAX_LINES = 60
 
 --- Normalize one message for display: NUL-strip and length cap. The text is
 --- otherwise verbatim — call sites own sentence style, so tool names (jq,
 --- curl) and `{{var}}` placeholders survive untouched. Exposed for specs.
+---
+--- The width budget is PER LINE. A multi-line message is a panel (the
+--- `:PosteHttpInfo` status block, the tree-sitter tree dump), and summing the
+--- display widths of its lines cut such a panel off mid-way — the last lines
+--- vanished behind a trailing "…" — even though no single line was too long.
 --- @param msg any
 --- @return string
 function M._normalize(msg)
-  return text.truncate(tostring(msg), MAX_WIDTH)
+  local s = tostring(msg)
+  if not s:find("\n", 1, true) then
+    return text.truncate(s, MAX_WIDTH)
+  end
+  local lines = vim.split(s, "\n", { plain = true })
+  local shown = math.min(#lines, MAX_LINES)
+  local kept = {}
+  for i = 1, shown do
+    kept[i] = text.truncate(lines[i], MAX_WIDTH)
+  end
+  if #lines > shown then
+    kept[#kept + 1] = string.format("… (%d more lines)", #lines - shown)
+  end
+  return table.concat(kept, "\n")
 end
 
 --- Show a notification and mirror it into the log sink.
