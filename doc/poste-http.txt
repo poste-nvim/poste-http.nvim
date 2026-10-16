@@ -306,7 +306,7 @@ All commands use the `PosteHttp` prefix.
     :PosteHttpHelp           Keymap help window
     :PosteHttpBuildParsers   (Re)compile tree-sitter parsers
     :PosteHttpClearCache     Remove cached response files
-    :PosteHttpTSInspect      Inspect tree-sitter parse tree
+    :PosteHttpTSInspect      Inspect tree-sitter parse tree (scrollable float)
     :PosteHttpTSStatus       Show tree-sitter subsystem enable/fallback state
     :PosteHttpCmpStatus      Show completion engine status
     :PosteHttpCmpProfile     Profile completion latency

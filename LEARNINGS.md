@@ -422,3 +422,17 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   scanned `lua/`, which is why `plugin/poste.lua` kept two direct
   `vim.notify` calls through the 09-30 consolidation — a grep-based guard
   must enumerate every directory that ships code.
+
+- 2026-10-16: http/history-header-entries — "the field is a table" is not
+  the same claim as "the field's entries are well-formed". history.load
+  promised to drop drifted fields before they reach format_view but only
+  checked that `response.headers` was a table, so a hand-edited or
+  older-format `"headers": [[42, "x"]]` reached THREE consumers that index
+  both halves as strings — has_attachment_disposition and
+  extract_disposition_filename (`h[1]:lower()`) and verbose's
+  format_response_size (`#h[1]`) — and every history detail view died with
+  "attempt to index/length of a number value". Probe the consumers before
+  trusting a boundary: the two helpers were the obvious pair, the third
+  (`#h[1]` in a size calculation) only showed up when the whole view was
+  rendered. See `lua/poste-http/http/history.lua`,
+  `lua/poste-http/http/format/util.lua`, `tests/http/history_persistence_spec.lua`.
