@@ -106,8 +106,8 @@ that hand-rolled floats used to apply unevenly).
 | `view.lua` | Response tab management (Body/Verbose/Assertions) |
 | `format.lua` | JSON formatting (dispatches to `format/`) |
 | `format/body.lua` | HTTP response body formatting |
-| `format/verbose.lua` | Verbose response rendering |
-| `format/util.lua` | Formatter primitives shared by the `format/` layer — line splitting, `human_size`, `json_pretty`/`json_escape`, url decoding, and the content-type → filetype / text-vs-binary / extension tables |
+| `format/verbose.lua` | Verbose response rendering. Owns the `as_text` / `as_number` / `as_header_pair` coercion layer: a response re-rendered from persisted history can carry any JSON type in any field, and the formatter degrades a drifted field instead of raising |
+| `format/util.lua` | Formatter primitives shared by the `format/` layer — line splitting, `human_size`, `json_pretty`/`json_escape`, url decoding, and the content-type → filetype / text-vs-binary / extension tables. Every helper is total: non-string/non-number input degrades instead of raising (response fields are re-rendered from persisted history) |
 | `format/image.lua` | Image preview (floating window + inline) |
 | `format/image_meta.lua` | Pure image metadata (dimensions, size, JPEG EXIF) |
 | `format/multipart.lua` | Multipart body parsing |
@@ -176,7 +176,7 @@ that hand-rolled floats used to apply unevenly).
 | File | Description |
 |------|-------------|
 | `env.lua` | Environment switching UI |
-| `history.lua` | HTTP request history UI + disk persistence (`stdpath("data")/poste-http/history.json`) |
+| `history.lua` | HTTP request history UI + disk persistence (`stdpath("data")/poste-http/history.json`). `load()` owns a per-entry sanitizer that drops any field the list row or the detail views read with the wrong type (`sanitize_response` / `sanitize_metadata` / `sanitize_assertion_results`) |
 | `format_file.lua` | `.http` file formatter (pure Lua, string-based) |
 | `block_boundary.lua` | Single source of truth for request-block boundary rules (shared by `describe.lua` and `cache.lua`) |
 
@@ -221,4 +221,4 @@ that hand-rolled floats used to apply unevenly).
 
 ---
 
-*File index — Last updated: 2026-10-16*
+*File index — Last updated: 2026-10-17*
