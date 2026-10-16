@@ -8,10 +8,23 @@ local _disabled = false
 local _boundary_augroup = nil
 local ns = vim.api.nvim_create_namespace("poste_boundary")
 
+-- Memo of the last painted rectangle.
+--
+-- The rectangle is repainted from a CursorMoved / CursorMovedI callback, and
+-- nothing about the paint changes while the cursor stays inside the same
+-- request block with the text untouched — but the old code cleared the whole
+-- namespace and re-placed one extmark per row on EVERY event, i.e. N
+-- `nvim_buf_set_extmark` calls per character typed in an N-line block. Key
+-- the paint on (buf, style, first, last, changedtick) and skip the repaint
+-- when it would produce exactly the same marks; any edit bumps changedtick,
+-- so a shifted or resized block still repaints.
+local _painted = nil
+
 local function clear_all(buf)
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   _prev_buf = nil
+  _painted = nil
 end
 
 --- Paint the request block as a full-width rectangle: one extmark per row
@@ -46,17 +59,27 @@ local function apply_range(buf, start, stop)
   end
   if buf == 0 then buf = vim.api.nvim_get_current_buf() end
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
-  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   local line_count = vim.api.nvim_buf_line_count(buf)
   if line_count == 0 then return end
   start = math.max(0, math.min(start, line_count - 1))
   stop  = math.max(0, math.min(stop,  line_count - 1))
-  if state.config.boundary_style == "gutter" then
+
+  local style = state.config.boundary_style == "gutter" and "gutter" or "background"
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+  local memo = _painted
+  if memo and memo.buf == buf and memo.style == style
+    and memo.first == start and memo.last == stop and memo.tick == tick then
+    return
+  end
+
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  if style == "gutter" then
     paint_gutter(buf, start, stop)
   else
     paint_background(buf, start, stop)
   end
   _prev_buf = buf
+  _painted = { buf = buf, style = style, first = start, last = stop, tick = tick }
 end
 
 local function find_block(buf, cursor)
