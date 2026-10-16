@@ -11,19 +11,21 @@
 | File | Description |
 |------|-------------|
 | `init.lua` | Entry point, `setup()` |
-| `poste.lua` | Root `poste` module — delegates to `poste-http` (family module-name ownership) |
 | `state.lua` | Shared state management |
 | `select.lua` | Generic Picker UI |
 | `indicators.lua` | Spinner/✓/✘ indicators |
 | `buffer_setup.lua` | Buffer boilerplate creation |
 | `constants.lua` | Shared constants |
-| `errors.lua` | Structured error collection |
 | `help.lua` | Help window |
 | `commands.lua` | `:Poste*` command registration + `:PosteStatus` |
 | `event.lua` | In-process pub/sub bus (`on`/`once`/`emit`/`clear`), pcall-guarded handlers |
 | `health.lua` | `:checkhealth poste-http` |
 | `install.lua` | Parser build/install helpers (`ensure_parsers`, `force_build`) |
 | `util.lua` | Shared helpers — PRNG seeding, credential redaction (`redact_url_*`, `redacted_cmd`, `SENSITIVE_HEADERS`), shell escaping, job-output line reassembly, doc-preview float |
+
+`lua/poste.lua` (outside this directory) is the family root module: it just
+delegates to `poste-http` so `require("poste")` resolves without this repo
+claiming `lua/poste/`-style paths.
 
 ### AI integration (`lua/poste-http/ai/`, optional poste-ai.nvim extension)
 
@@ -105,6 +107,7 @@ that hand-rolled floats used to apply unevenly).
 | `format.lua` | JSON formatting (dispatches to `format/`) |
 | `format/body.lua` | HTTP response body formatting |
 | `format/verbose.lua` | Verbose response rendering |
+| `format/util.lua` | Formatter primitives shared by the `format/` layer — line splitting, `human_size`, `json_pretty`/`json_escape`, url decoding, and the content-type → filetype / text-vs-binary / extension tables |
 | `format/image.lua` | Image preview (floating window + inline) |
 | `format/image_meta.lua` | Pure image metadata (dimensions, size, JPEG EXIF) |
 | `format/multipart.lua` | Multipart body parsing |
@@ -123,7 +126,7 @@ that hand-rolled floats used to apply unevenly).
 | `item_builder.lua` | Completion item builder |
 | `grpc_proto.lua` | gRPC completion index — `pkg.Service/Method` and JSON body message fields/enums from `# @grpc-proto` files (offline `grpcurl list|describe`, chained into nested types) or server reflection; mtime-keyed cache; `# @grpc-proto` path items |
 | `graphql_schema.lua` | GraphQL schema-aware body completion — SDL parsing, `# @graphql-schema` block operator, query-text position walker, field/arg/enum/type items; mtime-keyed cache; `# @graphql-schema` path items |
-| `data.lua` | HTTP history data format helpers, keyword definitions |
+| `data.lua` | Static completion data tables — the HTTP method list (mirrors `grammar.js`'s `method_*` tokens), header names, MIME types, status codes |
 
 #### Scripts & Assertions
 
@@ -143,7 +146,10 @@ that hand-rolled floats used to apply unevenly).
 
 | File | Description |
 |------|-------------|
-| `nav.lua` | Block navigation, variable lookup, go-to-definition |
+| `nav.lua` | Block navigation, variable lookup, go-to-definition (facade over `nav/`) |
+| `nav/text.lua` | Line-scan navigation backend (works without tree-sitter) |
+| `nav/ts.lua` | Tree-sitter navigation backend |
+| `nav/util.lua` | Shared nav helpers (import-keypath walking, node ranges) |
 | `symbols.lua` | Document symbol outline |
 | `outline.lua` | Sidebar outline |
 | `textobj.lua` | Visual-mode text objects (aR/iH/iB/iS over tree nodes) |
@@ -174,12 +180,15 @@ that hand-rolled floats used to apply unevenly).
 | `format_file.lua` | `.http` file formatter (pure Lua, string-based) |
 | `block_boundary.lua` | Single source of truth for request-block boundary rules (shared by `describe.lua` and `cache.lua`) |
 
-## VimScript
+## VimScript & runtime files
 
 | File | Description |
 |------|-------------|
-| `syntax/poste_http.vim` | HTTP syntax highlighting |
-| `ftdetect/poste.vim` | Filetype detection (.http) |
+| `plugin/poste.lua` | Plugin entry — sourced on startup, registers commands/autocmds via `poste-http` |
+| `syntax/poste_http.vim` | HTTP syntax highlighting (fallback when tree-sitter is unavailable) |
+| `ftdetect/poste.vim` | Filetype detection (`.http`, `.rest`) |
+| `after/ftdetect/poste.vim` | Late filetype fix-ups (wins over other plugins' `ftdetect`) |
+| `queries/poste_http/`, `queries/poste_json/`, `queries/poste_graphql/` | Tree-sitter highlight/injection/locals queries |
 
 ---
 
@@ -187,7 +196,8 @@ that hand-rolled floats used to apply unevenly).
 
 | Type | Location | Description |
 |------|----------|-------------|
-| Lua tests | `tests/http/*_spec.lua` | busted framework |
+| Lua tests | `tests/http/*_spec.lua` | Per-module busted specs (HTTP pipeline, parsing, importers, AI integration) |
+| Lua tests | `tests/*_spec.lua` | Root-level specs: `ui_*` primitives, `util`, `event_bus`, completion |
 | Contract tests | `tests/contract/` | Golden fixtures for response shapes |
 | Tree-sitter grammar | `tree-sitter-poste-http/` | Grammar tests |
 | Body injection grammars | `tree-sitter-poste-json/`, `tree-sitter-poste-graphql/` | `poste_json` / `poste_graphql` parsers (JSON/GraphQL + `{{var}}`), injected into request bodies; rtp queries under `queries/poste_*` |
@@ -211,4 +221,4 @@ that hand-rolled floats used to apply unevenly).
 
 ---
 
-*File index — Last updated: 2026-09-26*
+*File index — Last updated: 2026-10-16*
