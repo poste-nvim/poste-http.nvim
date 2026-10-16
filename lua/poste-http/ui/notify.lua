@@ -25,8 +25,9 @@ local LEVEL_NAMES = {
 -- Display-column budget: curl/jq failures embed raw command output that
 -- otherwise floods both the notify window and :messages.
 local MAX_WIDTH = 200
--- …and a line budget, for the same reason one level up: `:PosteHttpTSInspect`
--- dumps a whole parse tree.
+-- …and a line budget, for the same reason one level up: a multi-line panel
+-- (`:PosteHttpInfo`, the `:PosteHttpTSInspect` notification fallback) should
+-- not push a thousand rows at the user.
 local MAX_LINES = 60
 
 --- Normalize one message for display: NUL-strip and length cap. The text is

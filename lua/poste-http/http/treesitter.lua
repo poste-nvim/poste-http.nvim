@@ -256,8 +256,31 @@ function M.highlight_var_refs(bufnr)
   highlight_var_refs(bufnr)
 end
 
+--- Render a parse tree into display lines (pure — no buffer, no window).
+--- @param root TSNode
+--- @return string[] lines  one `indent type [srow:scol - erow:ecol]` per node
+function M.dump_tree(root)
+  local lines = {}
+  local function dump(node, depth)
+    local indent = string.rep("  ", depth)
+    local start_row, start_col, end_row, end_col = node:range()
+    table.insert(lines, string.format("%s%s [%d:%d - %d:%d]",
+      indent, node:type(), start_row, start_col, end_row, end_col))
+    for child in node:iter_children() do
+      dump(child, depth + 1)
+    end
+  end
+  dump(root, 0)
+  return lines
+end
+
 --- Inspect the treesitter parse tree for the current buffer.
---- Displays as a notification for debugging highlight issues.
+---
+--- Renders into a scrollable float: a parse tree is hundreds of lines, and
+--- pushing it through a notification meant it was truncated to the display
+--- budget and the tail was unreachable. The notification stays as the
+--- fallback for when no window can be opened (headless).
+--- @param bufnr number|nil
 function M.inspect(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "poste_http")
@@ -265,25 +288,27 @@ function M.inspect(bufnr)
     notify("No tree-sitter parser active", vim.log.levels.WARN)
     return
   end
-  ok, trees = pcall(parser.parse, parser)
-  if not ok or not trees or #trees == 0 then
+  -- `local trees`: a bare `ok, trees = pcall(...)` writes _G.trees, which
+  -- .luacheckrc's allow_defined = true hides (LEARNINGS 2026-09-12).
+  local parsed_ok, trees = pcall(parser.parse, parser)
+  if not parsed_ok or not trees or #trees == 0 then
     notify("No parse tree available", vim.log.levels.WARN)
     return
   end
-  local root = trees[1]:root()
-  local lines = {}
-  local function dump(node, depth)
-    depth = depth or 0
-    local indent = string.rep("  ", depth)
-    local name = node:type()
-    local start_row, start_col, end_row, end_col = node:range()
-    table.insert(lines, string.format("%s%s [%d:%d - %d:%d]", indent, name, start_row, start_col, end_row, end_col))
-    for child in node:iter_children() do
-      dump(child, depth + 1)
-    end
+
+  local lines = M.dump_tree(trees[1]:root())
+  local buf, win = require("poste-http.ui.float").open({
+    lines = lines,
+    filetype = "text",
+    width = math.max(1, math.min(120, vim.o.columns - 4)),
+    height = math.max(1, math.min(#lines, vim.o.lines - 4)),
+    title = string.format(" tree-sitter parse tree — %d nodes ", #lines),
+  })
+  if not buf or not win then
+    -- No usable window (tiny screen / headless): the notification still
+    -- carries the head of the tree.
+    notify(table.concat(lines, "\n"), vim.log.levels.INFO)
   end
-  dump(root)
-  notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
 return M
