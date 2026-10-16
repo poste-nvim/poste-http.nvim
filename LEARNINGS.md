@@ -448,3 +448,58 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   occurrence. Same round, same function: `:PosteHttpTSInspect` now renders
   into a scrollable float (`ui/float`) instead of a notification, because a
   parse tree does not fit a notification's budget.
+
+- 2026-10-17: a load boundary must enumerate the fields the CONSUMERS read,
+  not the ones the writer happens to produce. The 10-16 round taught
+  history.load that "the field is a table" is weaker than "its entries are
+  well-formed" and then fixed exactly that — while the scalars sitting next
+  to those containers stayed unchecked. Rendering every view against 19
+  drifted response shapes found 13 crashes: `"time": "not-a-number"` →
+  `os.date` raised inside format_list_line (the first row took the whole
+  window down), `"latency_ms": "slow"` → `ms >= 1000`, `"url": {}` → a
+  concatenation, `"file_size": "big"` → `math.abs`, `"request_body": {}` →
+  `:gmatch`/`:sub`, `"request_headers": 42` → indexing. Two rules fall out:
+  (1) probe the RENDER layer through the boundary, then separately probe it
+  directly — the direct probe over-reports (13 crashes) but the boundary
+  alone is not sufficient either, because in-memory and stubbed responses
+  never pass through it, so both ends need the guard (the 10-03
+  "shape-checked at load AND guarded at render" precedent, applied to
+  scalars); (2) a "returns a string/number" helper must be total — the
+  cheapest fix for four of the thirteen was `human_size` refusing to do
+  arithmetic on a string. See `lua/poste-http/http/history.lua`
+  (`sanitize_response` / `sanitize_metadata`), `lua/poste-http/http/format/verbose.lua`
+  (`as_text` / `as_number` / `as_header_pair`), `lua/poste-http/http/format/util.lua`
+  (`human_size`), `tests/http/history_persistence_spec.lua`,
+  `tests/http/verbose_spec.lua`, `tests/http/format_util_spec.lua`.
+
+- 2026-10-17: `table.remove(t)` means "remove the LAST element", never
+  "remove mine". `image_cache`'s temp-download registry was an array and
+  every completion called `table.remove(temp_files)` — with two downloads in
+  flight (the entire reason `download_image_url_async` exists) each
+  completion unregistered the OTHER download's path, so
+  `cleanup_url_preview` (called on every response re-render) could delete a
+  live download target. Key an identity registry by the identity, and make
+  both register and unregister ignore non-string input: `t[nil] = nil`
+  raises "table index is nil", which the new spec caught in the fix I had
+  just written. See `lua/poste-http/http/image_cache.lua`,
+  `tests/http/image_cache_spec.lua`.
+
+- 2026-10-17: a repaint memo must key on `changedtick`, and the win is not
+  marginal. `:PosteHttpBoundary` repaints from CursorMoved/CursorMovedI and
+  cleared the namespace + re-placed one extmark per row on every event:
+  0.196 ms per refresh on a 301-line block, paid on every keystroke and
+  every `j`. Nothing changes while the cursor stays in the same block with
+  the text untouched, so memoising (buf, style, first, last, changedtick)
+  and returning early took the same benchmark to 0.0007 ms (~290x). The
+  tick is what makes it safe: any edit invalidates, and `clear()` must drop
+  the memo explicitly. Measured, not estimated — the extmark call count is
+  the assertion. See `lua/poste-http/http/boundary_indicator.lua`,
+  `tests/http/boundary_indicator_style_spec.lua`.
+
+- 2026-10-17: seven call sites still shipped gsub's substitution count
+  despite the 10-02 rule. All were safe (every caller concatenated or
+  assigned, both of which adjust to one value) — which is exactly the
+  argument for closing them: the extra value is invisible until a varargs
+  or table-constructor caller eats it, so "it works today" is not evidence
+  the contract is right. See `vars.lua`, `form_data.lua`, `copy.lua`,
+  `import_postman.lua`, `format_file.lua`, `format/util.lua`.

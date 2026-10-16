@@ -119,6 +119,24 @@ end)
 - **MUST**：模块内调用自身可被替换（测试打桩）的函数时，一律经 `M.fn(...)`
   动态派发，不提前绑定 local。
 
+### 3.4 用「身份」登记的集合必须按身份建键，且拒绝非字符串键
+
+**事故（2026-10-17）**：`image_cache` 的临时下载登记表是数组，每个完成回调都调
+`table.remove(temp_files)` —— 那是「删最后一个」，不是「删我的」。异步下载器
+存在的意义就是多个预览同时在飞，于是两个并发下载各自注销掉了对方登记的路径，
+而 `cleanup_url_preview`（每次响应重渲染都会调）可能删掉一个正在下载的目标文件。
+改为 `temp_files[path] = true` + 按路径注销后，不变量「一次完成只注销自己那个文件」
+才写在代码里。同一轮：`temp_files[nil] = nil` 会抛 `table index is nil`，
+register/unregister 都要挡非字符串——这是新写的 spec 抓出来的，不是推出来的。
+
+### 3.5 「返回字符串/数字」的 helper 必须在入口做类型兜底
+
+**事故（2026-10-17）**：`format/util.human_size` 直接对入参 `math.abs`，而它的入参
+来自持久化的 history（`"file_size": "big"` 是合法 JSON），于是整个 Verbose 页
+以 `bad argument #1 to 'abs'` 收场。凡是契约是「返回 string/number」的公开
+helper，入口就要挡住非预期类型（`human_size`、`mime_of`、`url_decode`、
+`split_lines`、`pretty_body` 都是这一轮补的），而不是指望每个调用点记得判类型。
+
 ---
 
 ## 4. 测试 MUST（headless 实撞清单）
@@ -195,6 +213,15 @@ pre-render / session 五个视角，目录写错会直接 exit 1 而不是静默
    抽参数化原语，不要容忍第三份拷贝出现。
 4. 给 `lua/poste-http/ui/` 加原语时遵守其约定：纯函数优先、无隐藏模块级可变
    状态、几何/解析部分可 headless 单测；窗口原语（float）保持薄。
+5. **加固 load 边界时，按「消费方读了哪些字段」枚举，而不是按「写入方写了哪些
+   字段」**。`history.load` 连续三轮都栽在这上面（10-07 只查三个顶层 key、
+   10-16 补了 headers 的条目、10-17 才补上 time/latency/url/metadata 这些
+   标量）。同时**两端都要守**：持久化 JSON 走 load 边界，内存/打桩响应不走，
+   所以 render 侧也要能降级（见 §3.5）。探针要跑两遍——过边界一遍、直接喂
+   render 一遍，直接喂会多报，过边界会漏报。
+6. **性能改动要有数字**。`boundary_indicator` 的重绘记忆化（0.196ms →
+   0.0007ms/次）是先量了再改的；把「调用次数」当断言（spec 里数
+   `nvim_buf_set_extmark` 次数），比断言墙钟时间稳定。
 
 ---
 
