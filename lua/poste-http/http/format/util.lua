@@ -268,10 +268,21 @@ function M.content_type_extension(content_type)
   return content_type_ext[mime] or ".bin"
 end
 
+--- A header pair is usable only when both halves are strings. `headers` can
+--- come from a hand-edited / older-format history.json (history.load drops
+--- malformed entries too, but these helpers are public and must stay total).
+local function header_pair(h)
+  if type(h) ~= "table" then return nil end
+  local k, v = h[1], h[2]
+  if type(k) ~= "string" or type(v) ~= "string" then return nil end
+  return k, v
+end
+
 function M.extract_disposition_filename(headers)
   for _, h in ipairs(headers or {}) do
-    if h[1]:lower() == "content-disposition" then
-      local val = h[2]
+    local k, v = header_pair(h)
+    if k and k:lower() == "content-disposition" then
+      local val = v
       if val:lower():find("attachment") then
         local fn = val:match('filename="([^"]*)"')
         if not fn then
@@ -290,8 +301,9 @@ end
 
 function M.has_attachment_disposition(headers)
   for _, h in ipairs(headers or {}) do
-    if h[1]:lower() == "content-disposition" then
-      return h[2]:lower():find("attachment") ~= nil
+    local k, v = header_pair(h)
+    if k and k:lower() == "content-disposition" then
+      return v:lower():find("attachment") ~= nil
     end
   end
   return false
