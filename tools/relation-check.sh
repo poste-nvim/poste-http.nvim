@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# relation-check.sh — Pre-flight code relation analyzer for Poste
+# relation-check.sh — Pre-flight code relation analyzer for poste-http.nvim
 #
 # Usage:
 #   tools/relation-check.sh                  # run all checks
@@ -9,30 +9,54 @@ set -euo pipefail
 #   tools/relation-check.sh state <field>    # state field lifecycle
 #   tools/relation-check.sh format           # format function callers
 #   tools/relation-check.sh pre-render       # pre-render consistency
+#   tools/relation-check.sh session          # request session lifecycle
 #   tools/relation-check.sh all              # same as no-args
 #
 # Run this BEFORE making changes to catch incomplete modifications.
+# Requires ripgrep. Exits non-zero when an expected directory is missing.
 
 RED='\033[31m'; GREEN='\033[32m'; YELLOW='\033[33m'; CYAN='\033[36m'; GRAY='\033[90m'; BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Module roots. This repo owns `lua/poste-http/` only — each other protocol is
+# its own repo (AGENTS.md "Module name ownership"), so there is no
+# `lua/poste/sql/` sibling to check here.
+ROOT_DIR="lua/poste-http/"
+HTTP_DIR="lua/poste-http/http/"
+
 # Fields that are intentionally persistent — always-current values, config, or caches.
 # These trigger ⚠ "NEVER cleared" but that's by design, not a bug.
-# Request-scoped fields must be cleared by session.begin(); persistent fields are exempt.
-EXEMPT_FIELDS="current_view|current_env|config|http_history|http_history_id_counter|http_history_max|last_request|_lsp_doc_buf|log|find_poste_binary|format_keymap|format_key_string|get_keymap|apply_highlight_overrides|dirty|global_vars|script_variables|_http_session|_sql_session|_deprecated_write_log|deprecated_write"
+# Request-scoped fields must be cleared by state.clear_request_scoped();
+# persistent fields are exempt.
+EXEMPT_FIELDS="current_env|config|http_history|http_history_id_counter|http_history_max|last_request|log|global_vars|global_headers|script_variables|global_vars_sources|global_headers_sources|script_variables_sources|_http_session|_exec_context|_split_override|_busy"
 
 check_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "require $1"; exit 1; }; }
 check_cmd rg
 
 cd "$PROJECT_ROOT"
 
+# A check whose failure mode is silence is worse than no check: this script
+# spent the whole post-protocol-split era pointing at `lua/poste/http/`, which
+# no longer exists, so every section printed [SKIP] and the run looked clean.
+# Missing input is now a hard failure.
+require_dir() {
+  local dir="$1"
+  if [ ! -d "$dir" ]; then
+    echo -e "${RED}FATAL: expected directory $dir does not exist.${NC}"
+    echo -e "${RED}       Update ROOT_DIR/HTTP_DIR in $0 to match the current layout.${NC}"
+    exit 1
+  fi
+}
+
 ###############################################################################
 # nvim_buf_set_lines + sanitize_lines coverage
 ###############################################################################
 check_set_lines() {
   echo -e "${BOLD}${CYAN}═══ nvim_buf_set_lines + sanitize_lines coverage${NC}"
-  local http_dir="lua/poste/http/"
-  [ ! -d "$http_dir" ] && echo -e "${YELLOW}  [SKIP] $http_dir not found${NC}" && return
+  echo -e "${DIM}  ✗ = no sanitize_lines in the surrounding block. That is a prompt to"
+  echo -e "    verify the lines cannot carry embedded newlines (nvim_buf_set_lines"
+  echo -e "    rejects them); sites that split their input themselves are fine.${NC}"
+  require_dir "$HTTP_DIR"
 
   while IFS= read -r line; do
     local file="${line%%:*}"
@@ -44,14 +68,14 @@ check_set_lines() {
       near_status="${RED}✗ NO sanitize_lines nearby${NC}"
     fi
     echo -e "  ${GRAY}$file:$lineno${NC} $near_status"
-  done < <(rg -n "nvim_buf_set_lines" "$http_dir" --type lua | rg -v ":\s*--")
+  done < <(rg -n "nvim_buf_set_lines" "$HTTP_DIR" --type lua | rg -v ":\s*--" | sort)
 
   # also check highlight functions that compute end_col from line length
   echo
   echo -e "${BOLD}${DIM}  --- highlight functions using #line as end_col (risk: OOB if lines differ)${NC}"
   while IFS= read -r line; do
     echo -e "  ${GRAY}$line${NC}"
-  done < <(rg -n "end_col.*#line\|#lines\|#lines\[" "$http_dir" --type lua || echo "  (none)")
+  done < <(rg -n "end_col.*#line\|#lines\|#lines\[" "$HTTP_DIR" --type lua || echo "  (none)")
 }
 
 ###############################################################################
@@ -60,17 +84,18 @@ check_set_lines() {
 check_state() {
   local field="${1:-}"
   local pattern="state\.${field}"
+  require_dir "$ROOT_DIR"
 
   if [ -z "$field" ]; then
     echo -e "${BOLD}${CYAN}═══ state field lifecycle (all fields)${NC}"
     local fields
-    fields=$(rg -o "state\.\w+" "lua/poste/" --type lua -g '!tests/' | sed 's/.*state\.//' | sort -u | head -30)
+    fields=$(rg -o "state\.\w+" "$ROOT_DIR" --type lua -g '!tests/' | sed 's/.*state\.//' | sort -u | head -40)
     for f in $fields; do
       local exempt=0
       echo "$f" | rg -q "^($EXEMPT_FIELDS)$" && exempt=1
       echo -e "${BOLD}  $f${NC}$([ "$exempt" -eq 1 ] && echo " ${DIM}(exempt — intentional persistence)${NC}")"
       local file
-      for file in $(rg -l "state\.$f\b" "lua/poste/" --type lua -g '!tests/'); do
+      for file in $(rg -l "state\.$f\b" "$ROOT_DIR" --type lua -g '!tests/'); do
         local set_count=0 read_count=0 clear_count=0
         set_count=$(rg -c "state\.${f}\b(\.\w+)?\s*=" "$file" 2>/dev/null || echo 0)
         clear_count=$(rg -c "state\.${f}\b(\.\w+)?\s*=\s*nil" "$file" 2>/dev/null || echo 0)
@@ -114,7 +139,7 @@ check_state() {
       if echo "$line" | rg -q "$assign_pattern"; then continue; fi
       echo -e "  READ ${GRAY}$line${NC}"
     done < <(rg -n "$state_pattern" "$file" 2>/dev/null || true)
-  done < <(rg -l "$state_pattern" "lua/poste/" --type lua -g '!tests/')
+  done < <(rg -l "$state_pattern" "$ROOT_DIR" --type lua -g '!tests/')
 
   echo
   if [ "$exempt" -eq 1 ]; then
@@ -133,8 +158,7 @@ check_state() {
 ###############################################################################
 check_format() {
   echo -e "${BOLD}${CYAN}═══ format function definitions + callers${NC}"
-  local http_dir="lua/poste/http/"
-  [ ! -d "$http_dir" ] && echo -e "${YELLOW}  [SKIP] $http_dir not found${NC}" && return
+  require_dir "$HTTP_DIR"
 
   # define all format functions
   echo -e "${BOLD}${DIM}  --- definitions in format.lua${NC}"
@@ -144,7 +168,7 @@ check_format() {
     func_name=$(echo "$line" | rg -o "function\s+M\.(\w+)" | sed 's/function M\.//')
     [ -n "$func_name" ] && funcs+=("$func_name")
     echo -e "  ${GRAY}$line${NC}"
-  done < <(rg -n "^function M\.(format_|sanitize_)" "$http_dir/format.lua" 2>/dev/null || true)
+  done < <(rg -n "^function M\.(format_|sanitize_)" "${HTTP_DIR}format.lua" 2>/dev/null || true)
 
   echo
   echo -e "${BOLD}${DIM}  --- callers across http/ lua${NC}"
@@ -155,7 +179,7 @@ check_format() {
       local c="${line##*:}"
       count=$((count + c))
       files_with+=("$line")
-    done < <(rg -c "format\.$fn\b" "$http_dir" --type lua 2>/dev/null || true)
+    done < <(rg -c "format\.$fn\b" "$HTTP_DIR" --type lua 2>/dev/null || true)
     [ "$count" -eq 0 ] && continue
     local file_list=""
     for f in "${files_with[@]}"; do file_list="$file_list ${f%%:*}"; done
@@ -163,7 +187,7 @@ check_format() {
     while IFS= read -r line; do
       [ -z "$line" ] && continue
       echo -e "    ${GRAY}$line${NC}"
-    done < <(rg -n "format\.$fn\b" "$http_dir" --type lua 2>/dev/null | head -10)
+    done < <(rg -n "format\.$fn\b" "$HTTP_DIR" --type lua 2>/dev/null | head -10)
   done
 
   # check sibling paths: view.lua calls format functions
@@ -171,15 +195,15 @@ check_format() {
   echo -e "${BOLD}${DIM}  --- render paths in view.lua${NC}"
   while IFS= read -r line; do
     echo -e "  ${GRAY}$line${NC}"
-  done < <(rg -n "function M\.(show_view|render_view|render_detail|show_verbose)" "$http_dir/view.lua" 2>/dev/null || echo "  (none)")
+  done < <(rg -n "function M\.(show_view|render_view|render_detail|show_verbose)" "${HTTP_DIR}view.lua" 2>/dev/null || echo "  (none)")
 
   # check history module also calls format
-  if [ -f "$http_dir/history.lua" ]; then
+  if [ -f "${HTTP_DIR}history.lua" ]; then
     echo
     echo -e "${BOLD}${DIM}  --- format calls from history.lua${NC}"
     while IFS= read -r line; do
       echo -e "  ${GRAY}$line${NC}"
-    done < <(rg -n "format\.(format_|sanitize_)" "$http_dir/history.lua" 2>/dev/null || echo "  (none)")
+    done < <(rg -n "format\.(format_|sanitize_)" "${HTTP_DIR}history.lua" 2>/dev/null || echo "  (none)")
   fi
 }
 
@@ -188,62 +212,56 @@ check_format() {
 ###############################################################################
 check_prerender() {
   echo -e "${BOLD}${CYAN}═══ pre-render/cached buffer consistency${NC}"
-  local http_dir="lua/poste/http/"
-  [ ! -d "$http_dir" ] && echo -e "${YELLOW}  [SKIP] $http_dir not found${NC}" && return
+  require_dir "$HTTP_DIR"
 
   echo -e "${BOLD}${DIM}  --- pre-render functions${NC}"
   while IFS= read -r line; do
     echo -e "  ${GRAY}$line${NC}"
-  done < <(rg -n "prepare_multi_responses\b|M\.render_" "$http_dir" --type lua -g '!tests/' 2>/dev/null | head -20 || echo "  (none)")
+  done < <(rg -n "prepare_multi_responses\b|M\.render_" "$HTTP_DIR" --type lua -g '!tests/' 2>/dev/null | head -20 || echo "  (none)")
 
   echo
   echo -e "${BOLD}${DIM}  --- apply_highlights / apply_extmarks calls${NC}"
   while IFS= read -r line; do
     echo -e "  ${GRAY}$line${NC}"
-  done < <(rg -n "apply_verbose_highlights|apply_request_highlights|apply_file_link_highlight|setup_json_buffer|nvim_buf_set_extmark" "$http_dir" --type lua -g '!tests/' 2>/dev/null || echo "  (none)")
+  done < <(rg -n "apply_verbose_highlights|apply_request_highlights|apply_file_link_highlight|setup_json_buffer|nvim_buf_set_extmark" "$HTTP_DIR" --type lua -g '!tests/' 2>/dev/null || echo "  (none)")
 }
 
 ###############################################################################
-# session lifecycle (Phase 2b)
+# session lifecycle
 ###############################################################################
 check_session() {
   echo -e "${BOLD}${CYAN}═══ session lifecycle (run_* must begin a session)${NC}"
+  require_dir "$HTTP_DIR"
 
   local ok=1
-  if rg -q 'session\.begin|poste\.http\.session' "lua/poste/http/run.lua" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${NC} http/run.lua creates HTTP session"
+  if rg -q 'session\.begin|poste-http\.http\.session' "${HTTP_DIR}run.lua" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} http/run.lua creates a request session"
   else
     echo -e "  ${RED}✗${NC} http/run.lua missing session.begin"
     ok=0
   fi
 
-  if rg -q 'sql\.session|poste\.sql\.session' "lua/poste/sql/init.lua" 2>/dev/null; then
-    echo -e "  ${GREEN}✓${NC} sql/init.lua creates SQL session"
-  else
-    echo -e "  ${RED}✗${NC} sql/init.lua missing session.begin"
-    ok=0
-  fi
-
-  # Request-scoped fields that session.begin must clear
-  local required_clears="last_response last_responses response_index last_assertion_results last_script_logs pending_request"
+  # Request-scoped fields that state.clear_request_scoped() must clear.
+  # session.begin() delegates to it, so that is the single place to check.
+  local required_clears="last_response last_responses response_index last_assertion_results last_errors last_script_logs pending_request"
   for f in $required_clears; do
-    if rg -q "state\.${f}\s*=\s*nil" "lua/poste/http/session.lua" 2>/dev/null; then
-      echo -e "  ${GREEN}✓${NC} session clears state.$f"
+    if rg -q "M\.${f}\s*=\s*nil" "${ROOT_DIR}state.lua" 2>/dev/null; then
+      echo -e "  ${GREEN}✓${NC} clear_request_scoped clears state.$f"
     else
-      echo -e "  ${RED}✗${NC} session does not clear state.$f"
+      echo -e "  ${RED}✗${NC} clear_request_scoped does not clear state.$f"
       ok=0
     fi
   done
 
   # run.lua must not re-parse method/headers from buffer lines
-  if rg -n "text:match\(\"\^\\(%S\\+\\)%s\\+\"\|request_found\s*=\s*true" "lua/poste/http/run.lua" 2>/dev/null | rg -q .; then
+  if rg -n "text:match\(\"\^\\(%S\\+\\)%s\\+\"\|request_found\s*=\s*true" "${HTTP_DIR}run.lua" 2>/dev/null | rg -q .; then
     echo -e "  ${YELLOW}⚠${NC} run.lua still has Lua request-line re-parse patterns"
   else
     echo -e "  ${GREEN}✓${NC} run.lua has no Lua request-block re-parse loop"
   fi
 
   # describe module must exist
-  if [ -f "lua/poste/http/describe.lua" ]; then
+  if [ -f "${HTTP_DIR}describe.lua" ]; then
     echo -e "  ${GREEN}✓${NC} http/describe.lua present (single parse authority)"
   else
     echo -e "  ${RED}✗${NC} http/describe.lua missing"
@@ -282,7 +300,7 @@ main() {
       ;;
     all|"")
       echo -e "${BOLD}${CYAN}┌─────────────────────────────────────────────────────┐${NC}"
-      echo -e "${BOLD}${CYAN}│  Poste Code Relation Check                         │${NC}"
+      echo -e "${BOLD}${CYAN}│  poste-http code relation check                    │${NC}"
       echo -e "${BOLD}${CYAN}│  Run before editing to catch incomplete mods       │${NC}"
       echo -e "${BOLD}${CYAN}└─────────────────────────────────────────────────────┘${NC}"
       echo
@@ -294,7 +312,7 @@ main() {
       echo
       check_prerender
       echo
-      check_session
+      check_session || exit 1
       ;;
     *)
       echo "usage: $0 [set-lines|state [field]|format|pre-render|session|all]"
