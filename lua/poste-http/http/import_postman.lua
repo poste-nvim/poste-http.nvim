@@ -4,9 +4,10 @@ local import_parser = require("poste-http.http.import_parser")
 local function resolve_postman_var(value, vars)
   if not value then return "" end
   if type(value) == "string" then
-    return value:gsub("{{([^}]+)}}", function(name)
+    -- Parens drop gsub's count: the contract is "returns a string".
+    return (value:gsub("{{([^}]+)}}", function(name)
       return vars[name] or "{{" .. name .. "}}"
-    end)
+    end))
   end
   return tostring(value)
 end

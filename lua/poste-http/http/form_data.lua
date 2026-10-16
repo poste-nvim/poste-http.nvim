@@ -3,12 +3,13 @@ local util = require("poste-http.util")
 
 local M = {}
 
+--- @return string  (never the gsub count — see vars.lua's twin)
 local function generate_uuid()
   local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-  return template:gsub("[xy]", function(c)
+  return (template:gsub("[xy]", function(c)
     local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
     return string.format("%x", v)
-  end)
+  end))
 end
 
 local magic_vars = {

@@ -1,7 +1,9 @@
 local M = {}
 
+--- @return string  the trailing parens drop gsub's substitution count —
+--- every call site concatenates today, but the contract is "a string".
 local function json_escape_string(s)
-  return s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t')
+  return (s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t'))
 end
 
 local function json_pretty(value, indent)
@@ -63,9 +65,9 @@ end
 local function fix_json_commas(text)
   -- Insert missing commas before newlines followed by a key (")
   -- but not after {, [, :, ,, or at the start of the file
-  return text:gsub('([^}{%[%]:,])%s*\n%s*"', function(before)
+  return (text:gsub('([^}{%[%]:,])%s*\n%s*"', function(before)
     return before .. ',\n"'
-  end)
+  end))
 end
 
 local function format_json_body(body)
