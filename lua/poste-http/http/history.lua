@@ -625,7 +625,13 @@ local function delete_at_cursor()
   if #state.http_history == 0 or not current_index then return end
   local entry = state.http_history[current_index]
   M.delete_entry(entry.id)
-  if current_index > #state.http_history then
+  -- `current_index` must stay a VALID index or nil: clamping to
+  -- `#state.http_history` after removing the last entry left it at 0, which
+  -- is not a valid buffer line (render_list's set_cursor pcall swallowed the
+  -- error) and not a nil the `current_index == nil` bootstrap can repair.
+  if #state.http_history == 0 then
+    current_index = nil
+  elseif current_index > #state.http_history then
     current_index = #state.http_history
   end
   render_list()
