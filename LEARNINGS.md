@@ -436,3 +436,15 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   (`#h[1]` in a size calculation) only showed up when the whole view was
   rendered. See `lua/poste-http/http/history.lua`,
   `lua/poste-http/http/format/util.lua`, `tests/http/history_persistence_spec.lua`.
+
+- 2026-10-16: a documented pitfall recurred — `treesitter.lua`'s inspect
+  still had `ok, trees = pcall(parser.parse, parser)` with `ok` declared on
+  the line above and `trees` not declared at all, so the parse result lived
+  in `_G.trees`. Exactly the 09-12 `ts_query.parent_of_type` shape, and
+  `.luacheckrc`'s `allow_defined = true` hides it in both. When a
+  multi-assignment `pcall` reuses a name from a nearby line, check EVERY
+  name on the left is actually declared — a rule in this file only helps if
+  the read-before-write habit that it describes is applied to the next
+  occurrence. Same round, same function: `:PosteHttpTSInspect` now renders
+  into a scrollable float (`ui/float`) instead of a notification, because a
+  parse tree does not fit a notification's budget.
