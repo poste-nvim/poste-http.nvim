@@ -1,7 +1,17 @@
 --- Multipart/form-data body parsing and display.
 ---
 --- Extracted from the former format.lua god module.
+local data = require("poste-http.http.data")
+
 local M = {}
+
+--- Method tokens as a set. `http/data.lua` mirrors the `method_*` tokens in
+--- `tree-sitter-poste-http/grammar.js` and tests/http/methods_spec.lua fails
+--- if the two drift, so reusing it here keeps a third copy from appearing.
+local REQUEST_METHODS = {}
+for _, m in ipairs(data.http_methods) do
+  REQUEST_METHODS[m] = true
+end
 
 --- Split a string into lines
 local function split_lines(str)
@@ -125,15 +135,42 @@ end
 
 --- Strip the HTTP request line and headers from a raw request body.
 --- Used to extract body-only content from a full HTTP request string.
+---
+--- Only text that actually opens with an HTTP request line is stripped.
+--- Scanning for the first blank line alone was wrong for body-only input —
+--- the very shape both callers pass (`pending_request.body` /
+--- `metadata.request_body`): a multipart part and a pretty-printed JSON body
+--- both contain a blank line, so the scan ate every line above it.
+local function starts_with_request_line(line)
+  -- `METHOD SP target [SP HTTP/x.y]`. The method must be one of the grammar's
+  -- method tokens, which is what makes "request or body?" decidable — a body
+  -- that merely opens with an uppercase word (`QUERY {`) is not a request.
+  local method, target = line:match("^%s*(%u[%u%d_%-]*)%s+(%S+)")
+  if not method or not REQUEST_METHODS[method] then return false end
+  -- A bare brace is a JSON/GraphQL body opener, never a request target.
+  return target ~= "{" and target ~= "["
+end
+
 function M.strip_request_preamble(raw_body, _raw_headers)
   if not raw_body or raw_body == "" then return raw_body end
   local all_lines = split_lines(raw_body)
 
-  local body_start = nil
+  local first_content = nil
   for i, line in ipairs(all_lines) do
+    if line:match("%S") then
+      first_content = i
+      break
+    end
+  end
+  if not first_content or not starts_with_request_line(all_lines[first_content]) then
+    return raw_body
+  end
+
+  local body_start = nil
+  for i = first_content, #all_lines do
     -- The header/body separator is a blank line; tolerate CRLF remnants
     -- ("...\r") so a \r\n request is not treated as all-headers.
-    if line:match("^%s*$") then
+    if all_lines[i]:match("^%s*$") then
       body_start = i + 1
       while body_start <= #all_lines and all_lines[body_start]:match("^%s*$") do
         body_start = body_start + 1
