@@ -6,6 +6,11 @@
 local M = {}
 
 --- Human-readable file size, e.g. 248.6 KB.
+---
+--- Deliberately NOT `format/util.human_size`: this module must stay free of
+--- vim.* (see the header), and that one requires state.lua. The contracts
+--- differ on purpose too — a missing size here is "?" (an image we could not
+--- measure), while the response formatter reports an unknown size as "0 B".
 ---@param bytes number|nil
 ---@return string
 function M.human_size(bytes)

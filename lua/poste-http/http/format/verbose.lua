@@ -20,12 +20,58 @@ local _section_lines = nil
 local content_type_map = fmt_util.content_type_map
 
 ---------------------------------------------------------------------------
+-- Field coercion at the read site
+--
+-- A response table is not always built in-process: history entries are
+-- re-rendered from persisted JSON, where the load boundary only checks the
+-- CONTAINER types. `{"url": {}}`, `{"latency_ms": "slow"}`, `{"file_size":
+-- "big"}` and `{"headers": [[1, 2]]}` are all legal JSON, and every one of
+-- them used to raise mid-render ("attempt to concatenate a table value",
+-- "attempt to compare number with string", "attempt to get length of a
+-- number value") and kill the whole Verbose / Request tab.
+--
+-- Coerce once at the read site instead of guarding each of the ~40
+-- print/arithmetic sites below: a wrong-typed field degrades to an empty
+-- string (or is skipped) rather than aborting the render.
+---------------------------------------------------------------------------
+
+--- @param v any
+--- @return string  "" for nil/vim.NIL/containers, tostring for scalars
+local function as_text(v)
+  local t = type(v)
+  if t == "string" then return v end
+  if v == nil or v == vim.NIL then return "" end
+  if t == "number" or t == "boolean" then return tostring(v) end
+  return ""
+end
+
+--- @param v any
+--- @return number|nil
+local function as_number(v)
+  if type(v) == "number" then
+    if v ~= v or v == math.huge or v == -math.huge then return nil end
+    return v
+  end
+  return tonumber(v)
+end
+
+--- A header pair is usable only when both halves are strings (same contract
+--- as format/util.header_pair, which is private to that module).
+--- @param h any
+--- @return string|nil, string|nil
+local function as_header_pair(h)
+  if type(h) ~= "table" then return nil, nil end
+  if type(h[1]) ~= "string" or type(h[2]) ~= "string" then return nil, nil end
+  return h[1], h[2]
+end
+
+---------------------------------------------------------------------------
 -- Verbose formatting
 ---------------------------------------------------------------------------
 
 local function format_status_text(r)
-  local status_text = r.status_text
-  if not status_text or status_text == "" then
+  local status_text = as_text(r.status_text)
+  if status_text == "" then
     local codes = {
       [200] = "200 OK", [201] = "201 Created", [204] = "204 No Content",
       [301] = "301 Moved", [302] = "302 Found", [304] = "304 Not Modified",
@@ -41,11 +87,12 @@ local function format_status_text(r)
 end
 
 local function format_elapsed(ms)
-  if ms then
-    if ms >= 1000 then
-      return string.format("%.2f s", ms / 1000)
+  local n = as_number(ms)
+  if n then
+    if n >= 1000 then
+      return string.format("%.2f s", n / 1000)
     end
-    return string.format("%.2f ms", ms)
+    return string.format("%.2f ms", n)
   end
   return "-"
 end
@@ -53,15 +100,19 @@ end
 local function calc_response_size(r)
   if not r then return 0 end
   local body_size
-  if r.metadata and r.metadata.file_size then
-    body_size = r.metadata.file_size
+  local meta_size = r.metadata and as_number(r.metadata.file_size)
+  if meta_size then
+    body_size = meta_size
   else
-    body_size = #(r.body or "")
+    body_size = #(as_text(r.body))
   end
   local headers_size = 0
-  if r.headers then
+  if type(r.headers) == "table" then
     for _, h in ipairs(r.headers) do
-      headers_size = headers_size + #h[1] + 2 + #h[2] + 2 -- "key: value\r\n"
+      local k, v = as_header_pair(h)
+      if k then
+        headers_size = headers_size + #k + 2 + #v + 2 -- "key: value\r\n"
+      end
     end
   end
   return body_size + headers_size
@@ -138,20 +189,27 @@ function M.format_verbose(r, pending, opts)
   local elapsed_ms = nil
 
   if pending then
-    method = pending.method or ""
-    url = pending.url or ""
-    request_headers = pending.headers_str or ""
-    request_body = pending.body or ""
-    timestamp = pending.timestamp or ""
-    env = pending.env ~= "" and pending.env or state.current_env
+    method = as_text(pending.method)
+    url = as_text(pending.url)
+    request_headers = as_text(pending.headers_str)
+    request_body = as_text(pending.body)
+    timestamp = as_text(pending.timestamp)
+    env = pending.env ~= "" and as_text(pending.env) or state.current_env
   end
   if r then
-    method = (r.metadata and r.metadata.method ~= "") and r.metadata.method or method
-    url = (r.url and r.url ~= "") and r.url or url
-    request_headers = (r.metadata and r.metadata.request_headers and r.metadata.request_headers ~= "") and r.metadata.request_headers or request_headers
-    request_body = (r.metadata and r.metadata.request_body and r.metadata.request_body ~= "") and r.metadata.request_body or request_body
-    timestamp = (r.metadata and r.metadata.timestamp and r.metadata.timestamp ~= "") and r.metadata.timestamp or timestamp
-    env = (r.metadata and r.metadata.env and r.metadata.env ~= "") and r.metadata.env or env
+    local meta = type(r.metadata) == "table" and r.metadata or nil
+    local m_method = meta and as_text(meta.method)
+    local m_headers = meta and as_text(meta.request_headers)
+    local m_body = meta and as_text(meta.request_body)
+    local m_ts = meta and as_text(meta.timestamp)
+    local m_env = meta and as_text(meta.env)
+    method = (m_method and m_method ~= "") and m_method or method
+    local r_url = as_text(r.url)
+    url = (r_url ~= "") and r_url or url
+    request_headers = (m_headers and m_headers ~= "") and m_headers or request_headers
+    request_body = (m_body and m_body ~= "") and m_body or request_body
+    timestamp = (m_ts and m_ts ~= "") and m_ts or timestamp
+    env = (m_env and m_env ~= "") and m_env or env
     if env == "" then env = state.current_env end
     elapsed_ms = r.latency_ms
   end
@@ -168,9 +226,9 @@ function M.format_verbose(r, pending, opts)
   end
   table.insert(lines, "  " .. (url ~= "" and url or "(no URL)"))
 
-  local request_name = (r and r.request_name) or ""
+  local request_name = as_text(r and r.request_name)
   if request_name == "" and pending and pending.name and pending.name ~= "" then
-    request_name = pending.name
+    request_name = as_text(pending.name)
   end
   table.insert(lines, "  ")
   sep_lines[#lines] = true
@@ -299,10 +357,11 @@ function M.format_verbose(r, pending, opts)
     if r.protocol == "error" then
       table.insert(lines, "  ")
       sep_lines[#lines] = true
-      if r.body and r.body ~= "" then
+      local err_body = as_text(r.body)
+      if err_body ~= "" then
         table.insert(lines, "  Details")
       section_lines[#lines] = true
-      table.insert(lines, "  " .. r.body:gsub("\n", "\n  "))
+      table.insert(lines, "  " .. (err_body:gsub("\n", "\n  ")))
       end
       r._cached_verbose = lines
       r._sep_lines = sep_lines
@@ -313,55 +372,74 @@ function M.format_verbose(r, pending, opts)
     table.insert(lines, "  ")
     sep_lines[#lines] = true
 
-    if r.headers and #r.headers > 0 then
-      table.insert(lines, "  Response Headers")
-      section_lines[#lines] = true
+    if type(r.headers) == "table" and #r.headers > 0 then
+      local header_lines_out = {}
       for _, h in ipairs(r.headers) do
-        table.insert(lines, "  " .. h[1] .. ": " .. h[2])
+        local k, v = as_header_pair(h)
+        if k then header_lines_out[#header_lines_out + 1] = "  " .. k .. ": " .. v end
+      end
+      if #header_lines_out > 0 then
+        table.insert(lines, "  Response Headers")
+        section_lines[#lines] = true
+        for _, l in ipairs(header_lines_out) do
+          table.insert(lines, l)
+        end
       end
     end
 
-    if r.body and r.body ~= "" then
+    -- `r.metadata` is validated as a table at the history load boundary, but
+    -- this formatter is also reached with in-memory / stubbed responses, so
+    -- normalise it once here instead of indexing it blindly below.
+    local rmeta = type(r.metadata) == "table" and r.metadata or nil
+    local rbody = as_text(r.body)
+    local rct = as_text(r.content_type)
+
+    if rbody ~= "" then
       table.insert(lines, "  Response Body")
       section_lines[#lines] = true
 
       -- Content-Disposition: attachment → save body to file before display
-      if not (r.metadata and r.metadata.file_path) and r.headers then
+      if not (rmeta and rmeta.file_path) and type(r.headers) == "table" then
         if fmt_util.has_attachment_disposition(r.headers) then
           local fn = fmt_util.attachment_filename(r)
-          fmt_util.save_binary_body(r.body, fn, r.content_type or "application/octet-stream", r)
+          fmt_util.save_binary_body(rbody, fn, rct ~= "" and rct or "application/octet-stream", r)
         end
       end
 
       -- Image/binary response without Content-Disposition: save body to file for preview
-      if r.body and r.body ~= "" and not (r.metadata and r.metadata.file_path) then
-        if not fmt_util.is_text_content_type(r.content_type) then
-          local ct = r.content_type or ""
-          local ext = fmt_util.content_type_extension(ct)
+      if not (rmeta and rmeta.file_path) then
+        if not fmt_util.is_text_content_type(rct) then
+          local ext = fmt_util.content_type_extension(rct)
           local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
           local fn = "res_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. ext
-          fmt_util.save_binary_file(r.body, fn, ct, r)
+          fmt_util.save_binary_file(rbody, fn, rct, r)
         end
       end
 
-      if r.metadata and r.metadata.file_path then
-        table.insert(lines, string.format("  Path:         %s", r.metadata.file_path))
-        table.insert(lines, string.format("  Size:         %s  (%s bytes)", fmt_util.human_size(r.metadata.file_size), r.metadata.file_size or "?"))
-        table.insert(lines, string.format("  Content-Type: %s", r.metadata.file_content_type or r.content_type or "?"))
-      elseif fmt_util.is_large_body(r.body) then
-        local truncated = fmt_util.save_body_to_file(r.body, r.content_type, r)
+      -- Re-read after the saves above: they set `metadata.file_path` on the
+      -- response, and the Path/Size block must render in the SAME pass (the
+      -- body is not re-formatted on the next render — `_cached_verbose`).
+      local file_path = rmeta and as_text(rmeta.file_path)
+      if file_path ~= "" then
+        local file_size = rmeta and as_number(rmeta.file_size)
+        local file_ct = as_text(rmeta and rmeta.file_content_type)
+        table.insert(lines, string.format("  Path:         %s", file_path))
+        table.insert(lines, string.format("  Size:         %s  (%s bytes)", fmt_util.human_size(file_size), file_size or "?"))
+        table.insert(lines, string.format("  Content-Type: %s", file_ct ~= "" and file_ct or (rct ~= "" and rct or "?")))
+      elseif fmt_util.is_large_body(rbody) then
+        local truncated = fmt_util.save_body_to_file(rbody, rct, r)
         for _, tl in ipairs(truncated) do
           table.insert(lines, "  " .. tl)
         end
       else
-        local body = fmt_util.pretty_body(r.body, r.content_type)
+        local body = fmt_util.pretty_body(rbody, rct)
         for l in body:gmatch("[^\r\n]+") do
           table.insert(lines, "  " .. l)
         end
       end
     end
 
-    local verbose = r.metadata and r.metadata.verbose
+    local verbose = rmeta and as_text(rmeta.verbose)
     if verbose and verbose ~= "" then
       local conn_info = extract_connection_info(verbose)
       if next(conn_info) then
@@ -393,9 +471,16 @@ end
 ---------------------------------------------------------------------------
 
 function M.format_request_payload(r)
-  local req_body = r.metadata and r.metadata.request_body
-  local req_headers = r.metadata and r.metadata.request_headers
-  if not req_body or req_body == "" then
+  -- The Request tab is a persistent view: `detail_view` survives navigating
+  -- to an entry whose response was dropped at the history load boundary, so
+  -- this is reached with r == nil. Degrade to the empty-state hint.
+  if type(r) ~= "table" then
+    return { "(no request body)" }
+  end
+  local meta = type(r.metadata) == "table" and r.metadata or nil
+  local req_body = meta and as_text(meta.request_body) or ""
+  local req_headers = meta and as_text(meta.request_headers) or ""
+  if req_body == "" then
     return { "(no request body)" }
   end
 
@@ -419,15 +504,16 @@ function M.format_request_payload(r)
     if parts then
       for i, part in ipairs(parts) do
         local disp = ""
-        for _, h in ipairs(part.headers) do
-          if h:lower():find("content%-disposition") then disp = h end
+        for _, h in ipairs(part.headers or {}) do
+          if type(h) == "string" and h:lower():find("content%-disposition") then disp = h end
         end
         local name = disp:match('name="([^"]*)"') or ("part " .. i)
         local fn = disp:match('filename="([^"]*)"')
+        local part_body = as_text(part.body)
         if fn then
-          table.insert(lines, string.format("%s: [file: %s, %d bytes]", name, fn, #part.body))
+          table.insert(lines, string.format("%s: [file: %s, %d bytes]", name, fn, #part_body))
         else
-          local val = part.body:gsub("[\r\n]+$", "")
+          local val = part_body:gsub("[\r\n]+$", "")
           table.insert(lines, string.format("%s: %s", name, val))
         end
       end

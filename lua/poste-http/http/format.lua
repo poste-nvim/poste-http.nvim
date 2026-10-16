@@ -32,7 +32,10 @@ function M.detect_filetype(content_type)
   if not content_type or content_type == "" then
     return "text"
   end
+  -- mime_of is total (non-strings → ""), which detect_filetype already
+  -- treats as "no filetype".
   local mime = fmt_util.mime_of(content_type)
+  if mime == "" then return "text" end
   if content_type_map[mime] then return content_type_map[mime] end
   -- Structured-syntax suffixes (RFC 6839): application/problem+json etc.
   if mime:match("%+json$") then return "json" end
@@ -182,9 +185,15 @@ end
 -------------------------------------------------------------------------------
 -- Content-Type helpers
 ---------------------------------------------------------------------------
+--- Content-Type of the request that produced this response, or "".
+--- `r` and its metadata fields come from persisted history too, so the
+--- access is guarded: a non-string `request_headers` used to raise
+--- "attempt to index a number value" while rendering the Request tab.
 function M.get_request_content_type(r)
-  local req_headers = r.metadata and r.metadata.request_headers
-  if not req_headers then return "" end
+  if type(r) ~= "table" then return "" end
+  local meta = type(r.metadata) == "table" and r.metadata or nil
+  local req_headers = meta and meta.request_headers
+  if type(req_headers) ~= "string" then return "" end
   for l in req_headers:gmatch("[^\r\n]+") do
     local k, v = l:match("^([^:]+):%s*(.+)$")
     if k and k:lower() == "content-type" then return v end

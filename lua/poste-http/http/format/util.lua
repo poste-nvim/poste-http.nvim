@@ -3,8 +3,10 @@ local state = require("poste-http.state")
 
 local M = {}
 
+--- @param str any
+--- @return string[]
 function M.split_lines(str)
-  if not str or str == "" then return {} end
+  if type(str) ~= "string" or str == "" then return {} end
   local lines = {}
   local idx = 1
   while idx <= #str do
@@ -19,8 +21,27 @@ function M.split_lines(str)
   return lines
 end
 
+--- Human-readable byte size, e.g. "1.5 KB".
+---
+--- Total by contract: `bytes` reaches here from response metadata, which is
+--- re-rendered from persisted history (a hand-edited / older-format
+--- `"file_size": "big"` is legal JSON). `math.abs` on that string raised
+--- "bad argument #1 to 'abs' (number expected, got string)" and took the
+--- whole Verbose/Body tab with it, so a non-number degrades to "0 B"
+--- instead of raising. `image_meta.human_size` deliberately keeps its own
+--- copy (it returns "?" and must not require state.lua / vim.* — see its
+--- module header); this one is the response-rendering contract.
+--- @param bytes any
+--- @return string
 function M.human_size(bytes)
-  if not bytes or bytes == 0 then return "0 B" end
+  if type(bytes) ~= "number" then return "0 B" end
+  if bytes == 0 then return "0 B" end
+  -- Non-finite (1e999 decodes to math.huge): log(inf) is inf, so the unit
+  -- lookup would miss and `%.1f` would print "inf"/"nan". Clamp to the
+  -- largest unit with a sane value instead.
+  if bytes ~= bytes or bytes == math.huge or bytes == -math.huge then
+    return "0 B"
+  end
   local units = { "B", "KB", "MB", "GB", "TB" }
   local magnitude = math.floor(math.log(math.abs(bytes), 1024))
   local unit = units[magnitude + 1] or "TB"
@@ -31,14 +52,17 @@ function M.human_size(bytes)
   return string.format("%.1f %s", value, unit)
 end
 
+--- @param body any
+--- @return boolean
 function M.is_large_body(body)
-  if not body then return false end
+  if type(body) ~= "string" then return false end
   local cfg = state.config or {}
   local max_size = cfg.max_body_preview_size or (1024 * 1024)
   return #body > max_size
 end
 
 function M.save_body_to_file(body, content_type, r)
+  if type(body) ~= "string" then return { "(no body to dump)" } end
   local cfg = state.config or {}
   local preview_lines = tonumber(cfg.body_preview_lines) or 20
   local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
@@ -75,13 +99,15 @@ end
 
 --- Escape a string as a JSON string body: backslash, quote, explicit
 --- escapes for the common whitespace controls, and \u00XX for the rest.
+--- @return string  parens drop gsub's substitution count (the tail call
+--- would otherwise ship two values to any non-concatenating caller).
 local function json_escape(s)
-  return s:gsub('\\', '\\\\')
+  return (s:gsub('\\', '\\\\')
     :gsub('"', '\\"')
     :gsub('\n', '\\n')
     :gsub('\r', '\\r')
     :gsub('\t', '\\t')
-    :gsub('%c', function(c) return string.format("\\u%04x", c:byte()) end)
+    :gsub('%c', function(c) return string.format("\\u%04x", c:byte()) end))
 end
 
 function M.json_pretty(value, indent)
@@ -150,7 +176,10 @@ end
 --- '+' → space runs first so %2B decodes to a literal plus.
 --- Exported for the verbose Query Parameters display (bug: it used to
 --- decode %XX before '+', turning an encoded literal plus into a space).
+--- @param s any  non-strings decode to ""
+--- @return string
 function M.url_decode(s)
+  if type(s) ~= "string" then return "" end
   s = s:gsub("+", " ")
   -- Parens drop gsub's second return (the substitution count): a bare
   -- `return s:gsub(...)` ships two values, which corrupts any caller that
@@ -159,7 +188,7 @@ function M.url_decode(s)
 end
 
 function M.format_urlencoded_body(body)
-  if not body or body == "" then return nil end
+  if type(body) ~= "string" or body == "" then return nil end
   local lines = {}
   for pair in body:gmatch("[^&]+") do
     local key, val = pair:match("^([^=]+)=(.*)$")
@@ -175,8 +204,8 @@ end
 
 --- Try to pretty-print JSON body; return as-is if not JSON or if already formatted
 function M.pretty_body(body, content_type)
-  if not body or body == "" then return "" end
-  if not body:find("\n") and (not content_type or content_type:find("json") or body:sub(1, 1) == "{" or body:sub(1, 1) == "[") then
+  if type(body) ~= "string" or body == "" then return "" end
+  if not body:find("\n") and (type(content_type) ~= "string" or content_type:find("json") or body:sub(1, 1) == "{" or body:sub(1, 1) == "[") then
     local ok, decoded = pcall(vim.json.decode, body)
     if ok and decoded then
       return M.json_pretty(decoded)
@@ -211,8 +240,12 @@ M.content_type_map = {
 }
 
 --- Extract the bare mime (no parameters) from a Content-Type value.
+--- Non-strings (a drifted `"content_type": 42` from persisted history)
+--- collapse to "", which every caller already treats as "unknown".
+--- @param content_type any
+--- @return string
 function M.mime_of(content_type)
-  if not content_type then return "" end
+  if type(content_type) ~= "string" then return "" end
   local mime = content_type:match("^([^;]+)") or content_type
   return vim.trim(mime):lower()
 end
@@ -309,7 +342,11 @@ function M.has_attachment_disposition(headers)
   return false
 end
 
+--- Dump a binary body to the response cache dir. `body` must be a string:
+--- a drifted `"body": 42` from persisted history would raise inside
+--- `f:write`, so the guard keeps the caller's contract (path or nil).
 function M.save_binary_body(body, filename, content_type, r)
+  if type(body) ~= "string" then return nil end
   local cfg = state.config or {}
   local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
   vim.fn.mkdir(cache_dir, "p")
@@ -327,6 +364,7 @@ function M.save_binary_body(body, filename, content_type, r)
 end
 
 function M.save_binary_file(body, filename, content_type, r)
+  if type(body) ~= "string" then return nil end
   local cfg = state.config or {}
   local cache_dir = cfg.response_cache_dir or vim.fn.stdpath("cache") .. "/poste_res"
   vim.fn.mkdir(cache_dir, "p")
