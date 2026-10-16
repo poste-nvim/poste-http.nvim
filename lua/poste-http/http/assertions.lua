@@ -31,6 +31,17 @@ end
 --- @param script_vars table|nil  { variables = { name = value }, env = { key = value } }
 --- Returns: { tests = [...], logs = [...], total = N, passed = N, failed = N }
 function M.run_assertions(response_data, code, script_vars)
+  -- Every current caller guards `if assertion_code`, but `load(nil, ...)`
+  -- raises "bad argument #1 to 'load' (function expected, got nil)" — a
+  -- public entry point should degrade to the syntax-error shape instead of
+  -- raising into whatever pcall-less context reaches it.
+  if type(code) ~= "string" or code == "" then
+    return {
+      tests = {}, logs = {}, total = 0, passed = 0, failed = 0,
+      error = "no assertion code",
+    }
+  end
+  if type(response_data) ~= "table" then response_data = {} end
   local tests = {}
   local logs = {}
   local current_test = nil
