@@ -120,7 +120,23 @@ function M.load()
         e.response = nil
       else
         local r = e.response
-        if r.headers ~= nil and type(r.headers) ~= "table" then r.headers = nil end
+        if r.headers ~= nil and type(r.headers) ~= "table" then
+          r.headers = nil
+        elseif type(r.headers) == "table" then
+          -- …and each header must be a {name, value} string pair. Checking
+          -- only the container let `"headers": [[42, "x"]]` through to
+          -- several consumers that index both halves as strings:
+          -- has_attachment_disposition / extract_disposition_filename
+          -- (`h[1]:lower()`) and verbose's format_response_size (`#h[1]`),
+          -- all of which raised mid-render.
+          local kept = {}
+          for _, h in ipairs(r.headers) do
+            if type(h) == "table" and type(h[1]) == "string" and type(h[2]) == "string" then
+              kept[#kept + 1] = h
+            end
+          end
+          r.headers = kept
+        end
         if r.body ~= nil and type(r.body) ~= "string" then r.body = nil end
         if r.content_type ~= nil and type(r.content_type) ~= "string" then r.content_type = nil end
         if r.metadata ~= nil and type(r.metadata) ~= "table" then r.metadata = nil end

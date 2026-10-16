@@ -44,6 +44,15 @@ describe("content-disposition download handling", function()
       assert.is_nil(fmt_util.extract_disposition_filename(headers))
     end)
 
+    it("skips malformed header entries instead of crashing", function()
+      assert.is_nil(fmt_util.extract_disposition_filename({ { 42, "x" } }))
+      assert.is_nil(fmt_util.extract_disposition_filename({ { "Content-Disposition", nil } }))
+      assert.equals("a.txt", fmt_util.extract_disposition_filename({
+        { 42, "x" },
+        { "Content-Disposition", 'attachment; filename="a.txt"' },
+      }))
+    end)
+
     it("extracts filename from quoted attachment", function()
       local headers = { { "Content-Disposition", 'attachment; filename="report.xls"' } }
       assert.equals("report.xls", fmt_util.extract_disposition_filename(headers))
@@ -183,6 +192,18 @@ describe("content-disposition download handling", function()
     it("returns false for form-data disposition", function()
       local headers = { { "Content-Disposition", 'form-data; name="file"' } }
       assert.is_false(fmt_util.has_attachment_disposition(headers))
+    end)
+
+    it("skips malformed header entries instead of crashing", function()
+      -- headers can arrive from a hand-edited history.json; the boundary
+      -- drops drifted entries, and the helpers stay total regardless.
+      assert.is_false(fmt_util.has_attachment_disposition({ { 42, "x" } }))
+      assert.is_false(fmt_util.has_attachment_disposition({ { "Content-Disposition", nil } }))
+      assert.is_false(fmt_util.has_attachment_disposition({ { key = "a", value = "b" } }))
+      assert.is_true(fmt_util.has_attachment_disposition({
+        { 42, "x" },
+        { "Content-Disposition", "attachment" },
+      }), "a well-formed entry after a malformed one must still be found")
     end)
   end)
 

@@ -240,4 +240,44 @@ describe("history persistence", function()
       end)
     end
   end)
+
+  it("load drops malformed header ENTRIES, not just a non-table headers field", function()
+    -- Regression: the boundary checked `headers` was a table but not that
+    -- each entry is a {name, value} string pair. A hand-edited
+    -- `"headers": [[42, "x"]]` reached has_attachment_disposition, whose
+    -- `h[1]:lower()` raised "attempt to index a number value" mid-render.
+    local file = tmp_dir .. "/history.json"
+    os.execute("mkdir -p " .. tmp_dir)
+    local fd = io.open(file, "w")
+    fd:write(vim.json.encode({
+      { id = 6, name = "hdr", time = os.time(),
+        response = {
+          status = 200,
+          headers = {
+            { 42, "x" },                                    -- name not a string
+            { "X-Ok", "yes" },                              -- good
+            { "Content-Disposition", nil },                 -- value missing
+            { "Content-Disposition", "attachment; filename=a.txt" }, -- good
+          },
+          body = "data",
+          metadata = {},
+        } },
+    }))
+    fd:close()
+
+    state.http_history = {}
+    state.http_history_id_counter = 0
+    history.load()
+
+    local r = state.http_history[1].response
+    assert.equals(2, #r.headers, "only the well-formed pairs survive")
+    assert.equals("X-Ok", r.headers[1][1])
+    assert.equals("Content-Disposition", r.headers[2][1])
+
+    for _, view in ipairs({ "body", "verbose", "request" }) do
+      assert.has_no_errors(function()
+        format.format_view(view, r, {})
+      end)
+    end
+  end)
 end)
