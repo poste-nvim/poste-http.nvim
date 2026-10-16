@@ -168,7 +168,7 @@ pitfall, log it here. Check this file before starting any task.
 - 2026-07-06: `run` directive bypassed pre/post script processing — raw content sent to Rust binary without Lua sandbox. Fix: `import.lua` now runs target block's pre-script before sending; injects both `request.variables.set()` AND `client.global.set()` vars as `@var` lines into the content sent to the Rust binary. Post-script runs after response to persist `client.global.set()` from target block. See `lua/poste-http/http/import.lua:374-424`.
 
 - 2026-07-08: http/rqst-verbose-body-preamble — `r.metadata.request_body` contained full HTTP request (method + headers + body), not just body. Both Rqst tab and Verbose tab's "Request Body" section displayed the preamble. Fix: extracted `strip_request_preamble()` helper to strip method line + header lines before formatting; applied in both `format_verbose` and `format_request_payload`. See `lua/poste-http/http/format.lua:1132-1146`.
-- 2026-07-08: http/pending-body-truncated — `strip_request_preamble` was called on pending body content that had no HTTP preamble, causing the first N body lines to be skipped. Fix: detect whether the body starts with an HTTP method line; skip stripping when it's already body-only. See `lua/poste-http/http/format.lua:931-939`.
+- 2026-07-08: http/pending-body-truncated — `strip_request_preamble` was called on pending body content that had no HTTP preamble, causing the first N body lines to be skipped. Fix: detect whether the body starts with an HTTP method line; skip stripping when it's already body-only. See `lua/poste-http/http/format/multipart.lua` (`starts_with_request_line`).
 
 ## Format
 
@@ -394,3 +394,21 @@ pitfall, log it here. Check this file before starting any task.
   motion, so fed `dG d| dG d|` completes the operator on the first line.
   Visual-only text objects (end → `o` swap → start) are the expressible
   shape. See `docs/dev/review-2026-10-09.md`.
+
+- 2026-10-16: three contracts from the 10-16 round. (1) A LEARNINGS entry
+  can claim a guard the code never grew — 07-08's "pending-body-truncated"
+  recorded "detect whether the body starts with an HTTP method line" while
+  `strip_request_preamble` only scanned for the first blank line, so every
+  body-only input containing a blank line (multipart parts, pretty-printed
+  JSON) had its head chopped in the Verbose/Rqst tabs, and the entry's own
+  file reference pointed into the pre-split monolith. Verify the claim
+  against the source, not the log. (2) A winbar/statusline highlight group
+  is invisible until it is DEFINED — `%#PosteSqlMeta#` (SQL-era name, from
+  the protocol split) survived in `ui/winbar.lua` with no `nvim_set_hl`
+  anywhere, so the env bar and the live-session hint rendered unstyled and
+  could not be themed; a `%#Group#` string has no compile-time check, so
+  grep the group names the UI emits against the groups the plugin defines.
+  (3) A pre-flight tool that points at deleted paths reports SUCCESS: the
+  `[SKIP] <dir> not found` branches in `tools/relation-check.sh` kept
+  printing a clean run for years after `lua/poste/http/` was renamed, so a
+  guard whose failure mode is silence must fail loudly instead.

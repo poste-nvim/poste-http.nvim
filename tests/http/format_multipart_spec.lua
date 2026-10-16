@@ -37,3 +37,48 @@ describe("strip_request_preamble with CRLF content", function()
     assert.equals('{"a":1}', multipart.strip_request_preamble(raw))
   end)
 end)
+
+describe("strip_request_preamble leaves body-only content alone", function()
+  -- pending_request.body / response.metadata.request_body hold the BODY, not
+  -- a full HTTP request. Scanning for the first blank line alone treated the
+  -- blank line inside a multipart part (or inside a JSON body) as the
+  -- header/body separator and ate everything above it.
+  it("returns a multipart body unchanged", function()
+    local body = table.concat({
+      "------BOUND",
+      'Content-Disposition: form-data; name="username"',
+      "",
+      "admin",
+      "------BOUND",
+      'Content-Disposition: form-data; name="email"',
+      "",
+      "a@b.c",
+      "------BOUND--",
+    }, "\n")
+    assert.equals(body, multipart.strip_request_preamble(body, 'Content-Type: multipart/form-data; boundary=----BOUND'))
+  end)
+
+  it("returns a JSON body containing a blank line unchanged", function()
+    local body = '{\n  "a": 1,\n\n  "b": 2\n}'
+    assert.equals(body, multipart.strip_request_preamble(body, "Content-Type: application/json"))
+  end)
+
+  it("returns a form body unchanged", function()
+    local body = "name=John&age=30"
+    assert.equals(body, multipart.strip_request_preamble(body, "Content-Type: application/x-www-form-urlencoded"))
+  end)
+
+  it("strips a request that carries no headers at all", function()
+    assert.equals('{"a":1}', multipart.strip_request_preamble('GET https://x.y/z\n\n{"a":1}'))
+  end)
+
+  it("recognizes an unresolved {{var}} target as a request line", function()
+    local raw = "POST {{base_url}}/users\nAccept: application/json\n\n{\"a\":1}"
+    assert.equals('{"a":1}', multipart.strip_request_preamble(raw))
+  end)
+
+  it("does not treat a body that merely starts with an uppercase word as a request", function()
+    local body = "QUERY {\n\n  id\n}"
+    assert.equals(body, multipart.strip_request_preamble(body))
+  end)
+end)
