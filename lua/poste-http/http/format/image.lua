@@ -21,20 +21,12 @@ local image_preview_state = {
 local INLINE_IMAGE_PADDING_LINES = 2
 
 local meta_ns = nil
-local meta_hl_defined = false
 
 local function meta_namespace()
   if not meta_ns then
     meta_ns = vim.api.nvim_create_namespace("poste_image_meta")
   end
   return meta_ns
-end
-
---- Gray highlight for the meta lines below a floating image preview.
-local function ensure_meta_highlight()
-  if meta_hl_defined then return end
-  meta_hl_defined = true
-  pcall(vim.api.nvim_set_hl, 0, "PosteImageMeta", { fg = "#9e9e9e", default = true })
 end
 
 -- Re-exports from image_cache (content-type tables, download + disk cache).
@@ -510,8 +502,8 @@ function M.render_image_float(file_path, content_type)
   image_preview_state.float_win = win
   image_preview_state.float_buf = buf
 
-  -- Gray meta lines below the image
-  ensure_meta_highlight()
+  -- Gray meta lines below the image (PosteImageMeta is defined with the other
+  -- highlight groups in http/highlights.lua).
   for i = 1, #meta_lines do
     vim.api.nvim_buf_set_extmark(buf, meta_namespace(), i, 0, {
       hl_group = "PosteImageMeta",

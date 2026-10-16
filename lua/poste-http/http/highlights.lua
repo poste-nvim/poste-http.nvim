@@ -159,9 +159,23 @@ function M.setup()
   define_hl_custom("PosteSeparator", { fg = 0x439e9f, bold = true }) -- blue bold
   define_hl_custom("PosteRequestName", { fg = 0x439e9f, bold = true }) -- blue bold
 
+  -- Winbar chrome (ui/winbar.lua): the env bar's env name + help hint, and
+  -- the live-WebSocket-session key hint. These used to be spelled
+  -- `PosteSqlMeta`/`PosteSqlMetaDim` — leftovers from the SQL split that no
+  -- `nvim_set_hl` ever defined, so the bars rendered unstyled and could not
+  -- be themed. tests/highlight_groups_spec.lua now guards the name set.
+  -- Plain links (no @-language variants): winbar strings are not tree-sitter.
+  vim.api.nvim_set_hl(0, "PosteMeta", { link = "Title" })
+  vim.api.nvim_set_hl(0, "PosteMetaDim", { link = "Comment" })
+
   -- Symbol outline highlights
   vim.api.nvim_set_hl(0, "PosteSymbolCurrent", { bg = 0x3e4452, bold = true }) -- highlighted bg
   vim.api.nvim_set_hl(0, "PosteSymbolMethod", { fg = 0x98c379, bold = true })  -- green for [GET] [POST] etc
+
+  -- Image preview metadata lines (format/image.lua). Defined here with every
+  -- other group rather than lazily inside the renderer, so it is themeable
+  -- and visible to the highlight-group drift guard.
+  vim.api.nvim_set_hl(0, "PosteImageMeta", { fg = 0x9e9e9e })
 
   -- HTTP request block boundary: full-width rectangle background for the
   -- request under the cursor (poste_ai-style hl_eol extmarks)
@@ -227,6 +241,8 @@ function M.setup()
     "PosteJsonBraces", "PosteJsonBrackets", "PosteJsonColon", "PosteJsonComma",
     "PosteJsonEscape",
     "PosteSymbolCurrent", "PosteSymbolMethod",
+    "PosteMeta", "PosteMetaDim",
+    "PosteImageMeta",
     "PosteHttpBoundaryBorder",
     "PosteHttpBoundary",
     "PosteHttpBoundaryGutter",

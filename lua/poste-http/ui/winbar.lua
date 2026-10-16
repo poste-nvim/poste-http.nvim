@@ -22,7 +22,7 @@ end
 function M.http_env(env_name)
   local left = string.format(" Env: %s ", M.escape(env_name))
   local right = " g? help "
-  return "%#PosteSqlMeta#" .. left .. "%=" .. "%#PosteSqlMetaDim#" .. right
+  return "%#PosteMeta#" .. left .. "%=" .. "%#PosteMetaDim#" .. right
 end
 
 --- Render tab descriptors into a winbar string.
@@ -52,7 +52,7 @@ end
 --- @return string
 function M.live_session_hint(keys)
   if not keys or #keys == 0 then return "" end
-  return "%=%*%#PosteSqlMetaDim#ws " .. M.escape(table.concat(keys, " · ")) .. " "
+  return "%=%*%#PosteMetaDim#ws " .. M.escape(table.concat(keys, " · ")) .. " "
 end
 
 --- Id of the tab after stepping direction (-1/+1) from current_id, wrapping
