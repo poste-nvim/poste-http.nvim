@@ -40,11 +40,14 @@ function VarResolver:_resolve_magic(name)
     return tostring(os.time()) .. math.random(100000, 999999)
   elseif name == "$uuid" then
     local template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-    return template:gsub("[xy]", function(c)
+    -- Parens drop gsub's second return (the substitution count): the helper's
+    -- contract is "returns a string", and the extra value leaks through
+    -- resolve -> resolve_var into any varargs/table-constructor caller.
+    return (template:gsub("[xy]", function(c)
       local r = math.random(0, 15)
       local v = c == "x" and r or (r % 4) + 8
       return string.format("%x", v)
-    end)
+    end))
   elseif name == "$date" then
     return os.date("%Y-%m-%d")
   elseif name == "$randomInt" then
