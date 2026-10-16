@@ -210,6 +210,55 @@ describe("poste-http.http.image_cache", function()
       -- second call is a safe no-op
       assert.has_no_errors(image_cache.cleanup_temp_files)
     end)
+
+    -- Regression: the registry used to be an ARRAY and every completion
+    -- called `table.remove(temp_files)`, which drops the LAST element — with
+    -- two downloads in flight (the whole point of the async variant) each
+    -- completion unregistered the OTHER one's path.
+    it("unregisters exactly the given path, not the most recent one", function()
+      local a = vim.fn.tempname() .. "_a"
+      local b = vim.fn.tempname() .. "_b"
+      io.open(a, "w"):close()
+      io.open(b, "w"):close()
+      image_cache.register_temp_file(a)
+      image_cache.register_temp_file(b)
+      assert.equals(2, image_cache.tracked_temp_file_count())
+
+      image_cache.unregister_temp_file(a)
+      assert.equals(1, image_cache.tracked_temp_file_count())
+
+      -- `a` is no longer tracked, so a cleanup must leave it on disk …
+      image_cache.cleanup_temp_files()
+      assert.equals(1, vim.fn.filereadable(a))
+      -- … while the still-tracked `b` is removed.
+      assert.equals(0, vim.fn.filereadable(b))
+      assert.equals(0, image_cache.tracked_temp_file_count())
+
+      os.remove(a)
+    end)
+
+    it("register_temp_file ignores non-paths and is idempotent per path", function()
+      local f = vim.fn.tempname() .. "_dup"
+      io.open(f, "w"):close()
+      image_cache.register_temp_file(f)
+      image_cache.register_temp_file(f)
+      assert.equals(1, image_cache.tracked_temp_file_count())
+      assert.has_no_errors(function()
+        image_cache.register_temp_file(nil)
+        image_cache.register_temp_file("")
+        image_cache.register_temp_file(42)
+      end)
+      image_cache.cleanup_temp_files()
+      assert.equals(0, vim.fn.filereadable(f))
+    end)
+
+    it("unregister_temp_file of an unknown path is a no-op", function()
+      assert.has_no_errors(function()
+        image_cache.unregister_temp_file(vim.fn.tempname() .. "_nope")
+        image_cache.unregister_temp_file(nil)
+      end)
+      assert.equals(0, image_cache.tracked_temp_file_count())
+    end)
   end)
 
   describe("cached_image_path", function()
