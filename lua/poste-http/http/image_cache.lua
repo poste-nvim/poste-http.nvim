@@ -106,17 +106,42 @@ function M.cache_path_for_url(url, content_type)
 end
 
 -- Temp downloads registered for deferred cleanup (see cleanup_temp_files).
+--
+-- Keyed by PATH, not an array: the async downloader exists precisely so
+-- several previews can be in flight at once, and `table.remove(t)` drops the
+-- LAST element whatever it is. With two concurrent downloads each completion
+-- unregistered the OTHER download's path — the invariant "a completion
+-- unregisters exactly the file it owns" is what keeps cleanup_url_preview
+-- (called on every response re-render) from deleting a live download target
+-- and from leaking a dead one.
 local temp_files = {}
 
---- Track a temp file for cleanup_temp_files.
+--- Track a temp file for cleanup_temp_files. Idempotent per path.
 --- @param path string
 function M.register_temp_file(path)
-  temp_files[#temp_files + 1] = path
+  if type(path) ~= "string" or path == "" then return end
+  temp_files[path] = true
+end
+
+--- Forget a tracked temp file. Removes only the given path.
+--- Non-string input is ignored: `t[nil] = nil` raises "table index is nil".
+--- @param path string
+function M.unregister_temp_file(path)
+  if type(path) ~= "string" then return end
+  temp_files[path] = nil
+end
+
+--- Number of currently tracked temp files (exposed for specs).
+--- @return number
+function M.tracked_temp_file_count()
+  local n = 0
+  for _ in pairs(temp_files) do n = n + 1 end
+  return n
 end
 
 --- Remove all tracked temp files. Safe to call repeatedly.
 function M.cleanup_temp_files()
-  for _, f in ipairs(temp_files) do
+  for f in pairs(temp_files) do
     pcall(os.remove, f)
   end
   temp_files = {}
@@ -200,7 +225,7 @@ function M.download_image_url(url)
   vim.fn.system(curl_argv(url, tmp))
 
   if vim.v.shell_error ~= 0 then
-    table.remove(temp_files)
+    M.unregister_temp_file(tmp)
     pcall(os.remove, tmp)
     -- Download failed → fall back to a stale cached copy if we have one
     if cache_path and vim.fn.filereadable(cache_path) == 1 then
@@ -212,7 +237,7 @@ function M.download_image_url(url)
   if ttl and ttl > 0 and cache_path then
     local renamed = pcall(os.rename, tmp, cache_path)
     if renamed then
-      table.remove(temp_files)
+      M.unregister_temp_file(tmp)
       return cache_path, ct
     end
   end
@@ -252,7 +277,7 @@ function M.download_image_url_async(url, on_done)
     on_exit = function(_, exit_code)
       vim.schedule(function()
         if exit_code ~= 0 then
-          table.remove(temp_files)
+          M.unregister_temp_file(tmp)
           pcall(os.remove, tmp)
           on_done(stale_or_nil(), ct)
           return
@@ -260,7 +285,7 @@ function M.download_image_url_async(url, on_done)
         if ttl and ttl > 0 and cache_path then
           local renamed = pcall(os.rename, tmp, cache_path)
           if renamed then
-            table.remove(temp_files)
+            M.unregister_temp_file(tmp)
             on_done(cache_path, ct)
             return
           end
@@ -271,7 +296,7 @@ function M.download_image_url_async(url, on_done)
   })
 
   if not ok_job or not job or job <= 0 then
-    table.remove(temp_files)
+    M.unregister_temp_file(tmp)
     pcall(os.remove, tmp)
     vim.schedule(function() on_done(stale_or_nil(), ct) end)
     return false
