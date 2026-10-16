@@ -133,7 +133,10 @@ vim.api.nvim_create_user_command("PosteHttpInfo", function()
   table.insert(parts, "filetype:   " .. ft)
   table.insert(parts, sep)
 
-  vim.notify(table.concat(parts, "\n"), vim.log.levels.INFO)
+  -- ui/notify, not a raw notification call: it owns the plugin title, the
+  -- per-line width cap and the state.log mirror (guardrail §5.1 covers
+  -- plugin/ too).
+  require("poste-http.ui.notify").notify(table.concat(parts, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Poste HTTP environment info" })
 
 vim.api.nvim_create_user_command("PosteHttpBuildParsers", function()
@@ -158,5 +161,5 @@ vim.api.nvim_create_user_command("PosteHttpTSStatus", function()
     string.format("diagnostics:   %s", ts.diagnostics and "tree-sitter" or "regex"),
     "─",
   }
-  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
+  require("poste-http.ui.notify").notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end, { desc = "Show tree-sitter feature status" })
