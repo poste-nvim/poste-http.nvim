@@ -87,4 +87,59 @@ describe("boundary_indicator boundary_style", function()
     assert.are.equal("PosteHttpBoundary", hl.link,
       "gutter must follow the rectangle colour unless overridden")
   end)
+
+  --- Count the extmarks `fn` places, without stubbing the real API.
+  local function count_extmarks(fn)
+    local real = vim.api.nvim_buf_set_extmark
+    local n = 0
+    vim.api.nvim_buf_set_extmark = function(...)
+      n = n + 1
+      return real(...)
+    end
+    local ok, err = pcall(fn)
+    vim.api.nvim_buf_set_extmark = real
+    assert.is_true(ok, tostring(err))
+    return n
+  end
+
+  -- Perf regression: the paint rides a CursorMoved/CursorMovedI autocmd, and
+  -- the old code cleared the namespace and re-placed one extmark per row on
+  -- EVERY event — N nvim_buf_set_extmark calls per character typed inside an
+  -- N-line request block. Nothing about the paint changes while the cursor
+  -- stays in the same block with the text untouched, so it must not repaint.
+  it("does not repaint while the cursor stays inside one unchanged block", function()
+    assert.is_true(count_extmarks(function() boundary.refresh(buf, 1) end) > 0,
+      "the first refresh must paint")
+    assert.equals(0, count_extmarks(function() boundary.refresh(buf, 1) end),
+      "an identical refresh must not re-place extmarks")
+    assert.equals(0, count_extmarks(function() boundary.refresh(buf, 2) end),
+      "moving within the same block must not repaint either")
+  end)
+
+  it("repaints when the block's text changes", function()
+    boundary.refresh(buf, 1)
+    assert.equals(0, count_extmarks(function() boundary.refresh(buf, 1) end))
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, { "X-Extra: 1" })
+    assert.is_true(count_extmarks(function() boundary.refresh(buf, 1) end) > 0,
+      "an edited block must be repainted")
+  end)
+
+  it("repaints when the cursor enters a different block", function()
+    vim.api.nvim_buf_set_lines(buf, -1, -1, false, {
+      "", "### b", "GET https://y.dev/api", "",
+    })
+    boundary.refresh(buf, 1)
+    assert.equals(0, count_extmarks(function() boundary.refresh(buf, 1) end))
+    assert.is_true(count_extmarks(function() boundary.refresh(buf, 5) end) > 0,
+      "a different block must be painted")
+  end)
+
+  it("repaints after clear()", function()
+    boundary.refresh(buf, 1)
+    assert.is_true(#marks(buf) > 0)
+    boundary.clear(buf)
+    assert.equals(0, #marks(buf), "clear must drop the marks")
+    assert.is_true(count_extmarks(function() boundary.refresh(buf, 1) end) > 0,
+      "clear must invalidate the paint memo")
+  end)
 end)
