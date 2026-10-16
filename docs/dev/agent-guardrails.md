@@ -15,7 +15,7 @@
 
 ## 1. UI 渲染 MUST 走 `lua/poste-http/ui/` 原语，禁止手搓
 
-**事故（2026-08-30，`code-review-2026-08-30.md`）**：`ui/` 只有 `columns.lua` 时，
+**事故（2026-08-30）**：`ui/` 只有 `columns.lua` 时，
 9 处浮窗样板守卫完备度分三档——`help.lua` 打开失败不清理 buffer、`image.lua`
 连 `pcall` 都没有、只有 `select.lua` 有 WinClosed 兜底；截断有 5 套实现 3 种语义
 （outline/inspector 是字节级，CJK 被切碎）；method→高亮映射 4 份且已漂移
@@ -154,8 +154,9 @@ grep -rln "PosteMethodGET\|PosteStatus2xx" lua/ | grep -v "ui/semantics.lua\|htt
 grep -rln "TabLineSel" lua/ | grep -v "ui/winbar.lua"
 # 字符级截断原语只允许 ui/text.lua 与 ui/columns.lua
 grep -rln "strcharpart\|strchars(" lua/ | grep -v "ui/text.lua\|ui/columns.lua"
-# 用户提示只允许 ui/notify.lua 触达 vim.notify（tests/run.sh 已内置此门禁）
-grep -rn "vim\.notify" lua/ | grep -v "lua/poste-http/ui/notify.lua"
+# 用户提示只允许 ui/notify.lua 触达 vim.notify（tests/run.sh 已内置此门禁，
+# 扫描 lua/ 与 plugin/ 两处——plugin/ 曾长期在门禁之外）
+grep -rn "vim\.notify" lua/ plugin/ | grep -v "lua/poste-http/ui/notify.lua"
 ```
 
 以上清单 = 2026-08-30 收敛后的合法残留。**新增命中必须走 ui/ 原语**；确需第
@@ -165,11 +166,14 @@ grep -rn "vim\.notify" lua/ | grep -v "lua/poste-http/ui/notify.lua"
 
 1. `./tests/run.sh` 的 **exit code 必须为 0**——不要只看每个 spec 的
    `Failed : 0`：曾有「逐 spec 全 0 但 exit=1」的情况，真因是另一个 spec
-   加载失败。`grep -c "Testing:"` 应等于 spec 文件总数，少了就是有文件没跑。
-2. `luacheck lua/` **0 errors 且无新增 warnings**（当前基线 70 条，见
-   `code-review-2026-08-30.md` §5）。
+   加载失败。`Spec files run: N/M` 的 N 应等于 M，少了就是有文件没跑。
+2. `luacheck lua tests` **0 warnings / 0 errors**（2026-10-16 基线：0 条；
+   旧文档写的「基线 70 条」早已不成立）。新增 warning 视为回归。
 3. 涉及浮窗/视图的改动，headless 冒烟真实打开一次（help/outline/history/
-   inspector/body+verbose 视图，参照 review 报告 §5 的冒烟脚本）。
+   inspector/body+verbose 视图）。
+
+改代码前可先跑 `tools/relation-check.sh`（set-lines / state / format /
+pre-render / session 五个视角，目录写错会直接 exit 1 而不是静默跳过）。
 
 ### 5.3 提交纪律
 
@@ -194,5 +198,6 @@ grep -rn "vim\.notify" lua/ | grep -v "lua/poste-http/ui/notify.lua"
 
 ---
 
-*来源：`docs/dev/code-review-2026-08-30.md`（U1–U8）及同日重构过程。
+*来源：2026-08-30 的 UI 收敛（U1–U8）及同日重构过程；每轮 review 的具体条目
+不再单独存档，落地的规则就是本文件本身。
 维护人：每次违反本文件的事故，修完后在此标注条目号。*

@@ -3,6 +3,10 @@
 Agent self-evolution log. When you fix a non-obvious bug or encounter a
 pitfall, log it here. Check this file before starting any task.
 
+The per-round review archives (`docs/dev/review-YYYY-MM-DD.md`,
+`docs/dev/code-review-*.md`) were removed — the entries below carry the
+lesson itself, so cite the source file that holds the fix, not the archive.
+
 - 2026-09-23: http/script-set-nil-clobber — a failed request destroyed the
   session variables a previous success had set. `tostring(nil)` is the string
   `"nil"`, so `client.global.set('token', response.body.token)` on a 5xx (whose
@@ -111,7 +115,7 @@ pitfall, log it here. Check this file before starting any task.
   (3) in `nvim_buf_get_keymap`, `<Esc>` is reported as lhs `"<Esc>"`, not
   `"\27"`; (4) `nvim_win_get_config().title` is a chunk table `{{text}}`, and
   `row`/`col` are numbers for `relative="editor"` floats. See
-  `docs/dev/code-review-2026-08-30.md`, `tests/ui_*_spec.lua`.
+  `tests/ui_*_spec.lua`.
 
 - 2026-08-12: http/history-empty-list — `render_list` only wrote buffer lines in the non-empty branch; after deleting the last entry the list window kept showing stale rows (and a fresh window showed a blank float instead of "(no history)"). Fix: the "(no history)" line now goes through the same modifiable/set-lines path in `render_list`. See `lua/poste-http/http/history.lua`.
 - 2026-08-13: http/dual-cache-consistency — `get_semantic_blocks` (tree-sitter via `describe.lua`) and `get_buffer_cache` (plain-text scan) both cached `blocks` independently, keyed by `changedtick`. When tree-sitter was unavailable, `get_semantic_blocks` cached `[]` while `get_buffer_cache` held populated blocks — divergent state. `boundary_indicator.find_block` then fell through to the text-scan path every call, and any caller reading `get_semantic_blocks` got empty data while others saw real blocks. Fix: when `describe.describe_content` returns `[]`, `get_semantic_blocks` falls back to `get_buffer_cache().blocks` re-keyed via `normalize_to_semantic` (`start_line` → `line`) so `describe.block_at_line` works. Both caches now always agree. See `lua/poste-http/http/cache.lua:528-590`, `tests/http/cache_spec.lua` (4 new regression tests).
@@ -184,8 +188,7 @@ pitfall, log it here. Check this file before starting any task.
   "leading-dash value could parse as a flag" is only real in FREE
   positions (curl's trailing URL); the fix there is an explicit `--`
   separator, not quotes. See `lua/poste-http/http/curl_exec.lua`,
-  `lua/poste-http/http/curl.lua` (combined `-sSo out.txt` blob walk),
-  `docs/dev/review-2026-09-22.md`.
+  `lua/poste-http/http/curl.lua` (combined `-sSo out.txt` blob walk).
 
 - 2026-07-07: http/dep-resolution — Rust parser (parser.rs:318-325) treats `<<var` as request line (not `@`, `#`, `>`). Before CLI execution, `<<var` MUST be converted to `@var = value` via Lua `handle_prompt_variables`. Fix: removed depth-1 limit and prompt skip from `resolve_request_variables` and `resolve_content_dependencies`; added recursive sub-dep resolution with depth tracking; added prompt handling for same-file deps via `handle_prompt_variables`; added `handle_import_prompts` with scratch buffer for imported file prompts. See `lua/poste-http/http/request_vars.lua:871-977,1027-1142` and `lua/poste-http/http/import.lua:347-383,530-619`.
 - 2026-07-07: http/dep-execution — `execute_dependent_request_async` (line 298) used `dep_req.start_line` as `--line` but sent only the dep's block text via stdin. Rust parser's `parse_at_line` counts lines from stdin, finds `--line` > stdin line count, bails with "No request found". Dep silently fails, ref stays unresolved. Fix: use `--line 1` since stdin always has only the block (starting at `###`). This bug existed before the recursive change — old code also passed block text with wrong line. See `lua/poste-http/http/request_vars.lua:323`.
@@ -305,8 +308,7 @@ pitfall, log it here. Check this file before starting any task.
   json_pretty implementations emitted bare `inf` for decoded `1e999`:
   a Lua-side JSON writer needs the non-finite → null branch. See
   `lua/poste-http/http/import_parser.lua`, `lua/poste-http/http/history.lua`,
-  `lua/poste-http/http/assertions.lua`, `lua/poste-http/http/format/util.lua`,
-  `docs/dev/review-2026-10-03.md`.
+  `lua/poste-http/http/assertions.lua`, `lua/poste-http/http/format/util.lua`.
 
 - 2026-10-04: user guidance is part of a command's contract — health.lua
   and install.lua pointed users at `:PosteHttpBuildParsers`, which was
@@ -320,7 +322,7 @@ pitfall, log it here. Check this file before starting any task.
   the path grammar guarantees a scalar; encode at the formatting boundary
   (poste-mq made the same fix for env-table vars on the same day). And
   `<CR>` with no request at the cursor now notifies instead of dying
-  silently. See `docs/dev/review-2026-10-04.md`.
+  silently. See `lua/poste-http/http/buffer.lua` (`<CR>` notify path).
 
 - 2026-10-05: three contracts from the 10-05 round. (1) The resolver's
   env layer returns RAW decoded JSON — `load_env_vars` stores env.json
@@ -340,7 +342,7 @@ pitfall, log it here. Check this file before starting any task.
   nav.ts/nav.text; a replace-all cleanup missed the second copy purely
   by indentation. Unify duplicated blocks in the same round they are
   found — copies only drift further apart. See
-  `docs/dev/review-2026-10-05.md`.
+  `lua/poste-http/http/nav/ts.lua`, `lua/poste-http/http/nav/text.lua`.
 
 - 2026-10-07: two contracts from the 10-07 round. (1) A guard's comment
   can outlive its guard's scope — history.load promised "drifted fields
@@ -355,7 +357,7 @@ pitfall, log it here. Check this file before starting any task.
   grep the third sibling in the same round. Also verified this round:
   import cycles are structurally impossible (build_import_index is
   flat), and describe.lua / response_parser stayed total against 19 +
-  8 hostile shapes. See `docs/dev/review-2026-10-07.md`.
+  8 hostile shapes.
 
 - 2026-10-08: three contracts from the 10-08 round. (1) A probe note that
   asserts platform behavior must be verified in the platform — poste-mq's
@@ -370,7 +372,7 @@ pitfall, log it here. Check this file before starting any task.
   spec's exit code is only meaningful under the directory run's exact
   child args (`--noplugin -u tests/minimal_init.lua` + rtp) — bisecting a
   red suite per-file with the wrong harness reports load failures, not
-  test failures. See `docs/dev/review-2026-10-08.md`.
+  test failures.
 
 - 2026-10-09: four contracts from the 10-09 round. (1) A value that
   round-trips through TEXT must be serialized, not string.format-ed —
@@ -393,9 +395,9 @@ pitfall, log it here. Check this file before starting any task.
   cannot be a multi-motion range — vim operators consume exactly ONE
   motion, so fed `dG d| dG d|` completes the operator on the first line.
   Visual-only text objects (end → `o` swap → start) are the expressible
-  shape. See `docs/dev/review-2026-10-09.md`.
+  shape.
 
-- 2026-10-16: three contracts from the 10-16 round. (1) A LEARNINGS entry
+- 2026-10-16: four contracts from the 10-16 round. (1) A LEARNINGS entry
   can claim a guard the code never grew — 07-08's "pending-body-truncated"
   recorded "detect whether the body starts with an HTTP method line" while
   `strip_request_preamble` only scanned for the first blank line, so every
@@ -412,3 +414,11 @@ pitfall, log it here. Check this file before starting any task.
   `[SKIP] <dir> not found` branches in `tools/relation-check.sh` kept
   printing a clean run for years after `lua/poste/http/` was renamed, so a
   guard whose failure mode is silence must fail loudly instead.
+  (4) A width budget is per LINE, not per message —
+  `vim.fn.strdisplaywidth` SUMS a multi-line string's lines (and charges 2
+  per `\n`), so `ui/notify`'s 200-column cap cut `:PosteHttpTSInspect`'s
+  parse-tree dump off after a few nodes and would have eaten the tail of
+  every `:PosteHttpInfo` panel. Same round: that guardrail's grep only
+  scanned `lua/`, which is why `plugin/poste.lua` kept two direct
+  `vim.notify` calls through the 09-30 consolidation — a grep-based guard
+  must enumerate every directory that ships code.
