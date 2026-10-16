@@ -88,6 +88,90 @@ local function persist()
   fd:close()
 end
 
+--- Strings-only fields on a persisted response. `format_view` concatenates,
+--- `:sub`s and `:gmatch`s every one of them, so a non-string is dropped
+--- (the renderer's own fallback then applies) instead of raising mid-render.
+local RESPONSE_STRING_FIELDS = {
+  "status_text", "url", "content_type", "protocol", "body",
+}
+
+--- Same idea for `response.metadata`: every one of these is printed or
+--- `:gmatch`ed by the Verbose / Request tabs.
+local METADATA_STRING_FIELDS = {
+  "method", "request_headers", "request_body", "timestamp", "env",
+  "file_path", "file_content_type", "error", "exit_code", "verbose",
+}
+
+--- Coerce a value to a number, or nil when it is not one.
+local function as_number(v)
+  if type(v) == "number" then return v end
+  return tonumber(v)
+end
+
+--- @param m any
+--- @return table|nil
+local function sanitize_metadata(m)
+  if type(m) ~= "table" then return nil end
+  for _, k in ipairs(METADATA_STRING_FIELDS) do
+    if m[k] ~= nil and type(m[k]) ~= "string" then m[k] = nil end
+  end
+  if m.file_size ~= nil then m.file_size = as_number(m.file_size) end
+  -- `frames` is the WebSocket transcript: the Messages view iterates it.
+  if m.frames ~= nil and type(m.frames) ~= "table" then m.frames = nil end
+  return m
+end
+
+--- Drop every field the list / detail renderers index with the wrong type.
+---
+--- "The field is a table" is not the same claim as "its entries are
+--- well-formed", and neither covers the SCALARS next to it: a hand-edited or
+--- older-format `"time": "abc"`, `"latency_ms": "slow"` or `"url": {}` used
+--- to raise inside format_list_line / format_view and kill the whole
+--- browser. One drifted field costs one field, never the entry or the file.
+--- @param r any
+--- @return table|nil
+local function sanitize_response(r)
+  if type(r) ~= "table" then return nil end
+  for _, k in ipairs(RESPONSE_STRING_FIELDS) do
+    if r[k] ~= nil and type(r[k]) ~= "string" then r[k] = nil end
+  end
+  if r.status ~= nil then r.status = as_number(r.status) end
+  if r.latency_ms ~= nil then r.latency_ms = as_number(r.latency_ms) end
+  if r.ok ~= nil and type(r.ok) ~= "boolean" then r.ok = nil end
+  if r.cookies ~= nil and type(r.cookies) ~= "table" then r.cookies = nil end
+  if type(r.headers) == "table" then
+    -- Each header must be a {name, value} string pair. Checking only the
+    -- container let `"headers": [[42, "x"]]` through to several consumers
+    -- that index both halves as strings: has_attachment_disposition /
+    -- extract_disposition_filename (`h[1]:lower()`) and verbose's
+    -- format_response_size (`#h[1]`), all of which raised mid-render.
+    local kept = {}
+    for _, h in ipairs(r.headers) do
+      if type(h) == "table" and type(h[1]) == "string" and type(h[2]) == "string" then
+        kept[#kept + 1] = h
+      end
+    end
+    r.headers = kept
+  elseif r.headers ~= nil then
+    r.headers = nil
+  end
+  r.metadata = sanitize_metadata(r.metadata)
+  return r
+end
+
+--- @param a any
+--- @return table|nil
+local function sanitize_assertion_results(a)
+  if type(a) ~= "table" then return nil end
+  if a.tests ~= nil and type(a.tests) ~= "table" then a.tests = {} end
+  if a.logs ~= nil and type(a.logs) ~= "table" then a.logs = {} end
+  for _, k in ipairs({ "total", "passed", "failed" }) do
+    if a[k] ~= nil then a[k] = as_number(a[k]) end
+  end
+  if a.error ~= nil and type(a.error) ~= "string" then a.error = nil end
+  return a
+end
+
 --- Load persisted history at startup (idempotent).
 function M.load()
   if not state.config.persist_history then return end
@@ -115,35 +199,15 @@ function M.load()
       -- (response.headers ipairs, response.body length, metadata table,
       -- #script_logs, assertions shape). A drifted field is dropped here —
       -- the entry keeps its name/time in the list — instead of raising
-      -- mid-render in format_view.
-      if type(e.response) ~= "table" then
-        e.response = nil
-      else
-        local r = e.response
-        if r.headers ~= nil and type(r.headers) ~= "table" then
-          r.headers = nil
-        elseif type(r.headers) == "table" then
-          -- …and each header must be a {name, value} string pair. Checking
-          -- only the container let `"headers": [[42, "x"]]` through to
-          -- several consumers that index both halves as strings:
-          -- has_attachment_disposition / extract_disposition_filename
-          -- (`h[1]:lower()`) and verbose's format_response_size (`#h[1]`),
-          -- all of which raised mid-render.
-          local kept = {}
-          for _, h in ipairs(r.headers) do
-            if type(h) == "table" and type(h[1]) == "string" and type(h[2]) == "string" then
-              kept[#kept + 1] = h
-            end
-          end
-          r.headers = kept
-        end
-        if r.body ~= nil and type(r.body) ~= "string" then r.body = nil end
-        if r.content_type ~= nil and type(r.content_type) ~= "string" then r.content_type = nil end
-        if r.metadata ~= nil and type(r.metadata) ~= "table" then r.metadata = nil end
-      end
-      if e.assertion_results ~= nil and type(e.assertion_results) ~= "table" then
-        e.assertion_results = nil
-      end
+      -- mid-render in format_view / format_list_line.
+      if type(e.name) ~= "string" then e.name = "" end
+      if type(e.source_file) ~= "string" then e.source_file = "" end
+      -- `time`/`time_usec` feed os.date and integer division: a string
+      -- there raised "bad argument #2 to 'date'" on the very first row.
+      if e.time ~= nil then e.time = as_number(e.time) end
+      if e.time_usec ~= nil then e.time_usec = as_number(e.time_usec) end
+      e.response = sanitize_response(e.response)
+      e.assertion_results = sanitize_assertion_results(e.assertion_results)
       if e.script_logs ~= nil and type(e.script_logs) ~= "table" then
         e.script_logs = nil
       end
@@ -202,9 +266,13 @@ function M.delete_entry(id)
   end
 end
 
+--- Render "HH:MM:SS.mmm". Total by contract: `time`/`time_usec` come from
+--- persisted JSON, and `os.date` raises on a non-number second argument —
+--- the load boundary normalises them, this keeps a stubbed/legacy entry
+--- from taking the list window down anyway.
 local function format_timestamp(time, usec)
-  if not time then return "" end
-  local ms = usec and math.floor(usec / 1000) or 0
+  if type(time) ~= "number" then return "" end
+  local ms = type(usec) == "number" and math.floor(usec / 1000) or 0
   return string.format("%s.%03d", os.date("%H:%M:%S", time), ms)
 end
 
