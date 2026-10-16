@@ -449,8 +449,8 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   into a scrollable float (`ui/float`) instead of a notification, because a
   parse tree does not fit a notification's budget.
 
-- 2026-10-17: a load boundary must enumerate the fields the CONSUMERS read,
-  not the ones the writer happens to produce. The 10-16 round taught
+- 2026-10-16: a load boundary must enumerate the fields the CONSUMERS read,
+  not the ones the writer happens to produce. The earlier 10-16 round taught
   history.load that "the field is a table" is weaker than "its entries are
   well-formed" and then fixed exactly that — while the scalars sitting next
   to those containers stayed unchecked. Rendering every view against 19
@@ -472,7 +472,7 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   (`human_size`), `tests/http/history_persistence_spec.lua`,
   `tests/http/verbose_spec.lua`, `tests/http/format_util_spec.lua`.
 
-- 2026-10-17: `table.remove(t)` means "remove the LAST element", never
+- 2026-10-16: `table.remove(t)` means "remove the LAST element", never
   "remove mine". `image_cache`'s temp-download registry was an array and
   every completion called `table.remove(temp_files)` — with two downloads in
   flight (the entire reason `download_image_url_async` exists) each
@@ -484,7 +484,7 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   just written. See `lua/poste-http/http/image_cache.lua`,
   `tests/http/image_cache_spec.lua`.
 
-- 2026-10-17: a repaint memo must key on `changedtick`, and the win is not
+- 2026-10-16: a repaint memo must key on `changedtick`, and the win is not
   marginal. `:PosteHttpBoundary` repaints from CursorMoved/CursorMovedI and
   cleared the namespace + re-placed one extmark per row on every event:
   0.196 ms per refresh on a 301-line block, paid on every keystroke and
@@ -496,8 +496,8 @@ lesson itself, so cite the source file that holds the fix, not the archive.
   the assertion. See `lua/poste-http/http/boundary_indicator.lua`,
   `tests/http/boundary_indicator_style_spec.lua`.
 
-- 2026-10-17: seven call sites still shipped gsub's substitution count
-  despite the 10-02 rule. All were safe (every caller concatenated or
+- 2026-10-16: seven call sites still shipped gsub's substitution count
+  despite the 10-02 rule (recorded in the 10-02 entry above). All were safe (every caller concatenated or
   assigned, both of which adjust to one value) — which is exactly the
   argument for closing them: the extra value is invisible until a varargs
   or table-constructor caller eats it, so "it works today" is not evidence
