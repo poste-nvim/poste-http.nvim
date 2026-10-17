@@ -52,7 +52,7 @@ Suggested path: .github/assets/json-ux.png
 
 ## Requirements
 
-- Neovim (0.10+)
+- Neovim (0.11+) — 0.10 cannot load the bundled tree-sitter parsers (ABI 14)
 - `curl` — required, the only hard subprocess
 - `grpcurl` — optional, for `GRPC` requests
 - `websocat` — optional, for `WEBSOCKET` requests

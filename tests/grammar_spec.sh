@@ -9,9 +9,11 @@ TEST_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
 
-# Rebuild parser
+# Rebuild parser. ABI 14 on purpose: the committed parser.c is generated at
+# ABI 14 so Neovim 0.10/0.11 (ABI ceiling 14) can load it; regenerating at
+# the CLI default (15) would break them while looking green here.
 cd "$PARSER_DIR"
-tree-sitter generate 2>&1
+tree-sitter generate --abi 14 2>&1
 cc -shared -fPIC -o "$TEST_DIR/poste_http.so" src/parser.c -I src/tree_sitter
 
 parse() {
