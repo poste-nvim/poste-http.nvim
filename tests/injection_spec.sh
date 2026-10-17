@@ -8,6 +8,22 @@ TEST_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TEST_DIR"; }
 trap cleanup EXIT
 
+# The parsers must exist under site/parser before nvim starts: a fresh CI
+# runner has none, and a missing parser makes nvim error mid-script and sit
+# on its input loop forever (headless still waits). Build what the injection
+# query needs (poste_http; json/graphql only matter once injected bodies get
+# parsed, so they are built too for parity with :PosteHttpBuildParsers).
+PARSER_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/parser"
+mkdir -p "$PARSER_DIR"
+for grammar in poste-http poste-json poste-graphql; do
+    so_name="${grammar//-/_}.so"
+    if [ ! -f "$PARSER_DIR/$so_name" ]; then
+        cc -O2 -shared -fPIC -o "$PARSER_DIR/$so_name" \
+            "$PROJECT_DIR/tree-sitter-$grammar/src/parser.c" \
+            -I "$PROJECT_DIR/tree-sitter-$grammar/src"
+    fi
+done
+
 cat > "$TEST_DIR/test.http" << 'EOF'
 ### Create user
 POST /users
@@ -34,54 +50,62 @@ GET /test
 EOF
 
 cat > "$TEST_DIR/inject.lua" << EOF
-vim.cmd('edit $TEST_DIR/test.http')
-local bufnr = vim.api.nvim_get_current_buf()
-vim.bo[bufnr].filetype = 'poste_http'
-vim.treesitter.start(bufnr, 'poste_http')
+-- Anything unexpected must fail loudly and quit: a nvim that errors out of
+-- the script sits on its input loop forever (headless still waits) and only
+-- a caller-side timeout would reap it.
+local ok, err = xpcall(function()
+  vim.cmd('edit $TEST_DIR/test.http')
+  local bufnr = vim.api.nvim_get_current_buf()
+  vim.bo[bufnr].filetype = 'poste_http'
+  vim.treesitter.start(bufnr, 'poste_http')
 
--- Wait for parser
-vim.wait(500, function() return pcall(vim.treesitter.get_parser, bufnr) end)
+  -- Wait for parser
+  vim.wait(500, function() return pcall(vim.treesitter.get_parser, bufnr) end)
 
--- Check injection query
-local q = vim.treesitter.query.get('poste_http', 'injections')
-local root = vim.treesitter.get_parser(bufnr):parse()[1]:root()
+  -- Check injection query
+  local q = vim.treesitter.query.get('poste_http', 'injections')
+  local root = vim.treesitter.get_parser(bufnr):parse()[1]:root()
 
-local found_json = false
-local found_graphql = false
-for pattern, match, metadata in q:iter_matches(root, bufnr, 0, -1) do
-  local lang = metadata['injection.language']
-  local wanted = nil
-  if lang == 'poste_json' then wanted = 'json_body' end
-  if lang == 'poste_graphql' then wanted = 'graphql_body' end
-  if wanted then
-    for id, nodes in pairs(match) do
-      if q.captures[id] == 'injection.content' then
-        for _, node in ipairs(nodes) do
-          if node:type() == wanted then
-            if wanted == 'json_body' then
-              found_json = true
-              print('INJECTION_OK: json_body -> poste_json')
-            else
-              found_graphql = true
-              print('INJECTION_OK: graphql_body -> poste_graphql')
+  local found_json = false
+  local found_graphql = false
+  for pattern, match, metadata in q:iter_matches(root, bufnr, 0, -1) do
+    local lang = metadata['injection.language']
+    local wanted = nil
+    if lang == 'poste_json' then wanted = 'json_body' end
+    if lang == 'poste_graphql' then wanted = 'graphql_body' end
+    if wanted then
+      for id, nodes in pairs(match) do
+        if q.captures[id] == 'injection.content' then
+          for _, node in ipairs(nodes) do
+            if node:type() == wanted then
+              if wanted == 'json_body' then
+                found_json = true
+                print('INJECTION_OK: json_body -> poste_json')
+              else
+                found_graphql = true
+                print('INJECTION_OK: graphql_body -> poste_graphql')
+              end
             end
           end
         end
       end
     end
   end
-end
 
-if not found_json then
-  print('INJECTION_FAIL: no json_body -> poste_json injection found')
-end
-if not found_graphql then
-  print('INJECTION_FAIL: no graphql_body -> poste_graphql injection found')
+  if not found_json then
+    print('INJECTION_FAIL: no json_body -> poste_json injection found')
+  end
+  if not found_graphql then
+    print('INJECTION_FAIL: no graphql_body -> poste_graphql injection found')
+  end
+end, debug.traceback)
+if not ok then
+  print('INJECTION_FAIL: ' .. tostring(err))
 end
 vim.cmd('qall!')
 EOF
 
-nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" -c "luafile $TEST_DIR/inject.lua" 2>&1 | grep -E 'INJECTION_' > "$TEST_DIR/out.txt" || true
+timeout 60 nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" -c "luafile $TEST_DIR/inject.lua" 2>&1 | grep -E 'INJECTION_' > "$TEST_DIR/out.txt" || true
 
 if grep -q 'INJECTION_OK: json_body' "$TEST_DIR/out.txt" && grep -q 'INJECTION_OK: graphql_body' "$TEST_DIR/out.txt"; then
   echo "PASS: body injections work (poste_json + poste_graphql)"
