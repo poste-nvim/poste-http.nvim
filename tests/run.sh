@@ -42,27 +42,46 @@ if [ -n "$NOTIFY_VIOLATIONS" ]; then
 fi
 
 echo "--- Lua unit tests ---"
-TEST_OUTPUT=$(nvim --headless -u NONE \
-  -c "set rtp+=$PLENARY_PATH" \
-  -c "set rtp+=." \
-  -c "runtime plugin/plenary.vim" \
-  -c "runtime plugin/poste.lua" \
-  -c "PlenaryBustedDirectory tests/ {minimal_init = 'tests/minimal_init.lua'}" \
-  -c "qa" 2>&1) && TEST_EXIT=0 || TEST_EXIT=$?
-echo "$TEST_OUTPUT"
+# One nvim per spec file (workers in parallel), not one PlenaryBustedDirectory
+# sweep. The sweep dies silently between files on the CI runner: exit 1 after
+# the last success banner, zero test failures, no repro with any single file
+# or with the same sweep on macOS — the file-to-file transition is the
+# problem. Per-file runs cannot transition, isolate any real failure to its
+# file, and parallel workers keep the wall clock near the sweep's.
+run_one_spec() {
+    local spec="$1"
+    local scratch
+    scratch="$(mktemp -d)" # private XDG state: parallel nvims must not share ShaDa
+    local output rc
+    if output=$(XDG_CACHE_HOME="$scratch/cache" XDG_STATE_HOME="$scratch/state" \
+        nvim --headless -u tests/minimal_init.lua \
+        -c "set rtp+=$PLENARY_PATH" \
+        -c "set rtp+=." \
+        -c "runtime plugin/plenary.vim" \
+        -c "runtime plugin/poste.lua" \
+        -c "PlenaryBustedFile $spec" \
+        -c "qa" 2>&1); then
+        rc=0
+    else
+        rc=$?
+    fi
+    echo "$output"
+    if [ "$rc" -ne 0 ]; then
+        echo "FAIL: $spec exited with $rc"
+    fi
+    rm -rf "$scratch"
+    return $rc
+}
+export -f run_one_spec
+export PLENARY_PATH
 
-if [ "$TEST_EXIT" -ne 0 ]; then
-    echo "FAIL: unit tests exited with $TEST_EXIT"
-    exit "$TEST_EXIT"
-fi
+FAILURES=$(find tests -name '*_spec.lua' | sort | \
+    xargs -P "$(sysctl -n hw.ncpu 2>/dev/null || nproc)" -I{} bash -c 'run_one_spec "$@" || exit 1' _ {} | \
+    tee /dev/stderr | grep -c '^FAIL:' || true)
+TOTAL=$(find tests -name '*_spec.lua' | wc -l | tr -d ' ')
 
-# The headless runner can exit before async spec output flushes on slow
-# machines, ending the run early with exit 0. Every discovered spec file
-# must have printed its "Testing: <file>" banner.
-SPEC_RUN=$(printf '%s\n' "$TEST_OUTPUT" | grep -c "^Testing:" || true)
-SPEC_TOTAL=$(find tests -name '*_spec.lua' | wc -l | tr -d ' ')
-echo "Spec files run: $SPEC_RUN/$SPEC_TOTAL"
-if [ "$SPEC_RUN" -ne "$SPEC_TOTAL" ]; then
-    echo "FAIL: expected $SPEC_TOTAL spec files, saw $SPEC_RUN (truncated run?)"
+if [ "$FAILURES" -ne 0 ]; then
+    echo "FAIL: $FAILURES of $TOTAL spec files exited nonzero"
     exit 1
 fi
+echo "Spec files run: $TOTAL/$TOTAL"
