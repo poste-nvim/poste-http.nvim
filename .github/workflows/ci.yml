@@ -75,20 +75,19 @@ jobs:
         run: |
           timeout 600 ./tests/run.sh ~/.local/share/nvim/lazy/plenary.nvim
 
-      # The suite dies between ui_picker_spec and ui_text_spec on this
-      # runner only (nvim exit 1, no error output, zero test failures;
-      # 118/120 spec banners). Run the two files in isolation to capture
-      # whatever the full run swallows.
+      # PlenaryBustedDirectory runs each spec as its own nvim child process
+      # with a 50s default timeout; the suite's exit-1-with-zero-failures is
+      # plenary timing the child out and killing it. Reproduce with the exact
+      # child command plenary uses and a short timeout to see the hang.
       - name: Diagnose ui spec exit
         if: always()
         run: |
           for f in tests/ui_text_spec.lua tests/ui_winbar_spec.lua; do
-            timeout 60 nvim --headless -u tests/minimal_init.lua \
+            echo "=== $f (plenary child command, 30s cap) ==="
+            timeout 30 nvim --headless -u tests/minimal_init.lua \
               -c "set rtp+=$HOME/.local/share/nvim/lazy/plenary.nvim" \
               -c "set rtp+=." \
-              -c "runtime plugin/plenary.vim" \
-              -c "runtime plugin/poste.lua" \
-              -c "PlenaryBustedFile $f" \
-              -c "qa" 2>&1 | tail -4
-            echo "$f exit=$?"
+              -c "lua require('plenary.busted').run('$f')" \
+              -c "qa" 2>&1 | tail -6
+            echo "$f child-exit=$?"
           done
