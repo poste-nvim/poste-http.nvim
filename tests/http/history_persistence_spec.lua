@@ -8,7 +8,10 @@ local history = require("poste-http.http.history")
 local state = require("poste-http.state")
 local format = require("poste-http.http.format")
 
-local tmp_dir = "/private/tmp/poste-history-test"
+-- tempname() rather than a hardcoded /private/tmp path: that spelling is
+-- macOS-only, and a runner user cannot mkdir /private on Linux, which made
+-- io.open below return nil and every persistence test error out.
+local tmp_dir = vim.fn.tempname()
 
 local function reset()
   state.http_history = {}
