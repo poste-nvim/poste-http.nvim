@@ -35,10 +35,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup tree-sitter CLI
-        uses: tree-sitter/setup-action@v1
-        with:
-          tree-sitter-version: latest
+      # tree-sitter/setup-action@v1 breaks on current CLI releases: its config
+      # step misparses `tree-sitter init-config` output (empty $config path ->
+      # exit 1, seen 2026-10-16). The grammar specs only need the CLI on PATH
+      # for `generate`/`parse`, so install the released binary directly.
+      # v0.26.x matches the CLI used locally; `generate` output is stable
+      # within a minor series.
+      - name: Install tree-sitter CLI
+        run: |
+          curl -sSLf https://github.com/tree-sitter/tree-sitter/releases/download/v0.26.13/tree-sitter-linux-x64.gz \
+            | gunzip > /usr/local/bin/tree-sitter
+          chmod +x /usr/local/bin/tree-sitter
+          tree-sitter --version
 
       - name: Install Neovim
         uses: rhysd/action-setup-vim@v1

@@ -17,6 +17,8 @@ ignore/
 nvim.log
 parser/node-types.json
 reasonix.toml
+.workbuddy/
+.workbuddy-ai/
 session-*.md
 tree-sitter-poste-http/*.dylib
 tree-sitter-poste-http/*.o
