@@ -29,7 +29,10 @@ local var_collector = require("poste-http.http.var_collector")
 local format_file = require("poste-http.http.format_file")
 local constants = require("poste-http.constants")
 
-local tmp_dir = "/private/tmp/poste-zero-coverage"
+-- tempname() rather than a hardcoded /private/tmp path: that spelling is
+-- macOS-only, and a runner user cannot mkdir /private on Linux, which made
+-- write_tmp_file's io.open return nil and the import tests error out.
+local tmp_dir = vim.fn.tempname()
 local spec_file = tmp_dir .. "/spec.json"
 local out_dir = tmp_dir .. "/out"
 
