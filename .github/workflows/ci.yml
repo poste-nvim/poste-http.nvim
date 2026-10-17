@@ -38,6 +38,10 @@ jobs:
       fail-fast: false
       matrix:
         nvim_version: [stable, nightly]
+    # nightly is a signal, not the gate: the dev build moves daily and an
+    # unrelated nvim regression must not turn the badge red. stable is the
+    # release-quality floor.
+    continue-on-error: ${{ matrix.nvim_version == 'nightly' }}
     name: Test (${{ matrix.nvim_version }})
     runs-on: ubuntu-latest
     steps:
