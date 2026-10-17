@@ -53,13 +53,13 @@ run_one_spec() {
     local scratch
     scratch="$(mktemp -d)" # private XDG state: parallel nvims must not share ShaDa
     local output rc
-    if output=$(XDG_CACHE_HOME="$scratch/cache" XDG_STATE_HOME="$scratch/state" \
+    if output=$(XDG_DATA_HOME="$scratch/data" XDG_CACHE_HOME="$scratch/cache" XDG_STATE_HOME="$scratch/state" \
         nvim --headless -u tests/minimal_init.lua \
         -c "set rtp+=$PLENARY_PATH" \
         -c "set rtp+=." \
         -c "runtime plugin/plenary.vim" \
         -c "runtime plugin/poste.lua" \
-        -c "PlenaryBustedFile $spec" \
+        -c "lua require('plenary.busted').run('$spec')" \
         -c "qa" 2>&1); then
         rc=0
     else
