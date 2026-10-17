@@ -61,4 +61,4 @@ jobs:
 
       - name: Run tests
         run: |
-          ./tests/run.sh ~/.local/share/nvim/lazy/plenary.nvim
+          timeout 600 ./tests/run.sh ~/.local/share/nvim/lazy/plenary.nvim
