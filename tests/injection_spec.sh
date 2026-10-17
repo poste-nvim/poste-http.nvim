@@ -76,7 +76,9 @@ local ok, err = xpcall(function()
     if wanted then
       for id, nodes in pairs(match) do
         if q.captures[id] == 'injection.content' then
-          for _, node in ipairs(nodes) do
+          -- nvim 0.10 hands match entries as a single node; 0.11+ as a table.
+          local node_list = (type(nodes) == 'table') and nodes or { nodes }
+          for _, node in ipairs(node_list) do
             if node:type() == wanted then
               if wanted == 'json_body' then
                 found_json = true

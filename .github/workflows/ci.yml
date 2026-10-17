@@ -30,7 +30,15 @@ jobs:
         run: luacheck --codes lua plugin ftplugin tests after queries
 
   test:
-    name: Test
+    # The bundled parsers are tree-sitter ABI 14, which Neovim 0.11 is the
+    # first release to load; ts_query relies on the 0.11 iter_matches node
+    # lists. So 0.11 is the floor (README says the same), and CI verifies
+    # current stable + nightly rather than a stale pinned floor.
+    strategy:
+      fail-fast: false
+      matrix:
+        nvim_version: [stable, nightly]
+    name: Test (${{ matrix.nvim_version }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,11 +56,11 @@ jobs:
           chmod +x /usr/local/bin/tree-sitter
           tree-sitter --version
 
-      - name: Install Neovim
+      - name: Install Neovim ${{ matrix.nvim_version }}
         uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
-          version: v0.10.0
+          version: ${{ matrix.nvim_version }}
 
       - name: Check out plenary.nvim
         run: |
