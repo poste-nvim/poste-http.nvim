@@ -76,9 +76,9 @@ Endpoints:
   GET  /api/users/{id}            Get one user
 
 Usage:
-  Start:    docker compose up -d
-  Logs:     docker compose logs -f
-  Stop:     docker compose down
+  Start:    docker compose -f playground/docker-compose.yml up -d http
+  Logs:     docker compose -f playground/docker-compose.yml logs -f http
+  Stop:     docker compose -f playground/docker-compose.yml stop http
   Test:     curl http://localhost:8888/anything
 """
 
@@ -815,7 +815,12 @@ async def cookies_delete_endpoint(request: Request):
 
 @app.post("/upload")
 async def upload_endpoint(request: Request):
-    """Accept multipart file upload and echo file info."""
+    """Accept multipart file upload and echo file info.
+
+    Parses with the in-repo lenient parser (same one /store uses): .http
+    files author LF-only bodies, which starlette's strict form parser
+    rejects ("Did not find CR at end of boundary").
+    """
     content_type = request.headers.get("content-type", "")
     if "multipart/form-data" not in content_type:
         body = await request.body()
@@ -828,29 +833,32 @@ async def upload_endpoint(request: Request):
             status_code=400,
         )
 
-    try:
-        form = await request.form()
-    except Exception as e:
-        return JSONResponse({"error": f"Failed to parse form: {e}"}, status_code=400)
+    boundary = ""
+    for part in content_type.split(";"):
+        part = part.strip()
+        if part.startswith("boundary="):
+            boundary = part[9:].strip('"').strip("'")
+            break
+    if not boundary:
+        return JSONResponse({"error": "Missing multipart boundary"}, status_code=400)
 
+    raw_body = await request.body()
     result: dict[str, Any] = {
         "files": {},
         "form": {},
         "headers": dict(request.headers.items()),
     }
 
-    for field_name, field_value in form.items():
-        if hasattr(field_value, "read"):
-            # It's a file
-            content = await field_value.read()
-            result["files"][field_name] = {
-                "filename": field_value.filename,
-                "content_type": field_value.content_type,
-                "size": len(content),
-                "content_preview": content.decode("utf-8", errors="replace")[:500],
+    for name, _, fname, fct, data in _parse_multipart(raw_body, boundary.encode()):
+        if fname:
+            result["files"][name] = {
+                "filename": fname,
+                "content_type": fct,
+                "size": len(data),
+                "content_preview": data.decode("utf-8", errors="replace")[:500],
             }
         else:
-            result["form"][field_name] = field_value
+            result["form"][name] = data.decode("utf-8", errors="replace")
 
     return JSONResponse(result)
 
