@@ -128,6 +128,11 @@ function M.run(req, callback)
     end
   end
 
+  -- The wire request is POST, but history and the Request tab label the
+  -- response with the request-line keyword (grpc.lua / websocket.lua stamp
+  -- their self-built responses the same way), so re-stamp whatever
+  -- curl_exec parsed from the lowered request.
+  local keyword = req.method or "GRAPHQL"
   curl_exec.execute({
     method = "POST",
     url = req.url,
@@ -136,7 +141,12 @@ function M.run(req, callback)
     buf_dir = req.buf_dir,
     timeout = req.timeout,
     cookie_jar = req.cookie_jar,
-  }, callback)
+  }, function(response)
+    if response and response.metadata then
+      response.metadata.method = keyword
+    end
+    callback(response)
+  end)
 end
 
 return M

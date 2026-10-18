@@ -138,6 +138,38 @@ describe("graphql.run", function()
     assert.equals("query { user }", captured.req.body)
   end)
 
+  it("labels the canonical response with GRAPHQL, not the lowered POST", function()
+    local response
+    graphql.run({
+      method = "GRAPHQL",
+      url = "https://api.example.com/graphql",
+      headers = {},
+      body = "query { user }",
+    }, function(r) response = r end)
+
+    -- The wire request stays POST ...
+    assert.equals("POST", captured.req.method)
+    -- ... but history and the Request tab read metadata.method, so the
+    -- response must carry the request-line keyword the user wrote.
+    captured.cb({ protocol = "http", status = 200, ok = true,
+      metadata = { method = "POST" } })
+    assert.equals("GRAPHQL", response.metadata.method)
+  end)
+
+  it("labels curl-level failures with GRAPHQL too", function()
+    local response
+    graphql.run({
+      method = "GRAPHQL",
+      url = "https://api.example.com/graphql",
+      headers = {},
+      body = "query { user }",
+    }, function(r) response = r end)
+
+    captured.cb({ protocol = "error", status = 0, ok = false,
+      metadata = { method = "POST", error = "curl exit 7" } })
+    assert.equals("GRAPHQL", response.metadata.method)
+  end)
+
   it("reports an error response when the body cannot be lowered", function()
     local response
     graphql.run({
@@ -154,8 +186,8 @@ describe("graphql.run", function()
     assert.equals("GRAPHQL", response.metadata.method)
   end)
 
-  it("propagates url, buf_dir, timeout and the callback", function()
-    local cb = function() end
+  it("propagates url, buf_dir, timeout and responses still reach the callback", function()
+    local received
     graphql.run({
       method = "GRAPHQL",
       url = "https://api.example.com/graphql",
@@ -163,11 +195,16 @@ describe("graphql.run", function()
       body = "query { user }",
       buf_dir = "/tmp/x",
       timeout = 5000,
-    }, cb)
+    }, function(r) received = r end)
 
     assert.equals("https://api.example.com/graphql", captured.req.url)
     assert.equals("/tmp/x", captured.req.buf_dir)
     assert.equals(5000, captured.req.timeout)
-    assert.equals(cb, captured.cb)
+    -- The callback is wrapped (the method-label re-stamp), so function
+    -- identity is not preserved; what matters is the response object still
+    -- reaching the caller unchanged.
+    local canned = { protocol = "http", status = 204, ok = true, metadata = {} }
+    captured.cb(canned)
+    assert.equals(canned, received)
   end)
 end)
