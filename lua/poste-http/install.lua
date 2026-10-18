@@ -110,6 +110,11 @@ local function compile_one(grammar)
     return false
   end
 
+  -- Prime the freshly compiled parser into THIS session: nvim caches the
+  -- runtimepath parser search, so a first-run user's very first .http buffer
+  -- otherwise fails with "Parser could not be created" until the next launch.
+  pcall(vim.treesitter.language.add, grammar.name, { path = so_path })
+
   notify("Compiled " .. grammar.name .. " parser", vim.log.levels.INFO)
   return true
 end
