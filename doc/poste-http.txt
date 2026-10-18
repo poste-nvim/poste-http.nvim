@@ -13,6 +13,7 @@ CONTENTS                                                    *poste-contents*
   8. Keymaps ......................... |poste-keymaps|
   9. Commands ........................ |poste-commands|
   10. Boundary Highlight ............. |poste-http-boundary|
+  11. Highlight Groups ............... |poste-http-highlights|
 
 ==============================================================================
 1. INTRODUCTION                                          *poste-intro*
@@ -346,6 +347,171 @@ Both styles are switched on and off together by `:PosteHttpBoundary`.
         boundary_style = "background", -- or "gutter"
       })
 <
+
+==============================================================================
+11. HIGHLIGHT GROUPS                              *poste-http-highlights*
+
+Every group the plugin styles is named `Poste*` and gets a default style
+on each colorscheme change.
+
+                                                    *poste-http-hl-override*
+Recolour groups through the `highlights` table in setup(): the override
+applies immediately and is re-applied on every colorscheme switch, so it
+survives switching themes:
+>
+      require("poste-http").setup({
+        highlights = {
+          PosteMethodGET = { fg = "#98c379", bold = true },
+          PosteStatus4xx = { fg = "#e5c07b" },
+        },
+      })
+<
+`:highlight PosteLatency guifg=#ff0000` also works for the linked groups
+below, but groups the plugin re-styles with fixed colours on every
+setup (methods, status codes, boundary, response views) would be reset.
+
+Source-buffer groups exist in three forms: the plain `PosteComment`
+(used by the Vim syntax engine), `@PosteComment` and
+`@PosteComment.poste_http` (used by the tree-sitter highlighter). A
+`highlights` override is applied to all defined forms at once, so one
+entry recolours the buffer under either engine.
+
+INDICATORS & WINBAR ~
+                            *poste-http-hl-indicators*
+    PosteSpinner      sign-column spinner while a request runs
+    PosteSuccess      ✓ sign after a successful request
+    PosteError        ✘ sign after a failed request
+    PosteLatency      latency text next to the status and in the history
+    PosteMeta         env name and help hint in the winbar
+    PosteMetaDim      dimmed fragments of the winbar
+
+REQUEST LINE & HEADERS ~
+                            *poste-http-hl-request*
+    PosteSeparator    ### request separators
+    PosteRequestName  the request name after ###
+    PosteMethodGET    GET keyword
+    PosteMethodPOST   POST keyword
+    PosteMethodPUT    PUT keyword
+    PosteMethodDELETE DELETE keyword
+    PosteMethodPATCH  PATCH keyword
+    PosteMethodHEAD   HEAD keyword
+    PosteMethodOPTIONS OPTIONS keyword
+    PosteMethodScript SCRIPT keyword (orchestration blocks)
+    PosteMethodOther  any other request-line verb
+    PosteUrl          the request-line URL
+    PosteHttpVersion  the HTTP version (HTTP/1.1)
+    PosteQueryKey     query-string key
+    PosteQueryValue   query-string value
+    PosteHeaderKey    header name
+    PosteHeaderSep    the colon after a header name
+    PosteComment      comments
+    PosteOperator     directive comments such as # @graphql-schema
+
+VARIABLES ~
+                            *poste-http-hl-variables*
+    PosteVarDef       @name in a variable definition
+    PosteVarAssign    the = of a variable definition
+    PosteVarValue     the value of a variable definition
+    PosteVarRef       {{var}} references
+    PosteMagicVar     built-ins like {{$timestamp}}
+
+IMPORT & RUN ~
+                            *poste-http-hl-import*
+    PosteImport       the import keyword
+    PosteImportPath   the path after import
+    PosteImportAliasOpt the as keyword
+    PosteImportAlias  the alias name
+    PosteImportRef    {{alias.Request}} references into imported files
+    PosteImportRefAlias the alias part of such a reference
+    PosteImportRefDot the dot of such a reference
+    PosteImportRefKey the request-name part of such a reference
+    PosteImportRefIndex the [n] element index of such a reference
+    PosteRun          the run keyword
+    PosteRunTarget    the target request of run
+    PosteRunVars      inline variable overrides of run
+    PosteRunVarDef    @name inside run overrides
+    PosteRunVarAssign the = inside run overrides
+    PosteRunVarValue  the value inside run overrides
+
+SCRIPTS & PROMPTS ~
+                            *poste-http-hl-scripts*
+    PostePreScript    the > {% ... %} pre-request block
+    PosteAssertion    the < {% ... %} post-response block
+    PosteScriptMarker the {% and %} script delimiters
+    PosteExternalScript < ./script.lua external script references
+    PostePromptMarker the << prompt marker
+    PostePromptVar    the prompt variable name
+    PostePromptOpts   the [options] list of a prompt
+    PostePromptOptSep the | between prompt options
+    PostePromptMappingField name/key/desc fields in a prompt mapping
+    PostePromptMappingColon the colon in a prompt mapping
+    PostePromptMappingPath the dotted path in a prompt mapping
+
+BODY ~
+                            *poste-http-hl-body*
+    PosteRequestBody  the request body region
+    PosteFileRef      < ./path body-from-file references
+    PosteFileUpload   the file field of a multipart upload
+    PosteMultipartBoundary --boundary lines of a multipart body
+    PosteMultipartBody the body of a multipart part
+
+JSON ~
+                            *poste-http-hl-json*
+    PosteJsonString   JSON strings
+    PosteJsonNumber   JSON numbers
+    PosteJsonBoolean  JSON true / false
+    PosteJsonNull     JSON null
+    PosteJsonBraces   { }
+    PosteJsonBrackets [ ]
+    PosteJsonColon    :
+    PosteJsonComma    ,
+    PosteJsonEscape   escape sequences such as \n
+
+BOUNDARY ~
+                            *poste-http-hl-boundary*
+    PosteHttpBoundary the block rectangle (boundary_style "background")
+    PosteHttpBoundaryBorder the border line around the rectangle
+    PosteHttpBoundaryGutter the number-column shade (gutter style);
+                      links to PosteHttpBoundary, so one override moves
+                      both
+
+STATUS CODES ~
+                            *poste-http-hl-status*
+    PosteStatus2xx    2xx status codes
+    PosteStatus3xx    3xx status codes
+    PosteStatus4xx    4xx status codes
+    PosteStatus5xx    5xx status codes
+
+RESPONSE VIEWS ~
+                            *poste-http-hl-response*
+    PosteVerboseSeparator dim divider lines in the verbose tab
+    PosteVerboseSection section headers in the verbose tab
+    PosteVerboseSubHeader bold sub-headers in the verbose tab
+    PosteVerboseKey   keys in the verbose tab
+    PosteVerboseValue values in the verbose tab
+    PosteRequestKey   keys in the request tab
+    PosteRequestValue values in the request tab
+    PosteFileLink     the Open-file link for binary downloads
+
+ASSERTIONS VIEW ~
+                            *poste-http-hl-assertions*
+    PosteAssertSummary the summary line of a passed suite
+    PosteAssertSummaryFail the summary line of a failed suite
+    PosteAssertPass   one passed assertion
+    PosteAssertFail   one failed assertion
+    PosteAssertIconPass the ✓ icon of a passed assertion
+    PosteAssertIconFail the ✘ icon of a failed assertion
+    PosteAssertError  assertion error text
+    PosteAssertLogHeader the client.log header
+    PosteAssertLog    client.log lines
+    PosteAssertSep    dim divider lines
+    PosteAssertHint   italic hint lines
+
+OUTLINE & IMAGE ~
+                            *poste-http-hl-outline*
+    PosteSymbolCurrent the entry under the cursor in the outline
+    PosteSymbolMethod [GET]-style method prefixes in the outline
+    PosteImageMeta    the gray metadata lines under an image preview
 
 ==============================================================================
  vim:tw=78:ts=8:ft=help:norl:

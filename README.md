@@ -178,6 +178,13 @@ require("poste-http").setup({
   -- tints only the number column and leaves the syntax colours alone.
   boundary_style = "background",
 
+  -- Recolour any highlight group (full list: :h poste-http-highlights).
+  -- Applied immediately and re-applied on colorscheme switches.
+  highlights = {
+    PosteMethodGET = { fg = "#98c379", bold = true },
+    PosteStatus4xx = { fg = "#e5c07b" },
+  },
+
   keymaps = {
     http_source = {
       run = "<CR>",
@@ -221,6 +228,29 @@ require("poste-http").setup({
   },
 })
 ```
+
+## Customizing Highlights
+
+Every group the plugin styles is named `Poste*` — method colours, status
+codes, response views, the request-block boundary, and so on. Override any
+of them through `setup()`:
+
+```lua
+require("poste-http").setup({
+  highlights = {
+    PosteMethodGET = { fg = "#98c379", bold = true },
+    PosteError = { fg = "#ff0000" },
+  },
+})
+```
+
+The override applies immediately and survives colorscheme switches. It is
+also applied to the tree-sitter forms of the group
+(`@PosteMethodGET.poste_http`), which is what actually styles `.http`
+buffers when the parser drives the highlighting — a plain-name-only
+override would leave the source buffer on the default colours.
+
+The full list of groups, grouped by area, is in `:h poste-http-highlights`.
 
 ## Orchestration
 
@@ -298,6 +328,7 @@ There is no standalone CLI. Requests run directly from Neovim:
 ## Documentation
 
 - `:h poste-http` — full help (`doc/poste-http.txt`)
+- `:h poste-http-highlights` — every customizable highlight group
 - [User docs](docs/user/README.md) — syntax, variables, form-data, keymaps, [quick reference](docs/user/quick-reference.md)
 - [Developer docs](docs/dev/README.md) — architecture, testing, agent guardrails
 
