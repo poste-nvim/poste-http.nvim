@@ -1,4 +1,4 @@
-@host = http://postman-echo.com
+@host = http://localhost:8888
 
 ### Pre-script: dynamic variable generation
 < {%
@@ -14,7 +14,8 @@ X-User-Id: {{user_id}}
 > {%
   client.test("Token in response", function()
     client.assert(response.status == 200, "Expected 200")
-    local auth = response.body.headers["Authorization"]
+    -- The playground echoes header names lowercased (FastAPI).
+    local auth = response.body.headers["authorization"]
     client.assert(auth ~= nil, "Authorization header missing")
     client.assert(auth:find("^Bearer token%-") ~= nil,
       "Expected Bearer token, got: " .. tostring(auth))

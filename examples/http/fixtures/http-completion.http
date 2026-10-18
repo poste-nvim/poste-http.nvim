@@ -1,3 +1,8 @@
+# Completion fixture — imported by getting_started.http (RUN #fixtures.GetUser)
+
+@base_url = http://localhost:8888
+@api_key = sk-dev-abc123
+
 ### GetUser
-GET {{base_url}}/api/users/42
+GET {{base_url}}/api/users/1
 Authorization: Bearer {{api_key}}

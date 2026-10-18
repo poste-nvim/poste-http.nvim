@@ -1,4 +1,4 @@
-@host = https://httpbin.org
+@host = http://localhost:8888
 
 ### Login with MD5 hashed password
 < {%
@@ -24,8 +24,8 @@ Content-Type: application/json
   end)
 %}
 
-### Verify MD5 in post-request
-script
+### Verify MD5 in a post-script-only block (SCRIPT has no URL)
+SCRIPT
 @secret = secret
 > {%
   client.test("MD5 available in post-script", function()

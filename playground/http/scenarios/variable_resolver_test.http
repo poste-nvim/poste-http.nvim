@@ -6,16 +6,11 @@
 #   import_params > request_vars > file_vars > session_vars > script_vars > env > magic
 #
 # Prerequisites:
-#   docker compose -f tests/http/docker-compose.yml up -d
+#   docker compose -f playground/docker-compose.yml up -d http
 #
-# Run individual tests:
-#   poste run --file tests/http/variable_resolver_test.http --line <line>
-#
-# Test with specific env:
-#   poste run --file tests/http/variable_resolver_test.http --line <line> --env staging
-#
-# Test with session/script vars (via Lua):
-#   (handled automatically by the Neovim plugin)
+# Open this file in Neovim, put the cursor on a request/run line and press
+# <CR> (or :PosteHttpRun). Switch environments with <leader>vv / :PosteHttpEnv
+# (the "dev" environment is the default).
 #
 # The /anything endpoint echoes back the full request as JSON,
 # so we can verify variables are resolved correctly by checking the response body.
@@ -51,7 +46,7 @@ X-Request-Id: {{$uuid}}
 X-Timestamp: {{$timestamp}}
 
 > {%
-  client.global.set('session_token', 'sess-' .. string.sub(response.body.uuid or 'fallback', 1, 8))
+  client.global.set('session_token', 'sess-' .. string.sub(os.time() .. '', 1, 8))
   client.global.set('global_user_id', 'user_42')
   client.global.set('global_env', 'dev-override')
   request.variables.set('script_var_name', 'script_value_abc')
@@ -62,7 +57,7 @@ X-Timestamp: {{$timestamp}}
 @last_status = {{01_healthcheck.response.body.status}}
 # Tests: {{host}} → http://localhost:8888
 GET {{host}}/anything/file-level-simple?status={{last_status}}
-X-Source: file-level-var
+x-source: file-level-var
 
 ### 03 — File-level @var: composite reference
 # Tests: {{base_url}} → {{api_base}}{{api_prefix}} → http://localhost:8888/anything
@@ -198,7 +193,7 @@ X-Page-Size: {{page_size}}
 # env.json dev: "api_version": "v1"
 # No request-level override
 # Expected: {{api_version}} → "v1" (from env.json)
-# Run with: poste run --env dev
+# Run with the dev environment selected (<leader>vv / :PosteHttpEnv)
 GET {{host}}/anything/check-env?version={{api_version}}
 X-Api-Version: {{api_version}}
 
@@ -214,14 +209,14 @@ X-Api-Version: {{api_version}}
 # env.json dev: "default_page_size": "20"
 # No file-level or request-level override
 # Expected: {{default_page_size}} → "20"
-# Run with: poste run --env dev
+# Run with the dev environment selected (<leader>vv / :PosteHttpEnv)
 GET {{host}}/anything/env-fallback?page_size={{default_page_size}}
 X-Page-Size: {{default_page_size}}
 
 ### 22 — Priority: env.json staging environment
 # env.json staging: "api_version": "v2", "default_page_size": "50"
 # Expected: {{api_version}} → "v2", {{default_page_size}} → "50"
-# Run with: poste run --env staging
+# Run with the staging environment selected (<leader>vv / :PosteHttpEnv)
 GET {{host}}/anything/staging-check?version={{api_version}}&size={{default_page_size}}
 X-Api-Version: {{api_version}}
 X-Page-Size: {{default_page_size}}
@@ -234,7 +229,7 @@ X-Page-Size: {{default_page_size}}
 # The pre-script below sets client.global.session_token
 # This test verifies the session var is available in subsequent requests
 # Note: session vars are set via Lua in the Neovim plugin
-# For CLI testing, use: --session-vars '{"session_token":"sess-abc123"}'
+# (The pre-script below sets it; later blocks pick it up automatically.)
 < {% client.global.set('session_token', 'sess-abc123') %}
 GET {{host}}/anything/session-test
 Authorization: Bearer {{session_token}}
@@ -250,7 +245,7 @@ Authorization: Bearer {{session_token}}
 ### 25 — Script var: request.variables.set
 # The pre-script below sets a request-scoped variable
 # Note: script_variables are set via Lua in the Neovim plugin
-# For CLI testing, use: --script-vars '{"script_var_name":"script_value_abc"}'
+# (The pre-script below sets it.)
 < {% request.variables.set('script_var_name', 'script_value_abc') %}
 GET {{host}}/anything/script-var-test
 X-Script-Var: {{script_var_name}}
@@ -268,7 +263,7 @@ X-Session-User-Id: {{global_user_id}}
 # env.json dev: "auth_token_dev": "dev-secret-token-abc123"
 # Session var: auth_token_dev = "session-override-token"
 # Expected: {{auth_token_dev}} → "session-override-token" (session wins)
-# For CLI: --session-vars '{"auth_token_dev":"session-override-token"}'
+# Set client.global.set('auth_token_dev', ...) in an earlier block to override.
 GET {{host}}/anything/session-vs-env
 X-Auth-Token: {{auth_token_dev}}
 
@@ -325,7 +320,7 @@ run #imported.Login (@timeout=30, @username=admin, @password=secret, @role=admin
 # These are now available as {{imported_token}}, {{imported_user_id}}, etc.
 # via the session_vars layer (P4) of the VarResolver.
 #
-# For CLI testing: --session-vars '{"imported_token":"sess_...","imported_user_id":"user_..."}'
+# (Block #28's imported post-script sets these automatically.)
 GET {{host}}/session/verify
 Authorization: Bearer {{imported_token}}
 X-User-Id: {{imported_user_id}}
@@ -346,20 +341,24 @@ X-Session-Id: {{imported_session_id}}
 #   - {{default_user}} resolves to file-level "anonymous" (P3) — no import param override
 #   - Import params for user_id and auth_token flow through correctly
 #
-# For CLI: --import-params '{"user_id":"42","auth_token":"import-token"}'
+# (The run line below passes them inline as (@user_id=42, @auth_token=import-token).)
 run #imported.GetUser (@user_id=42, @auth_token=import-token)
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Category 7: Edge cases
 # ═════════════════════════════════════════════════════════════════════════════
 
-### 31 — Edge case: undefined variable remains {{unresolved}}
-# {{undefined_var}} has no definition at any layer
-# Expected: {{undefined_var}} is preserved as-is (not resolved)
+### 31 — Edge case: undefined variable blocks the request
+# {{undefined_var}} has no definition at any layer.
+# Expected: the request is NOT sent — the plugin fails fast with a
+# "Cannot resolve variable" entry in the Errors tab.
 GET {{host}}/anything/undefined-test
 X-Undefined: {{undefined_var}}
 
-### 32 — Edge case: empty string value
+### 32 — Edge case: empty @var assignment counts as undefined
+# `@empty_val =` with no value does not define a variable, so the request
+# is blocked with a "Cannot resolve variable '{{empty_val}}'" error,
+# same as #31.
 @empty_val =
 GET {{host}}/anything/empty-var
 X-Empty: {{empty_val}}
@@ -403,7 +402,7 @@ X-Composite: {{composite_url}}
 ### 39 — Edge case: env.json variable in response header
 # env.json dev: "env_name": "dev-environment"
 # Expected: {{env_name}} → "dev-environment"
-# Run with: poste run --env dev
+# Run with the dev environment selected (<leader>vv / :PosteHttpEnv)
 GET {{host}}/anything/env-name
 X-Env-Name: {{env_name}}
 
@@ -435,23 +434,22 @@ Content-Type: application/json
 # ═════════════════════════════════════════════════════════════════════════════
 
 ### 42 — Cross-request ref: reference previous response body
-# This test uses the response from request #01 (the UUID endpoint)
-# {{01 — Health check|Magic vars|Cross-refs.response.body.uuid}}
-# Expected: resolves to the UUID returned by request #01
+# {{01_healthcheck.response.body.status}}
+# Expected: "ok" — the status value returned by request #01
 GET {{host}}/anything/cross-ref
-X-Previous-UUID: {{01 — Health check|Magic vars|Cross-refs.response.body.uuid}}
+X-Previous-Status: {{01_healthcheck.response.body.status}}
 
-### 43 — Cross-request ref: deeper nested path
-# {{02 — File-level @var: simple reference.response.body.headers.X-Source}}
+### 43 — Cross-request ref: header of a previous response
+# The playground echoes header names lowercased (FastAPI).
 # Expected: "file-level-var"
 GET {{host}}/anything/cross-ref-header
-X-Previous-Source: {{02 — File-level @var: simple reference.response.body.headers.X-Source}}
+X-Previous-Source: {{02 — File-level @var: simple reference.response.body.headers.x-source}}
 
-### 44 — Cross-request ref: array index access
-# {{41 — Cross-request ref: reference previous response body.response.body.headers}}
+### 44 — Cross-request ref: nested object from a previous response
+# {{42 — Cross-request ref: reference previous response body.response.body.headers}}
 # Tests accessing a nested object from a previous response
 GET {{host}}/anything/cross-ref-nested
-X-Previous-Headers: {{41 — Cross-request ref: reference previous response body.response.body.headers}}
+X-Previous-Headers: {{42 — Cross-request ref: reference previous response body.response.body.headers}}
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Category 9: Prompt variables (<<name)
@@ -508,9 +506,7 @@ X-Method: {{method}}
 #   3. When Request B is run, Lua passes --session-vars to poste resolve/run
 #   4. The CLI resolver finds the variable in the session_vars layer
 #
-# For standalone CLI testing, pass --session-vars explicitly:
-#   poste run --line <line_B> --session-vars '{"session_token":"sess_<token>"}'
-#   poste resolve --var session_token --session-vars '{"session_token":"sess_<token>"}'
+# Run #47 first; its post-script sets every variable the blocks below use.
 
 ### 47 — Post-script: set global var from response body
 # Sends login credentials → receives session_token + user.id in response

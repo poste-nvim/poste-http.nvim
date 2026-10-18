@@ -1,9 +1,9 @@
-# Import helper for P0.7 import/run batch test
+# Import helper for the import/run batch test
 # All requests in this file are executed via `run ./helper_batch.http`
-@base_url = http://postman-echo.com
+@base_url = http://localhost:8888
 
-### GetIP
-GET {{base_url}}/ip
+### GetUuid
+GET {{base_url}}/uuid
 
-### GetUA
-GET {{base_url}}/user-agent
+### GetJson
+GET {{base_url}}/json

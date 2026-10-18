@@ -1,8 +1,10 @@
-# File-level variables (shared across all requests)
-@base_url = https://httpbin.org
+# File-level variables are shared by every request in this file;
+# a request-level @var (inside a block) overrides them for that block only.
+
+@base_url = http://localhost:8888
 @timeout = 30
 
-### GET request with file variables
+### GET with file variables
 GET {{base_url}}/get?timeout={{timeout}}
 
 ### POST with request-level variables
@@ -17,36 +19,20 @@ Content-Type: application/json
   "timeout": {{timeout}}
 }
 
+### Request-level @base_url overrides the file-level one
+# Only this block talks to 127.0.0.1; the file-level value is unchanged.
+@base_url = http://127.0.0.1:8888
+GET {{base_url}}/anything/override-demo
 
-### Variable priority test
-@host = request-level.com
-GET https://{{host}}/anything
-
-### POST with request-level variables
-@user_id = 123
-@user_name = John Doe
-POST {{base_url}}/post
-Content-Type: application/json
-
-{
-  "user_id": "{{user_id}}",
-  "name": "{{user_name}}",
-  "timeout": {{timeout}}
-}
-
-
-
-### POST with random variables
+### Random values from a pre-request script
 < {%
-  local randInt = math.random(5, 8);
-  request.variables.set('userId', randInt);
-  math.randomseed(os.time());
-  local names = {"Jack", "Jhon", "Rose", "Doe"};
-  local name = names[math.random(#names)];
-  request.variables.set('name', name);
+  math.randomseed(os.time())
+  local randInt = math.random(5, 8)
+  request.variables.set('userId', randInt)
+  local names = {"Jack", "John", "Rose", "Doe"}
+  request.variables.set('name', names[math.random(#names)])
 %}
-@base_url = http://localhost:8888
-POST {{base_url}}/anything
+POST {{base_url}}/anything/random-vars
 Content-Type: application/json
 
 {
@@ -54,4 +40,3 @@ Content-Type: application/json
   "name": "{{name}}",
   "timestamp": {{$timestamp}}
 }
-

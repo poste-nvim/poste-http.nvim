@@ -1,7 +1,7 @@
-# Import helper for P0.7 import/run tests
-# Requests are imported into p0_features.http via `import ./helper_auth.http as auth`
+# Import helper for the import/run tests
+# Requests are imported into feature_suite.http via `import ./helper_auth.http as auth`
 
-@base_url = http://postman-echo.com
+@base_url = http://localhost:8888
 @token = file_token
 
 ### Login
@@ -14,7 +14,7 @@ Content-Type: application/json
 }
 
 > {%
-  client.log('username:' .. response.body.data.username)
+  client.log('username: ' .. response.body.json.username)
 %}
 
 ### LoginWithToken

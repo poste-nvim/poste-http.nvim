@@ -1,6 +1,6 @@
 # Poste multi-protocol manual test scenarios.
 # Requires the playground services:
-#   docker compose -f playground/multi-protocol/docker-compose.yml up -d --build
+#   docker compose -f playground/docker-compose.yml up -d --build
 # Requires client tools (Poste checks them via :checkhealth poste-http):
 #   brew install grpcurl websocat
 
@@ -77,7 +77,7 @@ GRPC {{grpc_host}}/poste.test.v1.EchoService/Fail
 
 ### WebSocket: batch send and collect — check the Msgs tab (M)
 # @ws-wait-ms 2000
-WEBSOCKET {{ws_url}}
+WS {{ws_url}}/
 
 {"type": "subscribe", "channel": "news"}
 {"type": "ping"}
@@ -85,13 +85,13 @@ plain echo frame
 
 ### WebSocket: server push — emit asks for 3 pushed frames
 # @ws-wait-ms 2000
-WEBSOCKET {{ws_url}}
+WSS {{ws_url}}/
 
 {"type": "emit", "channel": "news"}
 
-# WebSocket: interactive session — frames stream live;
-### press s to send a message, c to close
+### WebSocket: interactive session (the full WEBSOCKET spelling)
+# Frames stream live; press s to send a message, c to close.
 # @ws-interactive
-WEBSOCKET {{ws_url}}
+WEBSOCKET {{ws_url}}/
 
 {"type": "subscribe", "channel": "news"}

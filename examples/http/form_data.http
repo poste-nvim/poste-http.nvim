@@ -1,16 +1,16 @@
 @name=John
 @age=30
-@base_url = https://postman-echo.com
+@base_url = http://localhost:8888
 
-### URL Encoded Form
-POST {{base_url}}/post
+### URL-encoded form (the server parses it at /form)
+POST {{base_url}}/form
 Content-Type: application/x-www-form-urlencoded
 Accept: application/json
 
 name={{name}}&age={{age}}&city=NewYork
 
-### Multipart Form with File Upload
-POST {{base_url}}/post HTTP/1.1
+### Multipart form with a file upload (the server parses it at /upload)
+POST {{base_url}}/upload HTTP/1.1
 Content-Type: multipart/form-data; boundary=----WebKitFormBoundary_upload
 
 ------WebKitFormBoundary_upload
@@ -27,7 +27,7 @@ Content-Type: text/plain
 
 < ./upload_test.txt
 
-------WebKitFormBoundary_upload
+------WebKitFormBoundary_upload--
 
 ### Simple JSON POST
 POST {{base_url}}/post
@@ -38,8 +38,8 @@ Content-Type: application/json
   "age": {{age}}
 }
 
-### Multipart with Multiple Files
-POST https://httpbin.org/post HTTP/1.1
+### Multipart with multiple files
+POST {{base_url}}/upload HTTP/1.1
 Content-Type: multipart/form-data; boundary=----Boundary_multipart
 
 ------Boundary_multipart
@@ -52,10 +52,8 @@ Content-Type: text/plain
 
 < ./variables.http
 ------Boundary_multipart
-Content-Disposition: form-data; name="file2"; filename="prompt.http"
+Content-Disposition: form-data; name="file2"; filename="prompt_variables.http"
 Content-Type: text/plain
 
 < ./prompt_variables.http
-------Boundary_multipart
-
-
+------Boundary_multipart--

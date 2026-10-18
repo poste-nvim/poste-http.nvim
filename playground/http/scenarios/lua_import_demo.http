@@ -26,7 +26,7 @@ import ../data/lua_vars.lua as m
 @first_tag = m.tags[1]
 @config_endpoint = m.config.endpoint
 @first_user_name = m.users[1].name
-@base_url = {{api_base}}
+@base_url = http://localhost:8888
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Demo 1: Simple values in URL, headers, and body
@@ -60,8 +60,8 @@ GET {{base_url}}/anything/tag/{{first_tag}}
 X-Tags: {{m.tags[1]}}, {{m.tags[2]}}, {{m.tags[3]}}
 
 ### 05 — Deeply nested
-# {{config_endpoint}} → "https://api.example.com" (from m.config.endpoint)
-GET {{config_endpoint}}/status
+# {{config_endpoint}} → "http://localhost:8888" (from m.config.endpoint)
+GET {{config_endpoint}}/anything/from-lua-config
 X-Timeout: {{m.config.timeout}}
 
 ### 06 — Array of objects

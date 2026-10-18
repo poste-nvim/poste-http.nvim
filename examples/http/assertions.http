@@ -1,5 +1,5 @@
 ### Test GET request with passing assertions
-GET https://httpbin.org/get?name=test&value=123
+GET http://localhost:8888/get?name=test&value=123
 
 > {%
   client.test("Status is 200", function()
@@ -15,7 +15,7 @@ GET https://httpbin.org/get?name=test&value=123
 %}
 
 ### Test with failing assertion
-GET https://httpbin.org/get
+GET http://localhost:8888/get
 
 > {%
   client.test("Status is 404 (intentional failure demo)", function()
@@ -27,7 +27,7 @@ GET https://httpbin.org/get
 %}
 
 ### Test POST with JSON body
-POST https://httpbin.org/post
+POST http://localhost:8888/post
 Content-Type: application/json
 
 {
@@ -44,4 +44,4 @@ Content-Type: application/json
 %}
 
 ### Test without assertions
-GET https://httpbin.org/status/201
+GET http://localhost:8888/status/201

@@ -1,4 +1,5 @@
-# Test environment variables from env.json (dev environment)
+# Environment variables from env.json (the "dev" environment is the default;
+# switch with <leader>vv or :PosteHttpEnv).
 
 ### Get Base URL
 GET {{base_url}}/get

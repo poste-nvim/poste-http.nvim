@@ -1,5 +1,9 @@
+# Response chaining: {{Name.response.body...}} reads a previous block's response.
+
+@base_url = http://localhost:8888
+
 ### Login
-POST https://httpbin.org/post
+POST {{base_url}}/post
 Content-Type: application/json
 
 {
@@ -7,18 +11,18 @@ Content-Type: application/json
   "password": "secret123"
 }
 
-### Get User Profile
-GET https://httpbin.org/get?user={{Login.response.body.json.username}}
+### Get user profile (username from the Login response body)
+GET {{base_url}}/get?user={{Login.response.body.json.username}}
 Accept: application/json
 
-### Get User Orders
-GET https://httpbin.org/get?user={{Login.response.body.json.username}}&token={{Login.response.body.url}}
+### Get user orders (request URL from the Login response)
+GET {{base_url}}/get?user={{Login.response.body.json.username}}&token={{Login.response.body.url}}
 Accept: application/json
 
-### Get Response Header
-GET https://httpbin.org/get?content_type={{Login.response.headers.content-type}}
+### Read a response header of a previous request
+GET {{base_url}}/get?content_type={{Login.response.body.headers.content-type}}
 Accept: application/json
 
-### Chained Request
-GET https://httpbin.org/get?previous={{Get User Profile.response.body.url}}
+### Chained request (two hops)
+GET {{base_url}}/get?previous={{Get user profile.response.body.url}}
 Accept: application/json

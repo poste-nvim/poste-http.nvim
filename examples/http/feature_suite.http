@@ -1,15 +1,18 @@
 import ./helper_auth.http as auth
 import ./helper_batch.http as batch
 
-# P0 Feature Verification Suite
-# Tests for Phase 0 features implemented in http-impl-guide.md
+# Feature Verification Suite
 #
-# Run individual requests in order. Results appear in the response buffer.
-# File-level @variable (used by 0.5 variables.* sandbox)
-# Import helpers for 0.7 cross-file execution tests
-# :%!./target/debug/poste fmt --stdin
-@base_url = https://httpbin.org
-@base_url = https://postman-echo.com
+# Every feature gets a numbered block with its own assertions. Blocks whose
+# name says "visual only" need eyes on Neovim (highlighting / completion);
+# everything else runs headless-ready against the local playground server:
+#   docker compose -f playground/docker-compose.yml up -d http
+#
+# Run a block with the cursor on its request line and press <CR>
+# (or :PosteHttpRun). Blocks whose name starts with "0." verify one
+# feature; the comment above each block says what to expect.
+
+@base_url = http://localhost:8888
 @api_version = v1
 
 ### 0 Magic variables: all four types
@@ -24,8 +27,6 @@ Content-Type: application/json
 # ────────────────────────────────────────────────────────────────────
 # 0.1 {{$magic}} — magic variable substitution
 # ────────────────────────────────────────────────────────────────────
-# Tests that Rust parser generates $timestamp, $uuid, $date, $randomInt.
-
 
 ### 0.1 Magic variables: all four types
 POST {{base_url}}/post
@@ -53,12 +54,11 @@ end)
 %}
 
 # ────────────────────────────────────────────────────────────────────
-# 0.2 Pre/Post script syntax highlighting (Vim)
+# 0.2 Pre/Post script syntax highlighting (visual check)
 # ────────────────────────────────────────────────────────────────────
-# Visual check: open this file in Neovim.
-# - < {% and > {% regions should be highlighted
-# - client.test, response.status, request.variables inside blocks
-#   should appear in Function color (PosteScriptAPI)
+# Open this file in Neovim: < {% and > {% regions should be highlighted,
+# and client.test / response.status / request.variables inside the blocks
+# should render in the script-API color.
 
 ### 0.2 Syntax highlighting check (visual only)
 < {%
@@ -77,10 +77,9 @@ client.log("Post-script: response status " .. response.status)
 %}
 
 # ────────────────────────────────────────────────────────────────────
-# 0.3 Completion for variables.* / env.* (Neovim)
+# 0.3 Completion for variables.* / env.* inside script blocks
 # ────────────────────────────────────────────────────────────────────
-# Visual check: type "variables." or "env." inside a < {% block.
-# Should see completions like variables.base_url, env.api_key.
+# Visual check: type "variables." or "env." inside the < {% block below.
 
 ### 0.3 Completion check (visual only — type inside the block below)
 < {%
@@ -96,8 +95,6 @@ GET {{base_url}}/get?url={{from_vars}}
 # ────────────────────────────────────────────────────────────────────
 # 0.4 > ./path.lua — external assertion script
 # ────────────────────────────────────────────────────────────────────
-# Tests that assertions.lua loads and executes external .lua files.
-
 
 ### 0.4 External assertion script
 GET {{base_url}}/get?source=external_assertion
@@ -105,10 +102,8 @@ GET {{base_url}}/get?source=external_assertion
 > ./scripts/assert_response.lua
 
 # ────────────────────────────────────────────────────────────────────
-# 0.5 variables.* / env.* in sandbox
+# 0.5 variables.* / env.* in the sandbox
 # ────────────────────────────────────────────────────────────────────
-# Tests that @var definitions are available as variables.name
-# and env.json keys as env.name inside pre/post scripts.
 
 ### 0.5.1 Pre-script: read @file vars via variables.*
 < {%
@@ -123,7 +118,7 @@ client.test("0.5.1: variables.* in pre-script", function()
   client.assert(response.status == 200, "Expected 200")
   local args = response.body.args
   client.assert(args.url ~= nil, "url arg should exist")
-  client.assert(args.url:find("postman%-echo%.com") ~= nil, "url should contain base_url")
+  client.assert(args.url:find("localhost:8888") ~= nil, "url should contain base_url")
 end)
 %}
 
@@ -140,9 +135,9 @@ end)
 %}
 
 ### 0.5.3 Block-level var overrides file-level var
-@base_url = https://postman-echo.com
+@base_url = http://127.0.0.1:8888
 < {%
-client.log("variables.base_url should be postman-echo.com: " .. tostring(variables.base_url))
+client.log("variables.base_url should be 127.0.0.1: " .. tostring(variables.base_url))
 request.variables.set("final_url", variables.base_url .. "/get")
 %}
 GET {{base_url}}/get?override={{base_url}}
@@ -169,10 +164,8 @@ end)
 %}
 
 # ────────────────────────────────────────────────────────────────────
-# 0.6 < path — file content inclusion (kulala syntax)
+# 0.6 < path — file content inclusion in the body
 # ────────────────────────────────────────────────────────────────────
-# Tests that request_vars.lua replaces < path with file contents.
-# Uses a relative path to a JSON file in the examples directory.
 
 ### 0.6 File include in body
 POST {{base_url}}/post
@@ -183,22 +176,19 @@ Content-Type: application/json
 > {%
 client.test("0.6: file include in body", function()
   client.assert(response.status == 200, "Expected 200")
-  local body = response.body
-  client.assert(next(body.data) ~= nil, "Body should contain file contents")
-  client.assert(body.data.name:find("Alice") ~= nil, "Body should contain 'Alice' from the file")
-  client.assert(body.data.role:find("admin") ~= nil, "Body should contain 'admin' from the file")
+  local j = response.body.json
+  client.assert(j ~= nil, "Body should contain the parsed JSON file")
+  client.assert(j.name:find("Alice") ~= nil, "Body should contain 'Alice' from the file")
+  client.assert(j.role:find("admin") ~= nil, "Body should contain 'admin' from the file")
 end)
 %}
 
 # ────────────────────────────────────────────────────────────────────
 # 0.6b < path — multipart form-data file upload
 # ────────────────────────────────────────────────────────────────────
-# Tests that < path in multipart form-data reads file content and uploads it.
-# Uses a simple text file.
 
 ### 0.6b File upload via multipart form-data
-@base_url = https://httpbin.org
-POST {{base_url}}/post
+POST {{base_url}}/upload
 Content-Type: multipart/form-data; boundary=boundary-{{$timestamp}}
 
 --boundary-{{$timestamp}}
@@ -216,9 +206,10 @@ client.test("0.6b: file upload in multipart form-data", function()
   client.assert(response.status == 200, "Expected 200")
   local files = response.body.files
   client.assert(files ~= nil, "Response should contain 'files' field")
-  client.log("Uploaded file content: " .. tostring(files["file"]))
-  client.assert(files["file"] ~= nil, "File should be in uploaded files")
-  client.assert(files["file"]:find("Hello from Poste") ~= nil, "File content should match")
+  local f = files["file"]
+  client.assert(f ~= nil, "File should be in uploaded files")
+  client.assert(f.content_preview:find("Hello from Poste") ~= nil,
+    "File content should match: " .. tostring(f.content_preview))
 end)
 %}
 
@@ -226,10 +217,10 @@ end)
 # 0.7 import / run — cross-file request execution
 # ────────────────────────────────────────────────────────────────────
 # File-level `import` directives loaded:
-#   import ./helper_auth.http as auth    ← Login + Profile
-#   import ./helper_batch.http as batch  ← GetIP + GetUA
+#   import ./helper_auth.http as auth    ← Login + LoginWithToken
+#   import ./helper_batch.http as batch  ← GetUuid + GetJson
 #
-# Place cursor on a `run` line below and press <leader>r to execute
+# Place the cursor on a `run` line below and press <CR> to execute
 # the imported request. Available variants:
 #
 #   run #auth.Login                     # single request via alias
@@ -237,30 +228,31 @@ end)
 #   run ./helper_batch.http             # all requests from file
 
 ### 0.7a run #auth.Login — single imported request via alias
-# Place cursor on `run` line below, press <leader>r.
-# Expected: POST to httpbin.org/post → 200 + request JSON echoed back.
-run #auth.Login
+# Place cursor on `run` line below, press <CR>.
+# Expected: POST to the playground /post → 200 + request JSON echoed back.
+RUN #auth.Login
 
 > {%
   client.test('username equals admin', function()
-    client.assert(response.body.data.username == 'admin')
+    client.assert(response.body.json.username == 'admin')
   end)
 %}
 
 ### 0.7b run #auth.Login (@token=abc123) — with variable override
-# Place cursor on `run` line below, press <leader>r.
-# `@token = abc123` auto-injected after `### Login` marker;
-# `{{token}}` becomes available in the target request.
-run #auth.LoginWithToken (@token=run_token)
+# Place cursor on `run` line below, press <CR>.
+# `@token = run_token` is injected after the `### LoginWithToken` marker;
+# `{{token}}` in the target request resolves to it.
+RUN #auth.LoginWithToken (@token=run_token)
 
 ### 0.7c run ./helper_batch.http — execute all requests from file
-# Place cursor on `run` line below, press <leader>r.
-# Expected: GetIP + GetUA execute sequentially; responses shown
+# Place cursor on `run` line below, press <CR>.
+# Expected: GetUuid + GetJson execute sequentially; responses shown
 # in result buffer with per-request progress notifications.
-run ./helper_batch.http
+RUN ./helper_batch.http
 
-import ./dynamic_prompts.feature.http as prompts
+import ./dynamic_prompts.http as prompts
 
 ### run request including prompt
-run #prompts.prompt_enhance
-
+# Interactive: the imported request prompts for input before running
+# (and its options come from the GitHub request in dynamic_prompts).
+RUN #prompts.prompt_enhance

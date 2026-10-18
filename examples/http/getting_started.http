@@ -1,0 +1,68 @@
+# Getting started: the feature tour against the local playground HTTP server.
+# Start it with:  docker compose -f playground/docker-compose.yml up -d http
+# Run blocks top to bottom (cursor on a request line, <CR>).
+
+@base_url = http://localhost:8888
+@api_key = sk-dev-abc123
+
+### Health check
+GET {{base_url}}/health
+Authorization: Bearer {{api_key}}
+Accept: application/json
+
+### Get users (query param from a pre-request script variable)
+< {%
+  local page = request.variables.get("page") or 1
+  request.variables.set("page", tostring(page))
+%}
+GET {{base_url}}/api/users?page={{page}}&limit=20
+Authorization: Bearer {{api_key}}
+
+### Create user (with post-request assertions)
+POST {{base_url}}/api/users
+Authorization: Bearer {{api_key}}
+Content-Type: application/json
+
+{
+  "name": "John",
+  "email": "john@example.com",
+  "role": "admin"
+}
+
+> {%
+  client.test("status is 201", function()
+    client.assert(response.status == 201, "Expected 201 Created")
+  end)
+  client.test("has id", function()
+    client.assert(response.body.id ~= nil, "Response should have an id")
+  end)
+%}
+
+### Get user by ID (the id the Create above returned)
+GET {{base_url}}/api/users/1
+Authorization: Bearer {{api_key}}
+
+### Block-level @var overrides the file-level one
+# The @base_url below wins over the file definition for this block only.
+# 127.0.0.1 and localhost are the same server here.
+@base_url = http://127.0.0.1:8888
+GET {{base_url}}/health
+
+### PUT via the method echo endpoint
+PUT {{base_url}}/put
+Content-Type: application/json
+
+{
+  "name": "John Updated"
+}
+
+### DELETE via the method echo endpoint
+DELETE {{base_url}}/delete
+
+### Magic variables in the query string
+GET {{base_url}}/anything/logs?ts={{$timestamp}}&uuid={{$uuid}}
+
+import ./fixtures/http-completion.http as fixtures
+
+### Run an imported request (cursor on the run line, press <CR>)
+RUN #fixtures.GetUser

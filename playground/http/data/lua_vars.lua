@@ -16,7 +16,7 @@ M.tags = { "rust", "lua", "neovim", "poste" }
 
 -- Nested data
 M.config = {
-  endpoint = "https://api.example.com",
+  endpoint = "http://localhost:8888",
   timeout = 5000,
   retry = 3,
 }

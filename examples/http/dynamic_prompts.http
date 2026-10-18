@@ -1,5 +1,5 @@
 
-@base_url = https://postman-echo.com
+@base_url = http://localhost:8888
 
 ### jq
 GET https://api.github.com/repos/jqlang/jq/commits?per_page=5
@@ -26,12 +26,12 @@ GET {{base_url}}/get?fruit={{fruit}}
 
 ### Static Options
 <<method [GET, POST, PUT, DELETE]
-GET https://httpbin.org/get?method={{method}}
+GET http://localhost:8888/get?method={{method}}
 
 ### Static Options
 <<method [GET|get|get something, POST|post|post something, PUT|put|put something, DELETE|del|delete obj]
-GET https://httpbin.org/get?method={{method}}
+GET http://localhost:8888/get?method={{method}}
 
 ### Text Input
 <<username
-GET https://httpbin.org/get?user={{username}}
+GET http://localhost:8888/get?user={{username}}
