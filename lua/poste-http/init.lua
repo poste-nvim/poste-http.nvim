@@ -44,6 +44,12 @@ function M.setup(opts)
     diagnostics = false,
   }, state.config.use_treesitter or {})
 
+  -- Re-apply highlight groups so `highlights = {}` passed in this setup()
+  -- call lands immediately instead of waiting for the ColorScheme/VimEnter
+  -- autocmds (http/highlights.lua). Idempotent: that module already re-runs
+  -- its whole definition on every colorscheme switch.
+  require("poste-http.http.highlights").setup()
+
   if vim.g.poste_setup_done then
     return
   end

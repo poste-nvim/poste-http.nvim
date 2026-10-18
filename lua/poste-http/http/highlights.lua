@@ -32,18 +32,26 @@ function M.setup()
   end
 
   -- Source file syntax highlight groups (linked to standard groups).
-  -- These provide sensible defaults for any colorscheme. Users can
-  -- override individual groups with :highlight PosteMethod guifg=#ff0000
-  -- and the override persists across colorscheme switches.
+  -- These provide sensible defaults for any colorscheme. Only-empty forms
+  -- are set, so a user's `:highlight` override of one of these groups
+  -- survives colorscheme switches; groups re-defined below with fixed
+  -- colours (methods, boundary, …) do not — the `highlights` config table
+  -- (state.apply_highlight_overrides) is the override that always persists.
   --
   -- Each group is defined in three forms:
   --   "PosteXxx"              — used by Vim syntax (syntax/poste_http.vim)
   --   "@PosteXxx"             — used by tree-sitter (generic)
   --   "@PosteXxx.poste_http"  — used by tree-sitter (language-specific)
+  -- Guarded per form, not per group: the Vim syntax file's `hi def link`
+  -- can beat this setup to the plain name (lazy-loading on
+  -- filetype=poste_http sources the syntax file first, and so does
+  -- tests/minimal_init.lua) — the @ forms must still get their default.
   local function define_hl(name, link)
-    vim.api.nvim_set_hl(0, name, { link = link })
-    vim.api.nvim_set_hl(0, "@" .. name, { link = link })
-    vim.api.nvim_set_hl(0, "@" .. name .. ".poste_http", { link = link })
+    for _, form in ipairs({ name, "@" .. name, "@" .. name .. ".poste_http" }) do
+      if vim.tbl_isempty(vim.api.nvim_get_hl(0, { name = form })) then
+        vim.api.nvim_set_hl(0, form, { link = link })
+      end
+    end
   end
 
   local syntax_links = {
@@ -111,10 +119,7 @@ function M.setup()
     { "PosteImportRefIndex", "Number" },
   }
   for _, pair in ipairs(syntax_links) do
-    local existing = vim.api.nvim_get_hl(0, { name = pair[1] })
-    if vim.tbl_isempty(existing) then
-      define_hl(pair[1], pair[2])
-    end
+    define_hl(pair[1], pair[2])
   end
 
   -- File references (< ./path / > ./path): underline like Include

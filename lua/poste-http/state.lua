@@ -163,6 +163,16 @@ function M.apply_highlight_overrides(group_names)
     local attr = overrides[name]
     if attr then
       vim.api.nvim_set_hl(0, name, attr)
+      -- Source-syntax groups are also defined as tree-sitter forms
+      -- (`@Name`, `@Name.poste_http` in http/highlights.lua); `.http`
+      -- buffers are highlighted by those captures, so an override that
+      -- only set the plain name would leave the buffer unstyled. Mirror
+      -- onto variants that already exist; UI-only groups have none.
+      for _, variant in ipairs({ "@" .. name, "@" .. name .. ".poste_http" }) do
+        if not vim.tbl_isempty(vim.api.nvim_get_hl(0, { name = variant })) then
+          vim.api.nvim_set_hl(0, variant, attr)
+        end
+      end
     end
   end
 end
