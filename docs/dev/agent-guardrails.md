@@ -1,230 +1,281 @@
-# Agent Guardrails — 硬约束与事故清单
+# Agent Guardrails — hard constraints and incident log
 
-> 写给在本仓库工作的 AI agent（对人类贡献者同样有效）。
-> 每条规则都来自真实事故，标注出处；开工前先读 `AGENTS.md` 与 `LEARNINGS.md`，
-> **写 UI 代码或写测试之前**必读本文件。
-> 维护约定：新踩的坑 → 先进 `LEARNINGS.md`；若它反映的是「流程会反复诱导犯错」
-> 而非一次性失误，再升级为这里的规则。
+> Written for AI agents working in this repository (equally true for human
+> contributors). Every rule below comes from a real incident, with the source
+> noted. Read `AGENTS.md` and `LEARNINGS.md` before starting, and read this
+> file **before writing any UI code or any tests**.
+> Maintenance convention: a newly stepped-on pit goes into `LEARNINGS.md`
+> first; if it reflects "a process that keeps inviting the same mistake"
+> rather than a one-off slip, promote it to a rule here.
 
-规则分级：
+Rule levels:
 
-- **MUST（硬规则）**：违反视为实现错误，review 直接打回。§5 的 grep 自检可机检。
-- **SHOULD（默认规则）**：偏离时必须在提交说明里写明理由。
+- **MUST (hard rule)**: violating one is an implementation error; review
+  rejects it outright. The §5 greps make part of this machine-checkable.
+- **SHOULD (default rule)**: deviating requires stating the reason in the
+  commit message.
 
 ---
 
-## 1. UI 渲染 MUST 走 `lua/poste-http/ui/` 原语，禁止手搓
+## 1. UI rendering MUST go through the `lua/poste-http/ui/` primitives — no hand-rolling
 
-**事故（2026-08-30）**：`ui/` 只有 `columns.lua` 时，
-9 处浮窗样板守卫完备度分三档——`help.lua` 打开失败不清理 buffer、`image.lua`
-连 `pcall` 都没有、只有 `select.lua` 有 WinClosed 兜底；截断有 5 套实现 3 种语义
-（outline/inspector 是字节级，CJK 被切碎）；method→高亮映射 4 份且已漂移
-（outline/symbols 不认识 OPTIONS/SCRIPT）。**样板复制必然漏守卫、映射必然漂移。**
+**Incident (2026-08-30)**: when `ui/` consisted only of `columns.lua`, nine
+copies of float boilerplate had three different levels of guard completeness —
+`help.lua` leaked the buffer when opening failed, `image.lua` had no `pcall`
+at all, and only `select.lua` had a WinClosed fallback; truncation had 5
+implementations with 3 different semantics (outline/inspector truncated by
+byte, splitting CJK characters in half); the method→highlight mapping existed
+4 times and had already drifted (outline/symbols did not recognize
+OPTIONS/SCRIPT). **Copied boilerplate always misses guards; copied mappings
+always drift.**
 
-| 要做的事 | 必须用 | 禁止手写 |
+| Task | Must use | Never hand-write |
 |---|---|---|
-| 浮窗 | `ui/float.open` | `nvim_open_win` + 手写居中/q 键/失败清理/WinClosed |
-| 写行进 buffer | `ui/render.set_lines` | modifiable 三连（历史 bug：漏半截 → 空分支不渲染） |
-| 显示截断 | `ui/text.truncate` / `ui/text.middle` | `#s` 字节截断、`strchars` 字符截断 |
-| method/status 高亮 | `ui/semantics.method_hl` / `status_hl` | 就地写映射表（已经漂移过 4 份） |
-| winbar tab 行 | `ui/winbar.render_tabs` / `cycle` | 手拼 `TabLineSel` 字符串 |
-| 键位注册 | `ui/keymaps.register(_all)` | `get_keymap + if k then keymap.set` 逐条手写 |
-| 列对齐 | `ui/columns.render` | `string.format("%-8s")` 拼列 |
-| 兜底选择器 | `ui/picker.open` | 复制一份搜索/导航/关闭兜底逻辑 |
-| 用户提示 | `ui/notify.notify` | 直接调 `vim.notify`（§5.1 可机检） |
+| Float window | `ui/float.open` | `nvim_open_win` + hand-written centering / `q` key / failure cleanup / WinClosed |
+| Writing lines into a buffer | `ui/render.set_lines` | the modifiable trio (past bug: a partial miss → empty branch rendered nothing) |
+| Display truncation | `ui/text.truncate` / `ui/text.middle` | `#s` byte truncation, `strchars` char truncation |
+| method/status highlight | `ui/semantics.method_hl` / `status_hl` | in-place mapping tables (already drifted across 4 copies) |
+| winbar tab row | `ui/winbar.render_tabs` / `cycle` | hand-concatenated `TabLineSel` strings |
+| keymap registration | `ui/keymaps.register(_all)` | `get_keymap + if k then keymap.set` written per entry |
+| column alignment | `ui/columns.render` | `string.format("%-8s")` column gluing |
+| fallback picker | `ui/picker.open` | copying the search/nav/close fallback logic a second time |
+| user messages | `ui/notify.notify` | calling `vim.notify` directly (§5.1 is machine-checked) |
 
 ```lua
--- ❌ 禁止：手搓浮窗（守卫一定会漏——历史上 9 处漏了 3 种）
+-- ❌ Forbidden: hand-rolled float (guards WILL be missed — 9 historical
+-- copies missed 3 different kinds)
 local ok, win = pcall(vim.api.nvim_open_win, buf, true, {
   relative = "editor", width = w, height = h,
   row = math.floor((vim.o.lines - h) / 2), col = math.floor((vim.o.columns - w) / 2),
   style = "minimal", border = "rounded", title = t, title_pos = "center",
 })
 
--- ✅ 正确：守卫（失败清理、close keymap、on_close、无 title 回退）在原语里
+-- ✅ Correct: the guards (failure cleanup, close keymap, on_close, no-title
+-- fallback) live inside the primitive
 local buf, win = float.open({ width = w, height = h, title = t, on_close = cleanup })
 ```
 
-需要原语没有的能力时，**扩展原语并补测试**（如 `close_keys = {}`、`win_opts`、
-`base_opts` 都是这么加的），不要绕过它。
+When you need a capability the primitive lacks, **extend the primitive and add
+tests** (that is exactly how `close_keys = {}`, `win_opts` and `base_opts`
+were added) instead of bypassing it.
 
-### 1.1 消息文案风格（`ui/notify` 契约，2026-09-30 收敛）
+### 1.1 Message copy style (the `ui/notify` contract, converged 2026-09-30)
 
-**事故（2026-09-30 review）**：113 处 `vim.notify` 直接调用沉淀出 7 种前缀
-（`[Poste]`/`Poste:`/`poste:`/`poste-http`/`PosteHttp`/`[poste]`/无前缀）×
-4 种 title 写法，`run.lua` 自己就混两种。归属信息忽隐忽现，noice/fidget 用户
-无法按插件过滤。
+**Incident (2026-09-30 review)**: 113 direct `vim.notify` calls had settled
+into 7 prefixes (`[Poste]`/`Poste:`/`poste:`/`poste-http`/`PosteHttp`/
+`[poste]`/none) × 4 title styles; `run.lua` alone mixed two. Attribution
+flickered in and out, and noice/fidget users could not filter by plugin.
 
-- **归属由 title 承担**（`constants.NOTIFY_TITLE`），消息正文是裸句子，禁止
-  任何前缀。确需子场景区分时用 `opts.title` 覆盖。
-- **wrapper 不改写正文**（NUL 清理 + 200 列截断除外）：句首大写由调用点负责；
-  行首工具名/占位符（`jq error`、`{{var}}`）保持原样——自动大写会把
-  "jq error" 变成 "Jq error"。
-- **level 判定**：状态告知/成功回执 = INFO；前置条件不满足、用户取消、可恢复
-  降级 = WARN；操作执行失败（请求、导入、脚本、外部命令）= ERROR。
-- **notify 与 state.log 互不重复**：`ui/notify` 已自动镜像进 log sink，调用点
-  不要再对同一条消息手写 `state.log`；反过来纯诊断信息（用户不需要看）直接
-  `state.log`，不要 notify。
-- **禁止静默失败**：任何走到 `callback(false/nil)` 的失败分支必须已有调用点
-  侧 notify（批处理路径逐项 notify 视为已覆盖），只打错误指示器不算提示。
-
----
-
-## 2. 分层 MUST：`format/` 只做「响应体 → 行数据」
-
-**事故（U6）**：`format/image.lua` 涨到 682 行，混了内容类型表、第三方渲染适配、
-URL 下载+缓存（网络 I/O）、浮窗 UI 四种职责。
-
-- `http/format/` 内禁止：网络请求、磁盘缓存、`nvim_open_win`、临时文件管理。
-  这类基础设施放独立模块（参照 `http/image_cache.lua`）。
-- 窗口代码不进 `http/` 业务模块（AGENTS.md 原有约定，`ui/float.lua` 是唯一例外）。
-- 新文件超过 ~500 行、或一个文件里能数出 ≥3 种职责时，先拆再继续加功能。
+- **Attribution is carried by the title** (`constants.NOTIFY_TITLE`); the
+  message body is a bare sentence with no prefix of any kind. When a
+  sub-scenario truly needs distinguishing, override with `opts.title`.
+- **The wrapper never rewrites the body** (except NUL cleanup and 200-column
+  truncation): sentence capitalization is the caller's job; leading tool
+  names/placeholders (`jq error`, `{{var}}`) stay as-is — auto-capitalizing
+  would turn "jq error" into "Jq error".
+- **Level choice**: status reports / success receipts = INFO; unmet
+  preconditions, user cancellation, recoverable degradation = WARN; an
+  operation that failed to execute (request, import, script, external
+  command) = ERROR.
+- **notify and state.log never duplicate each other**: `ui/notify` already
+  mirrors into the log sink, so call sites must not hand-write `state.log`
+  for the same message; the other way round, purely diagnostic info the user
+  does not need to see goes to `state.log` directly, not to notify.
+- **No silent failures**: any failure branch that reaches
+  `callback(false/nil)` must already have a call-site notify (per-item notify
+  inside a batch path counts as covered); an error indicator alone does not
+  count as telling the user.
 
 ---
 
-## 3. Lua 语言陷阱（本次实撞，必读）
+## 2. Layering MUST: `format/` only turns "response body → line data"
 
-### 3.1 局部名遮蔽 require 的模块
+**Incident (U6)**: `format/image.lua` grew to 682 lines mixing four
+responsibilities: content-type tables, third-party render adapters, URL
+download + caching (network I/O), and float-window UI.
 
-**事故**：`outline.lua` 有本地函数 `render`，新加的
-`local render = require("poste-http.ui.render")` 被它遮蔽，运行时炸
-`attempt to index upvalue 'render' (a function value)`，测试才暴露。
+- Inside `http/format/` there must be none of: network requests, disk caches,
+  `nvim_open_win`, temp-file management. That infrastructure goes into
+  dedicated modules (see `http/image_cache.lua`).
+- Window code stays out of `http/` business modules (a pre-existing AGENTS.md
+  convention; `ui/float.lua` is the single exception).
+- When a new file passes ~500 lines, or a single file shows ≥3 countable
+  responsibilities, split it before adding more features.
 
-- **MUST**：require 一个模块前，先看本文件是否已有同名 local（函数或变量）；
-  冲突时用别名（`local ui_render = require(...)`）并注释原因。
+---
 
-### 3.2 pcall 截断多返回值
+## 3. Lua language traps (all hit for real — must read)
 
-**事故**：`pcall(function() return float.open(...) end)` 只拿到第一个返回值
-（buf），把 buf id 当 window 去关，窗口关不掉、测试失败。
+### 3.1 A local name shadowing a required module
+
+**Incident**: `outline.lua` had a local function `render`; a newly added
+`local render = require("poste-http.ui.render")` was shadowed by it and blew
+up at runtime with `attempt to index upvalue 'render' (a function value)` —
+only the tests exposed it.
+
+- **MUST**: before requiring a module, check the file for an existing local
+  of the same name (function or variable); on conflict use an alias
+  (`local ui_render = require(...)`) and comment why.
+
+### 3.2 pcall truncates multiple return values
+
+**Incident**: `pcall(function() return float.open(...) end)` captured only
+the first return value (buf); the code then treated the buf id as a window id
+and closed the wrong thing — the window would not close and the test failed.
 
 ```lua
--- ❌ 只拿到 buf
+-- ❌ only the buf comes through
 local ok, out_win = pcall(function() return float.open(opts) end)
--- ✅ 显式收窄到需要的值
+-- ✅ narrow explicitly to the values you need
 local ok, out_win = pcall(function()
   local _, w = float.open(opts)
   return w
 end)
 ```
 
-- **MUST**：对返回多值的函数做 pcall 包裹时，显式写出你要的那几个值。
+- **MUST**: when wrapping a multi-value-returning function in pcall, write
+  out explicitly the values you need.
 
-### 3.3 通过 `M.` 动态调用的函数才能被测试打桩
+### 3.3 Only functions called through `M.` can be stubbed by tests
 
-**事故（U6 迁移时规避）**：`http_image_preview_spec` 直接给
-`image_mod.download_image_url` 赋桩函数；若调用方在模块加载时绑定
-`local download = image_cache.download_image_url`，桩将失效。
+**Incident (avoided during the U6 migration)**: `http_image_preview_spec`
+stubbed `image_mod.download_image_url` directly; had the caller bound
+`local download = image_cache.download_image_url` at module load time, the
+stub would have had no effect.
 
-- **MUST**：模块内调用自身可被替换（测试打桩）的函数时，一律经 `M.fn(...)`
-  动态派发，不提前绑定 local。
+- **MUST**: when a module calls one of its own replaceable (stub-able)
+  functions, dispatch through `M.fn(...)` — never pre-bind to a local.
 
-### 3.4 用「身份」登记的集合必须按身份建键，且拒绝非字符串键
+### 3.4 Collections registered by identity must be keyed by that identity, and must reject non-string keys
 
-**事故（2026-10-16）**：`image_cache` 的临时下载登记表是数组，每个完成回调都调
-`table.remove(temp_files)` —— 那是「删最后一个」，不是「删我的」。异步下载器
-存在的意义就是多个预览同时在飞，于是两个并发下载各自注销掉了对方登记的路径，
-而 `cleanup_url_preview`（每次响应重渲染都会调）可能删掉一个正在下载的目标文件。
-改为 `temp_files[path] = true` + 按路径注销后，不变量「一次完成只注销自己那个文件」
-才写在代码里。同一轮：`temp_files[nil] = nil` 会抛 `table index is nil`，
-register/unregister 都要挡非字符串——这是新写的 spec 抓出来的，不是推出来的。
+**Incident (2026-10-16)**: `image_cache`'s in-flight download registry was an
+array, and every completion callback called `table.remove(temp_files)` —
+that means "remove the last one", not "remove mine". An async downloader
+exists precisely so several previews can be in flight at once, so two
+concurrent downloads each unregistered the other's path, and
+`cleanup_url_preview` (called on every response re-render) could delete a
+target file that was still downloading. Switching to
+`temp_files[path] = true` + unregister-by-path is what wrote the invariant
+"one completion unregisters exactly its own file" into the code. Same round:
+`temp_files[nil] = nil` raises `table index is nil`, so register/unregister
+both reject non-strings — caught by the newly written spec, not derived on
+paper.
 
-### 3.5 「返回字符串/数字」的 helper 必须在入口做类型兜底
+### 3.5 Helpers whose contract is "return a string/number" must type-guard at the entrance
 
-**事故（2026-10-16）**：`format/util.human_size` 直接对入参 `math.abs`，而它的入参
-来自持久化的 history（`"file_size": "big"` 是合法 JSON），于是整个 Verbose 页
-以 `bad argument #1 to 'abs'` 收场。凡是契约是「返回 string/number」的公开
-helper，入口就要挡住非预期类型（`human_size`、`mime_of`、`url_decode`、
-`split_lines`、`pretty_body` 都是这一轮补的），而不是指望每个调用点记得判类型。
+**Incident (2026-10-16)**: `format/util.human_size` called `math.abs` on its
+input, which comes from persisted history (`"file_size": "big"` is legal
+JSON), and the whole Verbose page died with `bad argument #1 to 'abs'`. Every
+public helper whose contract is "returns a string/number" must reject
+unexpected types at the entrance (`human_size`, `mime_of`, `url_decode`,
+`split_lines`, `pretty_body` were all hardened in that round) instead of
+hoping every call site remembers to type-check.
 
 ---
 
-## 4. 测试 MUST（headless 实撞清单）
+## 4. Testing MUSTs (headless incidents, hit first-hand)
 
-| # | 规则 | 事故 |
+| # | Rule | Incident |
 |---|---|---|
-| T1 | **feedkeys 逐键喂**：一次 `feedkeys("jj<CR>", "mx")` 会与排队中的 `startinsert!` 竞争，第二个键被吞。每键一次 feedkeys + `vim.wait` | picker 规格第一次跑挂 |
-| T2 | **headless 不真正进 insert 模式**。要测 TextChangedI 搜索路径，直接改搜索行 + `doautocmd TextChangedI` 驱动真实回调 | 过滤断言 3≠1 |
-| T3 | **`PlenaryBustedFile` 不加载 `minimal_init`**，依赖 `helpers.*` 的 spec 只能经 `tests/run.sh`（目录模式）验证；单文件跑报 `module 'helpers.mock_nvim' not found` 不是被测代码的锅 | U6 验证时误判 |
-| T4 | **`vim.v.shell_error` 只读**。模拟命令失败用 `saved_system({ "false" })` 跑真 `false` 命令 | image_cache 规格跑挂 |
-| T5 | **API 形状**：`nvim_buf_get_keymap` 的 lhs 是字面量 `"<Esc>"` 不是 `"\27"`；`nvim_win_get_config().title` 是 chunk 表 `{{text}}`；`relative="editor"` 的 `row/col` 是数字。断言前先探针确认形状 | ui_float 规格 3 处误判 |
-| T6 | **断言实现契约，不要凭想象写期望值**。写断言前读被测函数的文档注释（如 `ui/text.truncate` 是「占满预算」语义：`max-1` 宽内容 + 省略号） | truncate 期望值写错 2 处 |
-| T7 | **`helpers.gui_harness` 的 `strdisplaywidth` 桩是字节版**（`#s`）。显示宽度相关的行为不要在 harness 下断言精确值，用真实 nvim 规格（`tests/ui_*_spec.lua` 风格） | 迁移时规避 |
+| T1 | **Feed keys one per feedkeys**: a single `feedkeys("jj<CR>", "mx")` races the queued `startinsert!` and the second key gets swallowed. One feedkeys per key + `vim.wait` | picker spec failed on its first run |
+| T2 | **Headless never really enters insert mode**. To test the TextChangedI search path, edit the search line directly and drive the real callback with `doautocmd TextChangedI` | filter assertions saw 3 instead of 1 |
+| T3 | **`PlenaryBustedFile` does not load `minimal_init`**; specs depending on `helpers.*` can only be validated through `tests/run.sh` (directory mode); a lone-file run reporting `module 'helpers.mock_nvim' not found` is not the code under test's fault | misjudged during U6 verification |
+| T4 | **`vim.v.shell_error` is read-only**. To simulate command failure, run the real `false` command via `saved_system({ "false" })` | image_cache spec broke |
+| T5 | **API shapes**: `nvim_buf_get_keymap` lhs is the literal `"<Esc>"`, not `"\27"`; `nvim_win_get_config().title` is a chunk table `{{text}}`; `relative="editor"` `row/col` are numbers. Probe the shape before asserting | 3 misjudgments in the ui_float spec |
+| T6 | **Assert the implemented contract; do not invent expected values**. Read the function's doc comment before writing assertions (e.g. `ui/text.truncate` is "fill the budget" semantics: `max-1` width of content + ellipsis) | 2 wrong truncate expectations |
+| T7 | **`helpers.gui_harness`'s `strdisplaywidth` stub is the byte version** (`#s`). Do not assert exact display-width values under the harness; use real-nvim specs (the `tests/ui_*_spec.lua` style) | avoided during migration |
 
-TDD 流程（AGENTS.md 原有约定）不变：先写 spec 跑出 red（通常是 module not found），
-实现后 green；bug fix 必带能抓住它的回归测试。
+The TDD flow (a pre-existing AGENTS.md convention) is unchanged: write the
+spec first and watch it go red (usually module not found), implement to
+green; every bug fix carries a regression test that would have caught it.
 
 ---
 
-## 5. 收工自检（MUST 全部通过）
+## 5. Done checklist (all MUST pass)
 
-### 5.1 UI 硬规则 grep（命中 = 违规，除非在允许清单里）
+### 5.1 UI hard-rule greps (a hit = violation, unless allowlisted)
 
 ```bash
-# 浮窗只允许 ui/float.lua 创建
+# Float windows may only be created by ui/float.lua
 grep -rn "nvim_open_win" lua/ | grep -v "lua/poste-http/ui/float.lua"
-# modifiable 三连只允许 ui/render.lua（buffer.lua 的 get_response_buffer 里
-# 创建时锁一次属合法）
+# The modifiable trio only in ui/render.lua (buffer.lua's get_response_buffer
+# locking it once at creation time is legal)
 grep -rn 'nvim_set_option_value("modifiable"' lua/ | grep -v "ui/render.lua\|http/buffer.lua"
-# method/status → 高亮映射只允许语义模块与高亮定义处
+# method/status → highlight mappings only in the semantics module and the highlight definitions
 grep -rln "PosteMethodGET\|PosteStatus2xx" lua/ | grep -v "ui/semantics.lua\|http/highlights.lua"
-# winbar 拼接只允许 ui/winbar.lua
+# winbar concatenation only in ui/winbar.lua
 grep -rln "TabLineSel" lua/ | grep -v "ui/winbar.lua"
-# 字符级截断原语只允许 ui/text.lua 与 ui/columns.lua
+# Char-level truncation primitives only in ui/text.lua and ui/columns.lua
 grep -rln "strcharpart\|strchars(" lua/ | grep -v "ui/text.lua\|ui/columns.lua"
-# 用户提示只允许 ui/notify.lua 触达 vim.notify（tests/run.sh 已内置此门禁，
-# 扫描 lua/ 与 plugin/ 两处——plugin/ 曾长期在门禁之外）
+# User messages may only reach vim.notify from ui/notify.lua (tests/run.sh
+# already enforces this gate, scanning both lua/ and plugin/ — plugin/ was
+# outside the gate for a long time)
 grep -rn "vim\.notify" lua/ plugin/ | grep -v "lua/poste-http/ui/notify.lua"
 ```
 
-以上清单 = 2026-08-30 收敛后的合法残留。**新增命中必须走 ui/ 原语**；确需第
-二处时先扩展原语并更新本清单。
+This list = the legitimate remainder after the 2026-08-30 convergence. **New
+hits must go through the ui/ primitives**; if a second site is genuinely
+needed, extend the primitive and update this list first.
 
-### 5.2 验证三件套
+### 5.2 The verification trio
 
-1. `./tests/run.sh` 的 **exit code 必须为 0**——不要只看每个 spec 的
-   `Failed : 0`：曾有「逐 spec 全 0 但 exit=1」的情况，真因是另一个 spec
-   加载失败。`Spec files run: N/M` 的 N 应等于 M，少了就是有文件没跑。
-2. `luacheck lua tests` **0 warnings / 0 errors**（2026-10-16 基线：0 条；
-   旧文档写的「基线 70 条」早已不成立）。新增 warning 视为回归。
-3. 涉及浮窗/视图的改动，headless 冒烟真实打开一次（help/outline/history/
-   inspector/body+verbose 视图）。
+1. `./tests/run.sh`'s **exit code must be 0** — do not just read each spec's
+   `Failed : 0`: there has been a "every spec shows 0 failures but exit=1"
+   case whose real cause was a different spec failing to load.
+   `Spec files run: N/M` must show N == M; fewer means some file never ran.
+2. `luacheck lua tests` **0 warnings / 0 errors** (baseline since 2026-10-16:
+   0; the old "baseline 70 warnings" written in earlier docs is long
+   obsolete). Any new warning counts as a regression.
+3. For float/view changes, run one headless smoke that really opens it
+   (help/outline/history/inspector/body+verbose views).
 
-改代码前可先跑 `tools/relation-check.sh`（set-lines / state / format /
-pre-render / session 五个视角，目录写错会直接 exit 1 而不是静默跳过）。
+Before touching code you can run `tools/relation-check.sh` (five views:
+set-lines / state / format / pre-render / session; a wrong directory exits 1
+instead of silently skipping).
 
-### 5.3 提交纪律
+### 5.3 Commit discipline
 
-- 一个 phase（一个 review 条目）一个 commit，不跨条目混合——与 2026-07
-  重构计划的「每个 Phase 独立可回退」一致。
-- 改完代码同步更新：`docs/dev/file-index.md`（新模块）、`LEARNINGS.md`
-  （新坑）、对应 review 报告的条目状态。文档漂移本身就是 2026-08-13 审查
-  的一整类发现（D01–D17）。
-
----
-
-## 6. 写新代码前的 SHOULD
-
-1. **先 grep 再写**：新增任何工具函数（截断、居中、keymap 读取、时间格式化…）
-   前，先 `grep -rn` 全仓库确认没有现成实现——ui/ 五组件就是「先写后发现重复」
-   的翻车结果。
-2. **复制粘贴超过 ~10 行即视为需要抽公共模块**，尤其是带守卫的样板。
-3. 两处实现「逻辑同构、仅参数不同」时（winbar、tab 切换、importer 交互流），
-   抽参数化原语，不要容忍第三份拷贝出现。
-4. 给 `lua/poste-http/ui/` 加原语时遵守其约定：纯函数优先、无隐藏模块级可变
-   状态、几何/解析部分可 headless 单测；窗口原语（float）保持薄。
-5. **加固 load 边界时，按「消费方读了哪些字段」枚举，而不是按「写入方写了哪些
-   字段」**。`history.load` 连续三轮都栽在这上面（10-07 只查三个顶层 key、
-   10-16 补了 headers 的条目、同一轮的后续才补上 time/latency/url/metadata 这些
-   标量）。同时**两端都要守**：持久化 JSON 走 load 边界，内存/打桩响应不走，
-   所以 render 侧也要能降级（见 §3.5）。探针要跑两遍——过边界一遍、直接喂
-   render 一遍，直接喂会多报，过边界会漏报。
-6. **性能改动要有数字**。`boundary_indicator` 的重绘记忆化（0.196ms →
-   0.0007ms/次）是先量了再改的；把「调用次数」当断言（spec 里数
-   `nvim_buf_set_extmark` 次数），比断言墙钟时间稳定。
+- One phase (one review entry) per commit — never mix entries; this matches
+  the 2026-07 refactor plan's "every Phase independently revertible".
+- Update alongside the code: `docs/dev/file-index.md` (new modules),
+  `LEARNINGS.md` (new pits), and the entry status in the corresponding review
+  report. Doc drift itself was an entire discovery class (D01–D17) of the
+  2026-08-13 review.
 
 ---
 
-*来源：2026-08-30 的 UI 收敛（U1–U8）及同日重构过程；每轮 review 的具体条目
-不再单独存档，落地的规则就是本文件本身。
-维护人：每次违反本文件的事故，修完后在此标注条目号。*
+## 6. SHOULDs before writing new code
+
+1. **Grep before you write**: before adding any utility function (truncation,
+   centering, keymap reading, time formatting…), grep the whole repo for an
+   existing implementation — the five ui/ components exist precisely because
+   "write first, discover duplicates later" went wrong.
+2. **Copy-pasting more than ~10 lines means a shared module is due** —
+   especially guarded boilerplate.
+3. When two implementations are "logically identical, differing only in
+   parameters" (winbar, tab cycling, importer interaction flows), extract a
+   parameterized primitive; do not tolerate a third copy appearing.
+4. When adding a primitive to `lua/poste-http/ui/`, follow its conventions:
+   pure functions first, no hidden module-level mutable state, geometry and
+   parsing unit-testable headless; window primitives (float) stay thin.
+5. **When hardening a load boundary, enumerate by "which fields the consumer
+   reads", not by "which fields the writer wrote"**. `history.load` tripped
+   over this three rounds in a row (10-07 checked only three top-level keys;
+   10-16 added the headers entry; scalars like time/latency/url/metadata only
+   landed in the same round's follow-up). And **guard both ends**: persisted
+   JSON crosses the load boundary, in-memory/stubbed responses do not — so
+   the render side must also degrade gracefully (see §3.5). Run the probe
+   twice — once across the boundary, once feeding render directly; feeding
+   directly over-reports, crossing the boundary under-reports.
+6. **Performance changes need numbers**. `boundary_indicator`'s redraw
+   memoization (0.196ms → 0.0007ms per call) was measured before it was
+   changed; asserting on "call counts" (count `nvim_buf_set_extmark` calls in
+   the spec) is steadier than asserting wall-clock time.
+
+---
+
+*Source: the 2026-08-30 UI convergence (U1–U8) and the same-day refactor;
+per-round review entries are no longer archived separately — the rules that
+landed are this file itself.
+Maintainer: after every incident that violates this file, note the entry
+number here once it is fixed.*
