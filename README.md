@@ -24,13 +24,7 @@ independent and release on their own.
 - **Completion** — HTTP methods, headers, values, env vars (blink.cmp / nvim-cmp)
 - **jq filtering** — Interactive JSON exploration in response view
 
-<!--
-Screenshot: the response panel mid-exploration — JSON body folded to a
-depth, the interactive jq filter line showing a live query, image preview
-via K in a second tab.
-Suggested path: .github/assets/json-ux.png
--->
-![poste-http.nvim — jq filter](.github/assets/jq.png)
+  ![poste-http.nvim — jq filter](.github/assets/jq.png)
 
 - **Multi-protocol** — `GRAPHQL` (real POST with query+variables), `GRPC` (via
   grpcurl: unary, server-streaming, reflection), and `WEBSOCKET` (via websocat:
@@ -40,10 +34,11 @@ Suggested path: .github/assets/json-ux.png
 - **Multi-tab response** — Body, verbose, request, messages (WebSocket frames),
   assertions, script logs
 - **History** — Request history with quick re-runs
+  ![poste-http.nvim — history](.github/assets/history.png)
 - **Import** — Convert OpenAPI 3.x, Swagger 2.0, and Postman collections to `.http` files
 - **AI chat** (optional) — With [poste-ai.nvim](https://github.com/poste-nvim/poste-ai.nvim)
   installed: ask about requests/responses with real context, and execute
-  AI-generated ```http blocks through the regular pipeline. See
+  AI-generated **```http** blocks through the regular pipeline. See
   [AI integration](docs/dev/ai-integration.md).
 
 ## Requirements
@@ -134,12 +129,6 @@ Open a `.http` file. With cursor on a request block, press `<CR>` to execute. Re
 | `<leader>vv` | Pick environment |
 | `<leader>l` | Open request history |
 
-<!--
-Screenshot: the history float — request list with method/status/latency
-columns, one entry's detail pane open, quick re-run hint visible.
-Suggested path: .github/assets/history.png
--->
-![poste-http.nvim — history](.github/assets/history.png)
 
 | Key | Action |
 |-----|--------|
