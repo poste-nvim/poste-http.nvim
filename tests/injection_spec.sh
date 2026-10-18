@@ -17,9 +17,12 @@ PARSER_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/nvim/site/parser"
 mkdir -p "$PARSER_DIR"
 for grammar in poste-http poste-json poste-graphql; do
     so_name="${grammar//-/_}.so"
-    if [ ! -f "$PARSER_DIR/$so_name" ]; then
+    src="$PROJECT_DIR/tree-sitter-$grammar/src/parser.c"
+    # Rebuild when missing OR stale: a stale .so survives grammar changes and
+    # then fails to load the new highlights query ("Invalid node type ...").
+    if [ ! -f "$PARSER_DIR/$so_name" ] || [ "$src" -nt "$PARSER_DIR/$so_name" ]; then
         cc -O2 -shared -fPIC -o "$PARSER_DIR/$so_name" \
-            "$PROJECT_DIR/tree-sitter-$grammar/src/parser.c" \
+            "$src" \
             -I "$PROJECT_DIR/tree-sitter-$grammar/src"
     fi
 done

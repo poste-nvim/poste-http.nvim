@@ -130,6 +130,20 @@ check "WEBSOCKET request line" \
   "WEBSOCKET wss://stream.example.com/feed" \
   "method_websocket"
 
+check "WS request line (WEBSOCKET alias)" \
+  "WS ws://stream.example.com/feed" \
+  "method_ws"
+
+check "WSS request line (WEBSOCKET alias)" \
+  "WSS wss://stream.example.com/feed" \
+  "method_wss"
+
+# The two-letter aliases must keep parsing a plain ws:// URL, not degrade
+# into a header or an error node.
+check_not "WS request line parses without errors" \
+  "WS ws://stream.example.com/feed" \
+  "(ERROR"
+
 check "GRAPHQL query body" \
 $'GRAPHQL https://api.example.com/graphql\n\nquery User($id: ID!) {\n  user(id: $id) { id name email }\n}' \
   "graphql_body"

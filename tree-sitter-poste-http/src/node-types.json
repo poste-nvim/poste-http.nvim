@@ -221,6 +221,14 @@
         {
           "type": "method_websocket",
           "named": true
+        },
+        {
+          "type": "method_ws",
+          "named": true
+        },
+        {
+          "type": "method_wss",
+          "named": true
         }
       ]
     }
@@ -780,6 +788,14 @@
   },
   {
     "type": "method_websocket",
+    "named": true
+  },
+  {
+    "type": "method_ws",
+    "named": true
+  },
+  {
+    "type": "method_wss",
     "named": true
   },
   {

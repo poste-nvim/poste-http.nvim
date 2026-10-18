@@ -82,7 +82,17 @@ describe("websocket.resolve_wait_ms", function()
 end)
 
 describe("websocket.build_response", function()
-  it("builds an ok response with frames after the collection window", function()
+  it("echoes the request-line keyword, alias included", function()
+    local r = ws.build_response({
+      method = "WS",
+      url = "ws://stream.example.com/feed",
+      body = "",
+    }, {}, {}, 0, { deadline_reached = true })
+    assert.equals("WS", r.metadata.method)
+    assert.equals("WS ws://stream.example.com/feed", r.metadata.request_line)
+  end)
+
+  it("labels a missing req.method as WEBSOCKET", function()
     local r = ws.build_response({
       url = "wss://stream.example.com/feed",
       body = '{"type": "ping"}',

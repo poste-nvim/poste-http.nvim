@@ -134,7 +134,8 @@ function M.build_response(req, stdout, stderr, exit_code, opts)
     cookies = {},
     ok = ok,
     metadata = {
-      method = "WEBSOCKET",
+      -- Echo the request-line keyword (WEBSOCKET / WS / WSS).
+      method = req.method or "WEBSOCKET",
       request_line = (req.method or "WEBSOCKET") .. " " .. (req.url or ""),
       exit_code = tostring(exit_code),
       verbose = stderr_text,
@@ -146,7 +147,8 @@ end
 
 local response_mod = require("poste-http.http.response")
 local function error_response(req, msg)
-  return response_mod.error_response(req, "WEBSOCKET", msg)
+  -- Label with the keyword the user wrote (WEBSOCKET / WS / WSS).
+  return response_mod.error_response(req, req.method or "WEBSOCKET", msg)
 end
 
 M.error_response = error_response

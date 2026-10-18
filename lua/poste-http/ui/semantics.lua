@@ -20,6 +20,8 @@ local METHOD_HL = {
   GRAPHQL = "PosteMethodScript",
   GRPC = "PosteMethodScript",
   WEBSOCKET = "PosteMethodScript",
+  WS = "PosteMethodScript",
+  WSS = "PosteMethodScript",
   RUN = "PosteRun",
 }
 

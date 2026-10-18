@@ -14,10 +14,14 @@ local M = {}
 
 -- Request-line methods with a dedicated executor. Everything else (plain
 -- HTTP verbs, unknown methods) falls back to the HTTP executor.
+-- WS / WSS are spelling aliases of WEBSOCKET: TLS is decided by the URL
+-- scheme (ws:// vs wss://), never by the keyword.
 local registry = {
   ["GRAPHQL"] = "poste-http.http.executors.graphql",
   ["GRPC"] = "poste-http.http.executors.grpc",
   ["WEBSOCKET"] = "poste-http.http.executors.websocket",
+  ["WS"] = "poste-http.http.executors.websocket",
+  ["WSS"] = "poste-http.http.executors.websocket",
 }
 
 --- Resolve the executor module for a request-line method.

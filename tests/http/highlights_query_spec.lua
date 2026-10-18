@@ -28,7 +28,7 @@ local function method_captures_by_row(lines)
 end
 
 describe("highlights query captures protocol methods", function()
-  it("captures GRAPHQL, GRPC and WEBSOCKET as PosteMethodScript", function()
+  it("captures GRAPHQL, GRPC, WEBSOCKET and WS/WSS as PosteMethodScript", function()
     local lines = {
       "### Multi-protocol",
       "GRAPHQL {{graphql_url}}",
@@ -36,10 +36,14 @@ describe("highlights query captures protocol methods", function()
       "GRPC localhost:50051/pkg.Service/Method",
       "",
       "WEBSOCKET wss://stream.example.com/v1/feed",
+      "",
+      "WS ws://stream.example.com/v1/feed",
+      "",
+      "WSS wss://stream.example.com/v1/feed",
     }
     local by_row = method_captures_by_row(lines)
 
-    -- Method lines sit at 1-based lines 2, 4, 6 (0-indexed rows 1, 3, 5).
+    -- Method lines sit at 1-based lines 2, 4, 6, 8, 10 (0-indexed rows 1, 3, 5, 7, 9).
     for row = 1, #lines - 1, 2 do
       local names = by_row[row] or {}
       assert.is_true(vim.tbl_contains(names, "PosteMethodScript"),

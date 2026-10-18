@@ -71,6 +71,7 @@ module.exports = grammar({
       $.method_patch, $.method_head, $.method_options,
       $.method_trace, $.method_connect, $.method_script,
       $.method_graphql, $.method_grpc, $.method_websocket,
+      $.method_ws, $.method_wss,
     ),
 
     method_get: $ => 'GET',
@@ -86,6 +87,10 @@ module.exports = grammar({
     method_graphql: $ => 'GRAPHQL',
     method_grpc: $ => 'GRPC',
     method_websocket: $ => 'WEBSOCKET',
+    // Short forms of method_websocket. Pure spelling aliases: TLS is decided
+    // by the URL scheme (ws:// vs wss://), never by the keyword.
+    method_ws: $ => 'WS',
+    method_wss: $ => 'WSS',
 
     url: $ => seq(
       $.url_path,

@@ -34,6 +34,13 @@ describe("executors.get", function()
     local grpc = require("poste-http.http.executors.grpc")
     assert.equals(grpc, executors.get("GRPC"))
   end)
+
+  it("routes WEBSOCKET and its WS/WSS aliases to the websocket executor", function()
+    local websocket = require("poste-http.http.executors.websocket")
+    assert.equals(websocket, executors.get("WEBSOCKET"))
+    assert.equals(websocket, executors.get("WS"))
+    assert.equals(websocket, executors.get("WSS"))
+  end)
 end)
 
 describe("executors.run", function()

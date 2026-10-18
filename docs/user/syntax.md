@@ -103,11 +103,12 @@ PUT http://localhost:8080/api/items/1
 **Supported METHODS** (from `data.lua` `http_methods`):
 
 ```
-GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL, GRPC, WEBSOCKET
+GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT, SCRIPT, GRAPHQL, GRPC, WEBSOCKET, WS, WSS
 ```
 
 **Rules**:
 - METHOD is uppercase
+- `WS` / `WSS` are short spellings of `WEBSOCKET` (see section 2.17)
 - Supports full URLs and relative paths (with `@base_url`)
 - HTTP version is optional, defaults to `HTTP/1.1`
 
@@ -603,6 +604,10 @@ not yet implemented.
 Use `WEBSOCKET` with a `ws://` or `wss://` URL. Requires the `websocat`
 binary (`:checkhealth poste-http` verifies it).
 
+`WS` and `WSS` are accepted as short spellings of `WEBSOCKET`. They are
+pure aliases: encryption is decided by the URL scheme (`wss://` is TLS,
+`ws://` is plaintext), never by the keyword.
+
 **Syntax**:
 
 ```
@@ -613,6 +618,11 @@ Sec-WebSocket-Protocol: chat.v1
 
 {"type": "subscribe", "channel": "news"}
 {"type": "ping"}
+```
+
+```
+### Same request, short spelling
+WS ws://stream.example.com/v1/feed
 ```
 
 **Rules**:

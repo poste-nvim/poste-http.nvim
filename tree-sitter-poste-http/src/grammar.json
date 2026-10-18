@@ -341,6 +341,14 @@
         {
           "type": "SYMBOL",
           "name": "method_websocket"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "method_ws"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "method_wss"
         }
       ]
     },
@@ -395,6 +403,14 @@
     "method_websocket": {
       "type": "STRING",
       "value": "WEBSOCKET"
+    },
+    "method_ws": {
+      "type": "STRING",
+      "value": "WS"
+    },
+    "method_wss": {
+      "type": "STRING",
+      "value": "WSS"
     },
     "url": {
       "type": "SEQ",

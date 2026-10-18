@@ -63,7 +63,7 @@ Header-Key: Header-Value                   ← Headers (multiple allowed)
 
 `GET` `POST` `PUT` `DELETE` `PATCH` `HEAD` `OPTIONS` `TRACE` `CONNECT`
 
-Special: `SCRIPT` (orchestration), `GRAPHQL` (HTTP POST with query body), `GRPC` (grpcurl, needs `grpcurl` binary), `WEBSOCKET` (websocat, needs `websocat` binary)
+Special: `SCRIPT` (orchestration), `GRAPHQL` (HTTP POST with query body), `GRPC` (grpcurl, needs `grpcurl` binary), `WEBSOCKET` (websocat, needs `websocat` binary; `WS`/`WSS` are short spellings — TLS comes from the URL scheme, not the keyword)
 
 ---
 
