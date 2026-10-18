@@ -44,12 +44,17 @@ busted tests/http/resolve_spec.lua
 ## Manual Testing
 
 ```bash
-# Create a playground environment
-cd playground/http
+# Start the playground backends behind one compose file
+# (HTTP :8888 + graphql :8890 / grpc :8891 / websocket :8892)
+cd playground
+docker compose up -d --build
 
 # Open a .http file and run requests from Neovim
-nvim examples/http/basic.http
+nvim http/scenarios/test_server.http
 ```
+
+Start a single service with `docker compose up -d http` (or `graphql grpc
+websocket`). See `playground/README.md` for the full layout and scenarios.
 
 ## Troubleshooting
 

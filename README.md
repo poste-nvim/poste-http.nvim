@@ -11,13 +11,7 @@ subprocess — no binary to install, no plugin host. Part of the
 [Poste](https://github.com/poste-nvim/poste.nvim) family, whose plugins are
 independent and release on their own.
 
-<!--
-Hero screenshot: a .http buffer with the cursor on a request block and the
-response panel beside it — Body view with the jq filter prompt active and
-the multi-tab strip (Body / Verbose / Assertions / Script logs) visible.
-Drop the image at .github/assets/hero.png and uncomment.
 ![poste-http.nvim — request file + response panel](.github/assets/hero.png)
--->
 
 ## Features
 
@@ -36,11 +30,13 @@ depth, the interactive jq filter line showing a live query, image preview
 via K in a second tab.
 Suggested path: .github/assets/json-ux.png
 -->
+![poste-http.nvim — jq filter](.github/assets/jq.png)
 
 - **Multi-protocol** — `GRAPHQL` (real POST with query+variables), `GRPC` (via
   grpcurl: unary, server-streaming, reflection), and `WEBSOCKET` (via websocat:
-  batch collect and interactive sessions) in the same `.http` files. See
-  [Multi-protocol design](docs/dev/multi-protocol-design.md)
+  batch collect and interactive sessions) in the same `.http` files. Try the
+  [runnable demo](playground/multi-protocol/scenarios/multi_protocol_demo.http);
+  design notes in [Multi-protocol design](docs/dev/multi-protocol-design.md)
 - **Multi-tab response** — Body, verbose, request, messages (WebSocket frames),
   assertions, script logs
 - **History** — Request history with quick re-runs
@@ -143,6 +139,7 @@ Screenshot: the history float — request list with method/status/latency
 columns, one entry's detail pane open, quick re-run hint visible.
 Suggested path: .github/assets/history.png
 -->
+![poste-http.nvim — history](.github/assets/history.png)
 
 | Key | Action |
 |-----|--------|

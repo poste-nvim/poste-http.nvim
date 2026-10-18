@@ -14,9 +14,10 @@ cd poste-http.nvim
 tests/run.sh /path/to/plenary.nvim
 ```
 
-Optional but useful for manual verification: the Docker test server in
-`playground/http/server` (an httpbin-like FastAPI service on port 8888) with
-ready-made `.http` scenarios in `playground/http/scenarios/`.
+Optional but useful for manual verification: the playground backends behind
+`playground/docker-compose.yml` — an httpbin-like HTTP server on :8888 plus
+graphql/grpc/websocket services — with ready-made `.http` scenarios under
+`playground/http/scenarios/` and `playground/multi-protocol/scenarios/`.
 
 CI runs on every PR: `luacheck --codes lua plugin ftplugin tests after
 queries` (zero warnings is the baseline — any new warning fails the build)
@@ -49,7 +50,7 @@ plus the full test suite on Neovim 0.10 with the tree-sitter CLI installed.
 | `lua/poste-http/http/` | Core request pipeline (parse → resolve → execute → render) |
 | `tree-sitter-poste-http/` (+ `-json`, `-graphql`) | Bundled grammars; parse authority for `.http` buffers |
 | `tests/` | plenary specs, grammar/injection shell specs, contract tests |
-| `playground/http/` | Docker test server + manual `.http` scenarios |
+| `playground/` | One compose file for all test backends + manual `.http` scenarios |
 | `docs/dev/architecture-overview.md` | Layers, request lifecycle, dependency graph |
 
 ## Adding a protocol or executor

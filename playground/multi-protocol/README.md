@@ -13,17 +13,21 @@ GRPC, and WEBSOCKET. HTTP testing lives in [the HTTP playground](../http/README.
 
 ## Quick Start
 
+The compose file is shared with the HTTP server — see
+[`../docker-compose.yml`](../docker-compose.yml) and the top-level
+[`playground/README.md`](../README.md).
+
 ```bash
-# Start all three (builds on first run)
-docker compose -f playground/multi-protocol/docker-compose.yml up -d --build
+# From the repo root: start the three non-HTTP backends (builds on first run)
+docker compose -f playground/docker-compose.yml up -d --build graphql grpc websocket
 
 # Health checks
 curl -s localhost:8890/health
-docker compose -f playground/multi-protocol/docker-compose.yml exec grpc \
+docker compose -f playground/docker-compose.yml exec grpc \
   python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:8891')).result(timeout=3); print('grpc ok')"
 
 # Stop
-docker compose -f playground/multi-protocol/docker-compose.yml down
+docker compose -f playground/docker-compose.yml stop graphql grpc websocket
 ```
 
 ## Manual testing from Poste

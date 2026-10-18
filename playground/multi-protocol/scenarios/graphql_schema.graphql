@@ -4,7 +4,7 @@
 #
 # Query/Mutation/User mirror the playground graphql server (server.js), so
 # the blocks that only touch those fields also EXECUTE against
-# `docker compose -f playground/multi-protocol/docker-compose.yml up`.
+# `docker compose -f playground/docker-compose.yml up`.
 # Order/OrderStatus/CreateUserInput/Node/DateTime are deliberate extras —
 # they exist to make field/enum/input completion richer; queries using them
 # are for completion only (the live server would reject them).

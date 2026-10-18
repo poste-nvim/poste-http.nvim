@@ -7,8 +7,8 @@ then run `.http` files against it.
 
 ```
 http/
+├── env.json                    ← environments for the scenarios (dev default)
 ├── server/                     ← Docker test server (httpbin-like)
-│   ├── docker-compose.yml      Start: docker compose -f server/docker-compose.yml up -d
 │   ├── server.py               FastAPI server on port 8888
 │   ├── Dockerfile
 │   └── README.md
@@ -25,28 +25,28 @@ http/
 └── data/                       ← Test data files
     ├── simple.txt
     ├── test_data.txt
-    ├── lua_vars.lua             Lua variables for lua_import_demo.http
-    ├── smoke_test.sh
-    └── env.json
+    ├── lua_vars.lua            Lua variables for lua_import_demo.http
+    └── smoke_test.sh
 ```
 
 ## Quick Start
 
+The compose file is shared with the rest of the playground — see
+[`../docker-compose.yml`](../docker-compose.yml) and the top-level
+[`playground/README.md`](../README.md).
+
 ```bash
-# Start the test server
-docker compose -f server/docker-compose.yml up -d
+# From the repo root: start only the HTTP server (it lives on :8888)
+docker compose -f playground/docker-compose.yml up -d http
 
 # Wait for health
 curl -sf http://localhost:8888/health
 
-# Run a test scenario
-cargo run -- run --line 6 scenarios/test_server.http
+# Run a test scenario: open it in Neovim, cursor on a request line, <CR>
+# (or :PosteHttpRun).
 
-# In Neovim: open a scenario file, put the cursor on a request/run/SCRIPT line,
-# and press <CR> (or :PosteHttpRun).
-
-# Stop the server
-docker compose -f server/docker-compose.yml down
+# Stop the HTTP server
+docker compose -f playground/docker-compose.yml stop http
 ```
 
 ## Lua Import Feature

@@ -2,7 +2,7 @@
 # files, message fields and enum values inside the JSON body.
 #
 # Requires the playground gRPC service:
-#   docker compose -f playground/multi-protocol/docker-compose.yml up -d --build
+#   docker compose -f playground/docker-compose.yml up -d --build
 # Requires grpcurl (Poste checks it via :checkhealth poste-http):
 #   brew install grpcurl
 #

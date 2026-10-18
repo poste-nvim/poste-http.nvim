@@ -6,12 +6,16 @@ exactly what `curl` sends.
 
 ## Quick Start
 
+The compose file lives one level up, at [`playground/docker-compose.yml`](../docker-compose.yml),
+and starts the HTTP server as the `http` service alongside the other protocol
+backends.
+
 ```bash
-# Start the server
-docker compose up -d
+# From the repo root
+docker compose -f playground/docker-compose.yml up -d http
 
 # Tail the logs
-docker compose logs -f
+docker compose -f playground/docker-compose.yml logs -f http
 
 # Test it
 curl http://localhost:8888/anything
@@ -119,9 +123,10 @@ fixtures and Poste `.http` files as `http://localhost:8888`.
 To run the server in CI:
 
 ```bash
-docker compose up -d
+# From the repo root
+docker compose -f playground/docker-compose.yml up -d http
 # Wait for health
-docker compose exec poste-test-server curl -sf http://localhost:8888/health
+docker compose -f playground/docker-compose.yml exec http curl -sf http://localhost:8888/health
 # Run tests...
-docker compose down
+docker compose -f playground/docker-compose.yml down
 ```

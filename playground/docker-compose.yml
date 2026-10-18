@@ -1,0 +1,71 @@
+# Poste Playground — every local test backend behind one compose file.
+#
+# Services:
+#   http        :8888  httpbin-like HTTP server (HTTP scenarios, file upload, streaming)
+#   graphql     :8890  graphql-js engine (hello/user/add + validation errors)
+#   grpc        :8891  grpcio EchoService + OrderService, server reflection on
+#   websocket   :8892  JSON-aware echo (ping/subscribe/emit)
+#
+# Usage (from this directory):
+#   docker compose up -d --build     # start every service
+#   docker compose logs -f           # follow all logs
+#   docker compose ps                # see what's up
+#   docker compose down              # stop everything
+#
+# Start just one service by name:
+#   docker compose up -d http        # only the HTTP server
+#   docker compose up -d graphql grpc websocket
+#
+# From the repo root, prefix the same commands with -f:
+#   docker compose -f playground/docker-compose.yml up -d --build
+#
+# Optional client tools for manual multi-protocol testing (Poste needs them too):
+#   brew install grpcurl websocat
+#
+# Quick checks without any client tools:
+#   curl -s localhost:8888/health
+#   curl -s localhost:8890/health
+#   docker compose exec grpc python -c "import grpc; print(grpc.channel_ready_future(grpc.insecure_channel('localhost:8891')).result(timeout=3))"
+
+name: poste-playground
+
+services:
+  http:
+    build: ./http/server
+    container_name: poste-test-server
+    ports:
+      - "8888:8888"
+    environment:
+      - POSTE_TEST_HOST=0.0.0.0
+      - POSTE_TEST_PORT=8888
+    # Health check (python is always available)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/health')"]
+      interval: 120s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  graphql:
+    build: ./multi-protocol/graphql/server
+    container_name: poste-graphql
+    ports:
+      - "8890:8890"
+    environment:
+      - POSTE_GRAPHQL_PORT=8890
+
+  grpc:
+    build: ./multi-protocol/grpc/server
+    container_name: poste-grpc
+    ports:
+      - "8891:8891"
+    environment:
+      - POSTE_GRPC_PORT=8891
+
+  websocket:
+    build: ./multi-protocol/websocket/server
+    container_name: poste-websocket
+    ports:
+      - "8892:8892"
+    environment:
+      - POSTE_WS_PORT=8892

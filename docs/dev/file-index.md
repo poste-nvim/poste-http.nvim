@@ -209,7 +209,7 @@ that hand-rolled floats used to apply unevenly).
 | Type | Location | Description |
 |------|----------|-------------|
 | HTTP examples | `examples/http/` | HTTP request examples |
-| HTTP playground | `playground/http/` | Test scenarios |
+| Playground | `playground/` | One compose file (http :8888, graphql :8890, grpc :8891, websocket :8892) + `.http` scenarios |
 
 ---
 
