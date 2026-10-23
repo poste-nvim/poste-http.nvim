@@ -7,6 +7,19 @@ The per-round review archives (`docs/dev/review-YYYY-MM-DD.md`,
 `docs/dev/code-review-*.md`) were removed — the entries below carry the
 lesson itself, so cite the source file that holds the fix, not the archive.
 
+- 2026-10-23: grammar/form-body-trailing-nl — a token that consumes its own
+  line terminator ships it when the token text is used AS the payload.
+  `form_body` ended with `optional(NL)`, so `describe` handed curl
+  `token=…&user_token=<value>\n` whenever the block was followed by anything
+  (next block, blank line). Server-side urlencoded parsers fold the trailing
+  newline into the LAST field — the backend logged `user_token` with a stray
+  `&#10;`, while the value shown in the editor was clean. Fixed in the grammar
+  (`optional(NL)` removed; the newline is an ordinary `_blank_line`
+  statement), parser.c regenerated at ABI 14, regression tests in
+  `tests/http/describe_spec.lua` (single-line and multi-line form bodies).
+  Look for this shape in any body token whose text is sent verbatim. See
+  `tree-sitter-poste-http/grammar.js`, `lua/poste-http/http/describe.lua`.
+
 - 2026-09-23: http/script-set-nil-clobber — a failed request destroyed the
   session variables a previous success had set. `tostring(nil)` is the string
   `"nil"`, so `client.global.set('token', response.body.token)` on a 5xx (whose

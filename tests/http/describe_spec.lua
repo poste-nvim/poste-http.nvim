@@ -152,6 +152,36 @@ POST http://api.example.com/users
     assert.equals("< ./payload.json", blocks[1].body)
   end)
 
+  -- The form_body token used to swallow the line terminator after the body,
+  -- so describe handed curl `...&user_token=<value>\n`. PHP's urlencoded
+  -- parser folds a trailing newline into the LAST parameter's value — the
+  -- backend log showed it as `&#10;` on user_token.
+  it("drops the line terminator after a URL-encoded form body", function()
+    local blocks = describe_mod.describe_content([[
+### qrcode punch
+POST http://api.example.com/application.php/Home/User/scanRecord
+Content-Type: application/x-www-form-urlencoded
+
+token={{token}}&user_token={{token}}
+
+### next
+GET http://api.example.com/next
+]], "t.http")
+    assert.equals("token={{token}}&user_token={{token}}", blocks[1].body)
+  end)
+
+  it("keeps interior line breaks of a multi-line form body", function()
+    local blocks = describe_mod.describe_content([[
+### multi-line form
+POST http://api.example.com/login
+Content-Type: application/x-www-form-urlencoded
+
+name=John
+&age=30
+]], "t.http")
+    assert.equals("name=John\n&age=30", blocks[1].body)
+  end)
+
   it("keeps blank lines of a multipart body intact", function()
     local blocks = describe_mod.describe_content([[
 ### Multipart keeps its blank lines

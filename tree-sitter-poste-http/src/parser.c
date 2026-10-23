@@ -3092,18 +3092,11 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 270:
       ACCEPT_TOKEN(sym_form_body);
-      if (lookahead == '\n') ADVANCE(271);
-      if (lookahead == '\r') ADVANCE(270);
+      if (lookahead == '\n') ADVANCE(22);
       if (lookahead == '&') ADVANCE(68);
       if (lookahead == '\t' ||
           lookahead == ' ') ADVANCE(270);
       if (lookahead != 0) ADVANCE(270);
-      END_STATE();
-    case 271:
-      ACCEPT_TOKEN(sym_form_body);
-      if (lookahead == '&') ADVANCE(68);
-      if (lookahead == '\t' ||
-          lookahead == ' ') ADVANCE(22);
       END_STATE();
     default:
       return false;

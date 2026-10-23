@@ -399,6 +399,11 @@ module.exports = grammar({
     multipart_value: $ => /[^\n]+/,
 
     // ─── URL-Encoded Form Body ───────────────────────
+    // No trailing NL in the token: describe.lua sends this node's text as the
+    // request body verbatim, and a consumed line terminator became part of
+    // the LAST field's value on the wire (a server-side urlencoded parser
+    // folds it into that value — seen as a stray `&#10;` on user_token).
+    // The newline after the body is an ordinary blank-line statement.
     form_body: $ => token(seq(
       /[a-zA-Z_][a-zA-Z0-9_]*/,
       '=',
@@ -410,7 +415,6 @@ module.exports = grammar({
         '=',
         /[^&\n]*/,
       )),
-      optional(NL),
     )),
   },
 });
