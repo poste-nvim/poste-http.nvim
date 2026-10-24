@@ -5,6 +5,7 @@ local request_deps = require("poste-http.http.request_deps")
 local columns = require("poste-http.ui.columns")
 local text = require("poste-http.ui.text")
 local float = require("poste-http.ui.float")
+local render = require("poste-http.ui.render")
 local notify = require("poste-http.ui.notify").notify
 
 local M = {}
@@ -296,10 +297,8 @@ function M.show_inspector()
     jump_map[i] = r.entry
   end
 
-  vim.api.nvim_buf_set_lines(float_buf, 0, -1, false, vim.list_slice(lines, 2))
-  vim.bo[float_buf].modifiable = false
+  render.set_lines(float_buf, vim.list_slice(lines, 2), { filetype = "poste-variable-inspector" })
   vim.bo[float_buf].bufhidden = "wipe"
-  vim.bo[float_buf].filetype = "poste-variable-inspector"
 
   local height = math.min(#rows + 2, math.floor(vim.o.lines * 0.7))
 

@@ -2,6 +2,7 @@ local state = require("poste-http.state")
 local completion = require("poste-http.http.completion")
 local symbols = require("poste-http.http.symbols")
 local notify = require("poste-http.ui.notify").notify
+local render = require("poste-http.ui.render")
 
 local M = {}
 
@@ -81,9 +82,7 @@ local commands = {
       local lines = import.status()
       local buf = vim.api.nvim_create_buf(false, true)
       vim.api.nvim_buf_set_name(buf, "poste://import-status")
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-      vim.bo[buf].filetype = "poste"
-      vim.bo[buf].modifiable = false
+      render.set_lines(buf, lines, { filetype = "poste" })
       vim.bo[buf].bufhidden = "wipe"
       local width = 80
       local height = math.min(#lines + 2, 20)

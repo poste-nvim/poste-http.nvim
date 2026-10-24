@@ -178,8 +178,7 @@ function M.prepare_multi_responses(responses)
         lines = { "(error formatting)" }
         ft = "text"
       end
-      vim.api.nvim_buf_set_lines(buf, 0, -1, false, M.sanitize_lines(lines))
-      vim.bo[buf].filetype = ft or "text"
+      render.set_lines(buf, M.sanitize_lines(lines), { filetype = ft or "text" })
 
       -- JSON setup for body view
       if view == "body" and ft == "json" then

@@ -397,7 +397,6 @@ function M.open()
   vim.bo[out_buf].buftype = "nofile"
   vim.bo[out_buf].bufhidden = "wipe"
   vim.bo[out_buf].filetype = "poste_outline"
-  vim.bo[out_buf].modifiable = true
 
   local width = math.min(80, math.max(45, math.floor(vim.o.columns * 0.4)))
   local height = math.min(20, vim.o.lines - 4)
