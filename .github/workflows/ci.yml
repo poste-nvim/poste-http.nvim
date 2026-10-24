@@ -34,16 +34,20 @@ jobs:
     # first release to load; ts_query relies on the 0.11 iter_matches node
     # lists. So 0.11 is the floor (README says the same), and CI verifies
     # current stable + nightly rather than a stale pinned floor.
+    # macOS is in the matrix because the maintainer develops on macOS: a
+    # GNU-coreutils-only `timeout` in tests/injection_spec.sh kept the whole
+    # suite red on macOS while ubuntu-only CI stayed green (2026-10-24).
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         nvim_version: [stable, nightly]
     # nightly is a signal, not the gate: the dev build moves daily and an
     # unrelated nvim regression must not turn the badge red. stable is the
     # release-quality floor.
     continue-on-error: ${{ matrix.nvim_version == 'nightly' }}
-    name: Test (${{ matrix.nvim_version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, ${{ matrix.nvim_version }})
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,12 +56,19 @@ jobs:
       # exit 1, seen 2026-10-16). The grammar specs only need the CLI on PATH
       # for `generate`/`parse`, so install the released binary directly.
       # v0.26.x matches the CLI used locally; `generate` output is stable
-      # within a minor series.
+      # within a minor series. Asset name differs by OS/arch (macos-latest is
+      # arm64).
       - name: Install tree-sitter CLI
         run: |
-          curl -sSLf https://github.com/tree-sitter/tree-sitter/releases/download/v0.26.13/tree-sitter-linux-x64.gz \
-            | gunzip > /usr/local/bin/tree-sitter
-          chmod +x /usr/local/bin/tree-sitter
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)  asset="tree-sitter-linux-x64.gz" ;;
+            macOS-ARM64) asset="tree-sitter-macos-arm64.gz" ;;
+            macOS-X64)  asset="tree-sitter-macos-x64.gz" ;;
+            *) echo "unsupported runner ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
+          esac
+          curl -sSLf "https://github.com/tree-sitter/tree-sitter/releases/download/v0.26.13/$asset" \
+            | gunzip > tree-sitter-cli
+          sudo install -m 0755 tree-sitter-cli /usr/local/bin/tree-sitter
           tree-sitter --version
 
       - name: Install Neovim ${{ matrix.nvim_version }}
@@ -71,23 +82,8 @@ jobs:
           mkdir -p ~/.local/share/nvim/lazy
           git clone --depth 1 https://github.com/nvim-lua/plenary.nvim ~/.local/share/nvim/lazy/plenary.nvim
 
+      # timeout-minutes is the native (portable) replacement for the GNU
+      # `timeout 600` prefix, which does not exist on macOS runners.
       - name: Run tests
-        run: |
-          timeout 600 ./tests/run.sh ~/.local/share/nvim/lazy/plenary.nvim
-
-      # PlenaryBustedDirectory runs each spec as its own nvim child process
-      # with a 50s default timeout; the suite's exit-1-with-zero-failures is
-      # plenary timing the child out and killing it. Reproduce with the exact
-      # child command plenary uses and a short timeout to see the hang.
-      - name: Diagnose ui spec exit
-        if: always()
-        run: |
-          for f in tests/ui_text_spec.lua tests/ui_winbar_spec.lua; do
-            echo "=== $f (plenary child command, 30s cap) ==="
-            timeout 30 nvim --headless -u tests/minimal_init.lua \
-              -c "set rtp+=$HOME/.local/share/nvim/lazy/plenary.nvim" \
-              -c "set rtp+=." \
-              -c "lua require('plenary.busted').run('$f')" \
-              -c "qa" 2>&1 | tail -6
-            echo "$f child-exit=$?"
-          done
+        timeout-minutes: 20
+        run: ./tests/run.sh ~/.local/share/nvim/lazy/plenary.nvim
