@@ -195,27 +195,43 @@ green; every bug fix carries a regression test that would have caught it.
 
 ### 5.1 UI hard-rule greps (a hit = violation, unless allowlisted)
 
+All of these run on every `./tests/run.sh` (and thus CI); line comments that
+merely mention an API name do not count, only executable code does.
+
 ```bash
 # Float windows may only be created by ui/float.lua
-grep -rn "nvim_open_win" lua/ | grep -v "lua/poste-http/ui/float.lua"
-# The modifiable trio only in ui/render.lua (buffer.lua's get_response_buffer
-# locking it once at creation time is legal)
-grep -rn 'nvim_set_option_value("modifiable"' lua/ | grep -v "ui/render.lua\|http/buffer.lua"
+grep -rn "nvim_open_win" lua/
+# The modifiable toggle only in ui/render.lua, ui/float.lua (its default-lock
+# opt) and http/buffer.lua (get_response_buffer locking at creation time is
+# legal). Both idioms — nvim_set_option_value and vim.bo — must stay in the
+# allowlist; the old grep only matched the nvim_set_option_value spelling and
+# missed vim.bo drift entirely.
+grep -rnE 'nvim_set_option_value\("modifiable"|\.modifiable[[:space:]]*=[^=]' lua/
 # method/status → highlight mappings only in the semantics module and the highlight definitions
-grep -rln "PosteMethodGET\|PosteStatus2xx" lua/ | grep -v "ui/semantics.lua\|http/highlights.lua"
+grep -rln "PosteMethodGET|PosteStatus2xx" lua/
 # winbar concatenation only in ui/winbar.lua
-grep -rln "TabLineSel" lua/ | grep -v "ui/winbar.lua"
+grep -rln "TabLineSel" lua/
 # Char-level truncation primitives only in ui/text.lua and ui/columns.lua
-grep -rln "strcharpart\|strchars(" lua/ | grep -v "ui/text.lua\|ui/columns.lua"
-# User messages may only reach vim.notify from ui/notify.lua (tests/run.sh
-# already enforces this gate, scanning both lua/ and plugin/ — plugin/ was
-# outside the gate for a long time)
-grep -rn "vim\.notify" lua/ plugin/ | grep -v "lua/poste-http/ui/notify.lua"
+grep -rln "strcharpart|strchars(" lua/
+# Buffer line writes: full-replace writes into display buffers go through
+# ui/render.set_lines. Raw nvim_buf_set_lines is allowlisted only for:
+#   ui/float.lua, ui/picker.lua  ui/ primitives filling a fresh buffer
+#   http/script_snippet.lua      single-line splice inside the user's buffer
+#   http/curl.lua                insert-at-cursor into the user's file
+#   http/lua_docs.lua            invisible LSP analysis buffer
+#   http/import.lua              invisible import-resolution context buffer
+#   ai/actions.lua               scratch buffer the user keeps editing
+#   http/format_file.lua         rewrites the user's still-editable .http file
+grep -rn "nvim_buf_set_lines" lua/
+# User messages may only reach vim.notify from ui/notify.lua (this gate scans
+# both lua/ and plugin/ — plugin/ was outside the gate for a long time)
+grep -rn "vim\.notify" lua/ plugin/
 ```
 
 This list = the legitimate remainder after the 2026-08-30 convergence. **New
 hits must go through the ui/ primitives**; if a second site is genuinely
-needed, extend the primitive and update this list first.
+needed, extend the primitive and update this list — and the matching
+allowlist in `tests/run.sh` — first.
 
 ### 5.2 The verification trio
 

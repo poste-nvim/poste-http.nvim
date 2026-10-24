@@ -28,18 +28,68 @@ bash tests/grammar_spec.sh
 echo "--- tree-sitter injection tests ---"
 bash tests/injection_spec.sh
 
-# Guardrail grep (docs/dev/agent-guardrails.md §5.1): user-facing messages go
-# through ui/notify — direct vim.notify calls are how the seven-prefix/three-
-# title dialect drift of 2026-09-30 happened. Scans plugin/ as well as lua/:
-# the two :PosteHttp*Info/Status panels in plugin/poste.lua sat outside the
-# original lua/-only grep and kept calling vim.notify directly.
+# Guardrail greps (docs/dev/agent-guardrails.md §5.1): each gate bans a
+# hand-rolled copy of a ui/ primitive outside its allowlist. A hit means the
+# copied-boilerplate drift those primitives exist to prevent is re-entering
+# the codebase — extend the primitive instead, or extend the allowlist here
+# AND in §5.1 in the same change. Line-comment mentions of an API name
+# (e.g. history.lua's "nvim_open_win rejects width < 1") are filtered out;
+# only executable code counts.
+#
+# Why raw nvim_buf_set_lines is allowed where it is:
+#   ui/float.lua, ui/picker.lua  ui/ primitives filling a fresh buffer
+#   http/script_snippet.lua      single-line splice inside the user's buffer
+#   http/curl.lua                insert-at-cursor into the user's file
+#   http/lua_docs.lua            invisible LSP analysis buffer
+#   http/import.lua              invisible import-resolution context buffer
+#   ai/actions.lua               scratch buffer the user keeps editing
+#   http/format_file.lua         rewrites the user's still-editable .http file
+# (Full-replace writes into display buffers must go through
+# ui/render.set_lines, which owns the modifiable trio.)
 echo "--- guardrail greps ---"
-NOTIFY_VIOLATIONS=$(grep -rn "vim\.notify" lua/ plugin/ --include="*.lua" | grep -v "lua/poste-http/ui/notify.lua" || true)
-if [ -n "$NOTIFY_VIOLATIONS" ]; then
-    echo "FAIL: vim.notify outside ui/notify.lua (user messages must go through ui/notify):"
-    echo "$NOTIFY_VIOLATIONS"
-    exit 1
-fi
+guardrail_grep() {
+    local label="$1"
+    local pattern="$2"
+    local allowlist="$3"
+    local dirs="${4:-lua/}"
+    local hits
+    hits=$(grep -rnE "$pattern" $dirs --include="*.lua" \
+        | grep -vE "$allowlist" \
+        | grep -vE ':[0-9]+:[[:space:]]*(---?|--)' || true)
+    if [ -n "$hits" ]; then
+        echo "FAIL: $label (docs/dev/agent-guardrails.md §5.1):"
+        echo "$hits"
+        exit 1
+    fi
+    echo "PASS: $label"
+}
+
+guardrail_grep "floats only via ui/float.lua" \
+    "nvim_open_win" \
+    "lua/poste-http/ui/float\.lua"
+guardrail_grep "modifiable toggling only in ui/render.lua, ui/float.lua, http/buffer.lua" \
+    'nvim_set_option_value\("modifiable"|\.modifiable[[:space:]]*=[^=]' \
+    "ui/render\.lua|ui/float\.lua|http/buffer\.lua"
+guardrail_grep "method/status highlight tables only in ui/semantics.lua and http/highlights.lua" \
+    "PosteMethodGET|PosteStatus2xx" \
+    "ui/semantics\.lua|http/highlights\.lua"
+guardrail_grep "winbar tab concatenation only in ui/winbar.lua" \
+    "TabLineSel" \
+    "ui/winbar\.lua"
+guardrail_grep "char-level truncation only in ui/text.lua and ui/columns.lua" \
+    "strcharpart|strchars\(" \
+    "ui/text\.lua|ui/columns\.lua"
+guardrail_grep "buffer line writes only via ui/render.set_lines or the §5.1 allowlist" \
+    "nvim_buf_set_lines" \
+    "ui/render\.lua|ui/float\.lua|ui/picker\.lua|http/script_snippet\.lua|http/curl\.lua|http/lua_docs\.lua|http/import\.lua|ai/actions\.lua|http/format_file\.lua"
+# User messages reach vim.notify only from ui/notify.lua. Scans plugin/ as
+# well as lua/: the two :PosteHttp*Info/Status panels in plugin/poste.lua sat
+# outside the original lua/-only grep and kept calling vim.notify directly
+# (the seven-prefix/three-title dialect drift of 2026-09-30).
+guardrail_grep "vim.notify only in ui/notify.lua" \
+    "vim\.notify" \
+    "lua/poste-http/ui/notify\.lua" \
+    "lua/ plugin/"
 
 echo "--- Lua unit tests ---"
 # One nvim per spec file (workers in parallel), not one PlenaryBustedDirectory
