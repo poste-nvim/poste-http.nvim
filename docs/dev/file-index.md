@@ -108,7 +108,7 @@ that hand-rolled floats used to apply unevenly).
 | `format/body.lua` | HTTP response body formatting |
 | `format/verbose.lua` | Verbose response rendering. Owns the `as_text` / `as_number` / `as_header_pair` coercion layer: a response re-rendered from persisted history can carry any JSON type in any field, and the formatter degrades a drifted field instead of raising |
 | `format/util.lua` | Formatter primitives shared by the `format/` layer — line splitting, `human_size`, `json_pretty`/`json_escape`, url decoding, and the content-type → filetype / text-vs-binary / extension tables. Every helper is total: non-string/non-number input degrades instead of raising (response fields are re-rendered from persisted history) |
-| `format/image.lua` | Image preview (floating window + inline) |
+| `format/image.lua` | Inline image preview adapters (snacks.image, image.nvim) in the response buffer; float preview delegated to `http/image_view.lua` |
 | `format/image_meta.lua` | Pure image metadata (dimensions, size, JPEG EXIF) |
 | `format/multipart.lua` | Multipart body parsing |
 | `highlights.lua` | HTTP syntax highlighting (extmarks) |
@@ -168,6 +168,7 @@ that hand-rolled floats used to apply unevenly).
 | `import_postman.lua` | Postman Collection v2.1 → `.http` files (pure Lua) |
 | `import_parser.lua` | Shared import utilities (schema-to-example, `$ref` resolution, `env.json` generation) |
 | `image_cache.lua` | Image URL download + disk cache (TTL, stale fallback, temp-file tracking) and the content-type tables shared with `format/image.lua` |
+| `image_view.lua` | Image preview float window + the one-live-preview registry shared with `format/image.lua`'s inline adapters |
 | `copy.lua` | Curl command export |
 | `curl.lua` | Paste curl command as `.http` format |
 
