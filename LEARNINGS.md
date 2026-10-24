@@ -7,6 +7,33 @@ The per-round review archives (`docs/dev/review-YYYY-MM-DD.md`,
 `docs/dev/code-review-*.md`) were removed — the entries below carry the
 lesson itself, so cite the source file that holds the fix, not the archive.
 
+- 2026-10-24: test-portability — a test script that hard-depends on a
+  non-portable binary fails on the platform CI never runs. GNU coreutils
+  `timeout` in `tests/injection_spec.sh` made the ENTIRE suite exit 1 on
+  macOS (run.sh's `set -e` aborts after the injection section, so none of
+  the Lua specs even ran) while ubuntu-only CI stayed green for weeks. Worse,
+  the `|| true` guarding the grep also swallowed the shell's "command not
+  found", so the failure presented as "body injection not working" with
+  EMPTY diagnostics — the injection itself was fine. Fix: a `with_timeout`
+  wrapper (GNU `timeout`, Homebrew `gtimeout`, else run unwrapped) plus a
+  `macos-latest` leg in the CI matrix. When wrapping a pipeline in
+  `|| true` for an expected exit code, a completely empty output means the
+  command never ran — treat that as its own failure. See
+  `tests/injection_spec.sh`, `.github/workflows/ci.yml`.
+
+- 2026-10-24: stale-generated-code — a generated artifact whose generator
+  is gone rots invisibly and outlives its own truth. `http/_methods.lua`
+  carried a "AUTO-GENERATED ... Source of truth: grammar.js" header, but the
+  generator (tools/extract-methods.js, `npm run generate-data`) no longer
+  existed anywhere and the list had drifted to 10 methods vs the real 15
+  (GRAPHQL/GRPC/WEBSOCKET/WS/WSS missing) — anyone "wiring data.lua to the
+  generated file" would have silently broken completion for five methods.
+  The live drift guard is `tests/http/methods_spec.lua`, which parses
+  grammar.js at TEST time (no generation step to forget). Fix: deleted
+  `_methods.lua` outright. A stale "source of truth" file is more dangerous
+  than hand-maintained copies guarded by a spec. See
+  `tests/http/methods_spec.lua`, `lua/poste-http/http/data.lua`.
+
 - 2026-10-23: grammar/form-body-trailing-nl — a token that consumes its own
   line terminator ships it when the token text is used AS the payload.
   `form_body` ended with `optional(NL)`, so `describe` handed curl
