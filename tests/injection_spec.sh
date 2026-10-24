@@ -110,7 +110,22 @@ end
 vim.cmd('qall!')
 EOF
 
-timeout 60 nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" -c "luafile $TEST_DIR/inject.lua" 2>&1 | grep -E 'INJECTION_' > "$TEST_DIR/out.txt" || true
+# Hard-kill wrapper so a hung headless nvim cannot stall the suite. GNU
+# coreutils ships `timeout` on Linux; Homebrew's coreutils installs it as
+# `gtimeout` on macOS. With neither (bare macOS), run unwrapped: a missing
+# wrapper used to die as "command not found", whose empty output this script
+# then misreported as "body injection not working".
+with_timeout() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 60 "$@"
+    elif command -v gtimeout >/dev/null 2>&1; then
+        gtimeout 60 "$@"
+    else
+        "$@"
+    fi
+}
+
+with_timeout nvim --headless -u NONE +"set rtp+=$PROJECT_DIR" -c "luafile $TEST_DIR/inject.lua" 2>&1 | grep -E 'INJECTION_' > "$TEST_DIR/out.txt" || true
 
 if grep -q 'INJECTION_OK: json_body' "$TEST_DIR/out.txt" && grep -q 'INJECTION_OK: graphql_body' "$TEST_DIR/out.txt"; then
   echo "PASS: body injections work (poste_json + poste_graphql)"
