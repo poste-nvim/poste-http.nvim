@@ -20,7 +20,7 @@ File-driven HTTP request executor (Lua + curl). `.http` → execute → results 
   each protocol is its own repo, and stray family paths shadow silently.
 - **HTTP grammar ↔ tree-sitter sync**: Any change to HTTP grammar (parser, syntax)
   must be mirrored in the tree-sitter grammar (`tree-sitter-poste-http/grammar.js`) and
-  its query files (`highlights.scm`, `injections.scm`, `locals.scm`).
+  its query files (`highlights.scm`, `injections.scm`, `folds.scm`).
 - **HTTP method list sync**: `tree-sitter-poste-http/grammar.js` defines the
   `method_*` tokens and `lua/poste-http/http/data.lua` keeps its own copy of the
   method names. When adding/removing a method in `grammar.js`, update
