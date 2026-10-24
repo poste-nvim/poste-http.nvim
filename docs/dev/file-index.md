@@ -96,7 +96,6 @@ that hand-rolled floats used to apply unevenly).
 | `jq_mapping.lua` | `<<` prompt jq-lite mapping — parse structured/dynamic option strings, apply dot-path mappings |
 | `prompt_vars.lua` | Prompt variable (`<<name [opts]`) collection + interactive resolution, prompt-line stripping |
 | `form_data.lua` | Multipart form-data processing + magic-var substitution |
-| `_methods.lua` | AUTO-GENERATED method token list from `grammar.js` (`npm run generate-data`); do not edit |
 
 #### UI & Rendering
 
