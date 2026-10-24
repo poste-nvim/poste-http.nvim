@@ -9,8 +9,9 @@
 --   commands  → tests/http/commands_spec.lua
 --   help      → tests/http/help_spec.lua
 --   script_snippet → tests/http/script_snippet_spec.lua
+--   lua_docs  → tests/http/lua_docs_spec.lua
 -- Remaining GUI-coupled modules (buffer_setup, outline, install, textobj,
--- lua_docs, curl, copy, folding) are exercised via integration specs and
+-- curl, copy, folding) are exercised via integration specs and
 -- existing dedicated tests (folding_spec, copy_spec, curl_exec_spec,
 -- buffer_setup_spec).
 
