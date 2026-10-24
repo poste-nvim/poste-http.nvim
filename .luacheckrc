@@ -4,8 +4,12 @@
 -- Don't warn about unused arguments (_ prefix convention)
 unused_args = false
 
--- Don't warn about global variables; they are Neovim API calls
-allow_defined = true
+-- Globals: only `vim` (Neovim API) and the busted framework may be READ.
+-- Defining new globals is not allowed anywhere. The old top-level
+-- `allow_defined = true` ("they are Neovim API calls" — moot, `vim` was
+-- already in read_globals) is exactly what hid the `_G.parent` leak of
+-- 2026-09-12 and the `_G.trees` leak of 2026-10-16 until runtime; both were
+-- writable-global typos lint should have rejected at commit time.
 read_globals = {
   -- Neovim API
   "vim",
