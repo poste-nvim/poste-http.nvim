@@ -187,10 +187,18 @@ local function curl_argv(url, tmp)
   return cmd
 end
 
+local temp_download_seq = 0
+
 local function new_temp_download_path(cache_dir, ct)
   vim.fn.mkdir(cache_dir .. "/img", "p")
-  local ms = math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000)
-  return cache_dir .. "/img/url_" .. os.date("%Y%m%d_%H%M%S") .. string.format("_%03d", ms) .. extension_for(ct)
+  -- A per-download sequence number: timestamp+ms alone collided when two
+  -- async downloads (the whole reason the async path exists) started within
+  -- the same millisecond — both curls wrote one file, one rename won, and
+  -- the other preview failed on a nonexistent temp path.
+  temp_download_seq = temp_download_seq + 1
+  return cache_dir .. "/img/url_" .. os.date("%Y%m%d_%H%M%S")
+    .. string.format("_%03d_%d", math.floor(((vim.uv or vim.loop).hrtime() / 1e6) % 1000), temp_download_seq)
+    .. extension_for(ct)
 end
 
 --- Fresh cached copy for a URL, or nil. Sync lookup so preview flows can

@@ -186,8 +186,9 @@ function M.start(req, callback)
     -- success AND the error callback below would fire a second time.
     session.job_id = nil
     session.finished = true
-    if active == session then active = nil end
-    if state.live_session == session then state.live_session = nil end
+    -- active/state.live_session are not published until after this block,
+    -- so there is nothing to clear here (the reads below would always be
+    -- false).
     callback(executor.error_response(req, "Failed to start websocat process"))
     return
   end
@@ -202,7 +203,15 @@ function M.start(req, callback)
     table.insert(session.frames.sent, msg)
   end
   if #outgoing > 0 then
-    vim.fn.chansend(session.job_id, table.concat(outgoing, "\n") .. "\n")
+    -- Same death-race as send() below: chansend throws "invalid channel id"
+    -- in the window where the process died but on_exit has not finalized
+    -- yet. Losing the initial flush here only means the server gets no
+    -- frames — raising out of start() would wedge the run instead; the
+    -- on_exit path reports the dead session on its own.
+    local ok_send = pcall(vim.fn.chansend, session.job_id, table.concat(outgoing, "\n") .. "\n")
+    if not ok_send then
+      state.log("WARN", "WebSocket session died before the initial frames were sent")
+    end
   end
 
   -- The session is live once the job spawned, not at the first inbound

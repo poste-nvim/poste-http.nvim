@@ -23,6 +23,26 @@ local BUILTIN_SCALARS = { Int = true, Float = true, String = true, Boolean = tru
 --- Per-buffer schema cache: buf -> { keys = { [path] = key }, schemas = { [path] = schema } }
 M._cache = {}
 
+--- Drop one buffer's schema entry. Wired to BufWipeout below (same shape as
+--- folding.lua) so every closed .http file does not leak its parsed SDL
+--- under its bufnr forever — and a reused bufnr cannot inherit a dead
+--- buffer's entry.
+function M._evict(bufnr)
+  M._cache[bufnr] = nil
+end
+
+local eviction_armed = false
+local function arm_eviction()
+  if eviction_armed then return end
+  eviction_armed = true
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = vim.api.nvim_create_augroup("poste_http_graphql_schema_cache", { clear = true }),
+    callback = function(args)
+      M._evict(args.buf)
+    end,
+  })
+end
+
 --- Overridable I/O hooks (tests).
 M.fs_stat = function(path) return uv.fs_stat(path) end
 M.read_file = function(path)
@@ -785,5 +805,7 @@ function M.get_schema_path_items(partial, buf)
   end
   return sort_items(items)
 end
+
+arm_eviction()
 
 return M

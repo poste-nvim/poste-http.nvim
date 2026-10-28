@@ -33,6 +33,26 @@ M.fn = vim.fn
 --- Per-buffer index cache: buf -> { key, pending, index = { services = { [fq] = { methods } } } }
 M._cache = {}
 
+--- Drop one buffer's index. Wired to BufWipeout below (same shape as
+--- folding.lua) so closed buffers do not leak their gRPC index, and a reused
+--- bufnr cannot inherit a dead buffer's entry (in-flight describe closures
+--- publish under the OLD generation's identity check regardless).
+function M._evict(bufnr)
+  M._cache[bufnr] = nil
+end
+
+local eviction_armed = false
+local function arm_eviction()
+  if eviction_armed then return end
+  eviction_armed = true
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = vim.api.nvim_create_augroup("poste_http_grpc_proto_cache", { clear = true }),
+    callback = function(args)
+      M._evict(args.buf)
+    end,
+  })
+end
+
 --- Overridable stat hook used by index_key (tests).
 M.fs_stat = function(path) return uv.fs_stat(path) end
 
@@ -372,6 +392,7 @@ end
 --- messages and enums used by the body are all indexed after prewarm
 --- (index.pending_messages guards against reference cycles).
 local function describe_type_into(buf, info, fq, index, remaining)
+  local generation = M._cache[buf]
   local ok = M.fn.jobstart(M.build_describe_args(info, fq), {
     stdout_buffered = true,
     stderr_buffered = true,
@@ -402,7 +423,7 @@ local function describe_type_into(buf, info, fq, index, remaining)
     on_exit = function()
       vim.schedule(function()
         remaining.n = remaining.n - 1
-        if remaining.n <= 0 then
+        if remaining.n <= 0 and M._cache[buf] == generation then
           M._cache[buf] = { key = M.index_key(info), index = index }
         end
       end)
@@ -430,6 +451,7 @@ function M.prewarm(buf, info)
   if M.fn.executable("grpcurl") ~= 1 then return end
   if not has_protos(info) and not (info.host and info.host ~= "") then return end
 
+  local generation = M._cache[buf]  -- identity: newer prewarms replace this table
   M._cache[buf] = {
     key = key,
     pending = true,
@@ -452,7 +474,9 @@ function M.prewarm(buf, info)
     on_exit = function(_, exit_code)
       vim.schedule(function()
         if exit_code ~= 0 then
-          M._cache[buf] = { key = key, index = { services = {} } }
+          if M._cache[buf] == generation then
+            M._cache[buf] = { key = key, index = { services = {} } }
+          end
           return
         end
         local services = {}
@@ -460,7 +484,9 @@ function M.prewarm(buf, info)
           table.insert(services, svc)
         end
         if #services == 0 then
-          M._cache[buf] = { key = key, index = index }
+          if M._cache[buf] == generation then
+            M._cache[buf] = { key = key, index = index }
+          end
           return
         end
         -- One describe job per service; each service's request message
@@ -488,7 +514,7 @@ function M.prewarm(buf, info)
                   end
                 end
                 remaining.n = remaining.n - 1
-                if remaining.n <= 0 then
+                if remaining.n <= 0 and M._cache[buf] == generation then
                   M._cache[buf] = { key = key, index = index }
                 end
               end)
@@ -498,7 +524,7 @@ function M.prewarm(buf, info)
             remaining.n = remaining.n - 1
           end
         end
-        if remaining.n <= 0 then
+        if remaining.n <= 0 and M._cache[buf] == generation then
           M._cache[buf] = { key = key, index = index }
         end
       end)
@@ -529,7 +555,16 @@ function M.get_method_items(buf, cursor_line, extra)
 
   local entry = M._cache[buf]
   local index = nil
+  -- Re-check the KEY, not just "index non-empty": a proto edited (or a host
+  -- env var changed) while the buffer stays open must re-warm, or the stale
+  -- index was served indefinitely. prewarm() no-ops on a key match, so the
+  -- only per-call cost is one fs_stat — the same key cost graphql_schema
+  -- already pays per completion.
   if entry and not vim.tbl_isempty(entry.index or {}) then
+    if entry.key ~= M.index_key(info) then
+      M.prewarm(buf, info)
+      return items
+    end
     index = entry.index
   else
     M.prewarm(buf, info)
@@ -629,7 +664,8 @@ function M.get_body_items(buf, cursor_line, cursor_col)
 
   local entry = M._cache[buf]
   local index = entry and entry.index
-  if not index or vim.tbl_isempty(index.services or {}) then
+  if not index or vim.tbl_isempty(index.services or {})
+    or entry.key ~= M.index_key(info) then
     M.prewarm(buf, info)
     return items
   end
@@ -755,5 +791,7 @@ function M.get_proto_path_items(partial)
   table.sort(items, function(a, b) return a.sortText < b.sortText end)
   return items
 end
+
+arm_eviction()
 
 return M

@@ -113,9 +113,11 @@ function M.goto_definition()
     end
     local alias = trimmed:match("^import%s+%S+%s+as%s+(%S+)")
     if alias then
-      local as_pos = line_text:find("%s+as%s+" .. vim.pesc(alias) .. "%s*$")
-      if as_pos then
-        local alias_start = as_pos + 4
+      -- Shared locator: the old "%s+as%s+" window assumed exactly one space
+      -- on each side, so `import ./a.lua  as m` shifted the window one char
+      -- and "defined here" never fired.
+      local alias_start = nav_util.find_alias_col(line_text, alias)
+      if alias_start then
         if col >= alias_start - 1 and col <= alias_start - 1 + #alias then
           notify("Alias '" .. alias .. "' defined here", vim.log.levels.INFO)
           return

@@ -381,6 +381,17 @@ end
 --- @return boolean  true when handled (jumped, or the failure was notified);
 ---   false when `alias` has no import directive in buf and the caller should
 ---   notify its own "not found" wording.
+--- Locate the alias token of an `import <path> as <alias>` line.
+--- Tolerant of the exact whitespace around `as` (one or more spaces on
+--- either side; the three former per-site copies each broke on one of those
+--- shapes) and does not match an `as` inside the path itself.
+--- @param line string  the import line text
+--- @param alias string  the alias name to locate
+--- @return integer|nil start_col  0-based byte col of the first alias char
+local function find_alias_col(line, alias)
+  return line:find("%f[%w]" .. vim.pesc(alias) .. "%s*$")
+end
+
 function M.goto_import_keypath(buf, alias, keypath, opts)
   local import_path, import_line = nil, nil
   local import_mod = require("poste-http.http.import")
@@ -398,10 +409,11 @@ function M.goto_import_keypath(buf, alias, keypath, opts)
 
   if opts and opts.alias_half then
     local l = vim.api.nvim_buf_get_lines(buf, import_line - 1, import_line, false)[1] or ""
-    local as_pos = l:find(" as " .. vim.pesc(alias) .. "%s*$")
-    local target_col = (as_pos and as_pos + 3) or 0
+    local alias_start = find_alias_col(l, alias)
+    -- Land ON the alias; without a match (should not happen for a parsed
+    -- import) column 0 keeps the old fallback.
     vim.cmd("normal! m'")
-    vim.api.nvim_win_set_cursor(0, { import_line, target_col })
+    vim.api.nvim_win_set_cursor(0, { import_line, (alias_start or 1) - 1 })
     return true
   end
 

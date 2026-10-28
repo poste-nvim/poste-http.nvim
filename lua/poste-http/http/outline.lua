@@ -263,6 +263,10 @@ end
 
 local function render()
   if not active or not vim.api.nvim_buf_is_valid(active.out_buf) then return end
+  -- `active` outlives a closed source WINDOW (only BufWipeout on the
+  -- buffers tears it down); anything below reads src_buf/src_win.
+  if not vim.api.nvim_buf_is_valid(active.src_buf) then return end
+  if not vim.api.nvim_win_is_valid(active.src_win) then return end
   local items = collect_items(active.src_buf)
 
   -- Compute fixed method column width for alignment
@@ -314,6 +318,11 @@ local function highlight_current()
   local items = active.items or {}
   if #items == 0 then return end
 
+  -- Same stale-window bail as render(): CursorMoved fires on the surviving
+  -- window after the other split closed, and nvim_win_get_cursor on the
+  -- dead one raised "Invalid window id" on every cursor move.
+  if not vim.api.nvim_buf_is_valid(active.src_buf)
+    or not vim.api.nvim_win_is_valid(active.src_win) then return end
   local cursor_line = vim.api.nvim_win_get_cursor(active.src_win)
   if not cursor_line then return end
 
@@ -506,6 +515,21 @@ function M.close()
   end
 
   active = nil
+end
+
+--- Test seams (family _test convention): highlight_current/render are
+--- module-local because the real callers are autocmds; the stale-window
+--- regression needs to drive them with a hand-built state.
+function M._set_active_for_test(state)
+  active = state
+end
+
+function M._render_for_test()
+  render()
+end
+
+function M._highlight_current_for_test()
+  highlight_current()
 end
 
 return M

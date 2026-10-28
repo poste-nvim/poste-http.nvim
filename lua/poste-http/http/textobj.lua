@@ -20,11 +20,11 @@ local ts_query = require("poste-http.http.ts_query")
 
 local M = {}
 
---- The range (0-based rows, end EXCLUSIVE row) of the request block that
---- contains row: from its ### separator to the line before the next
---- separator (or the last non-blank line). Trailing blank lines are trimmed
---- so `daR` does not eat the spacing before the next block. nil when no
---- separator sits at or above the row.
+--- The range (0-based rows; the END row is INCLUSIVE — the block's last
+--- non-blank line) of the request block that contains row: from its ###
+--- separator to the line before the next separator. Trailing blank lines
+--- are trimmed so `daR` does not eat the spacing before the next block.
+--- nil when no separator sits at or above the row.
 --- @return integer|nil, integer|nil
 function M.block_rows(buf, row)
   local seps = ts_query.query_nodes(buf, [[

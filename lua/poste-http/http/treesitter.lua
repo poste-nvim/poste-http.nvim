@@ -3,6 +3,10 @@ local cache = require("poste-http.http.cache")
 local state = require("poste-http.state")
 local notify = require("poste-http.ui.notify").notify
 
+-- Buffers with a live on_lines highlighter (Neovim cannot detach a
+-- buf_attach callback, so disable() only flips this gate).
+local enabled_buffers = {}
+
 local ns = vim.api.nvim_create_namespace("poste_http_var_refs")
 local mapping_ns = vim.api.nvim_create_namespace("poste_http_prompt_mapping")
 local undo_ns = vim.api.nvim_create_namespace("poste_http_undo_fix")
@@ -22,17 +26,27 @@ local function invalidate_parser(bufnr)
 end
 
 vim.on_key(function(key)
-  if vim.fn.mode() == "n" and (key == "u" or key == "U" or key == vim.keycode("<C-R>")) then
-    local bufnr = vim.api.nvim_get_current_buf()
-    if vim.bo[bufnr] and vim.bo[bufnr].filetype == "poste_http" then
-      invalidate_parser(bufnr)
-    end
+  -- Cheap key filter FIRST: this closure runs on every keypress of every
+  -- buffer for the life of the session; mode()/filetype lookups only belong
+  -- on the keys that can actually invalidate the parser.
+  if key ~= "u" and key ~= "U" and key ~= vim.keycode("<C-R>") then return end
+  if vim.fn.mode() ~= "n" then return end
+  local bufnr = vim.api.nvim_get_current_buf()
+  if vim.bo[bufnr] and vim.bo[bufnr].filetype == "poste_http" then
+    invalidate_parser(bufnr)
   end
 end, undo_ns)
 
-local function highlight_var_refs(bufnr)
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
-  vim.api.nvim_buf_clear_namespace(bufnr, mapping_ns, 0, -1)
+local function highlight_var_refs(bufnr, first_line, last_line)
+  -- Optional 0-based [first_line, last_line) range: on_lines hands back the
+  -- changed range, and rescanning ONLY it turns a whole-buffer re-scan per
+  -- insert-mode keystroke into a per-keystroke slice. Extmarks below the
+  -- edited range shift on their own; the request-name lookup stays global
+  -- (cheap — cache.get_buffer_cache is changedtick-keyed).
+  local range_start = first_line or 0
+  local range_end = last_line or -1
+  vim.api.nvim_buf_clear_namespace(bufnr, ns, range_start, range_end)
+  vim.api.nvim_buf_clear_namespace(bufnr, mapping_ns, range_start, range_end)
   local request_names = cache.collect_request_names(bufnr)
   local lookup = {}
   if request_names then
@@ -40,9 +54,9 @@ local function highlight_var_refs(bufnr)
       lookup[name] = true
     end
   end
-  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, range_start, range_end, false)
   for l, line in ipairs(lines) do
-    local row = l - 1
+    local row = range_start + l - 1
     if not vim.trim(line):match("^#") then
       -- Highlight client.run("#alias.Name", ...) request targets inside scripts
       local cr_s, cr_e = line:find('client%.run%s*%(')
@@ -217,10 +231,15 @@ function M.enable(bufnr)
   if not ok then
     notify("tree-sitter: " .. tostring(err), vim.log.levels.WARN)
   end
+  enabled_buffers[bufnr] = true
   highlight_var_refs(bufnr)
   vim.api.nvim_buf_attach(bufnr, false, {
-    on_lines = function()
-      highlight_var_refs(bufnr)
+    -- on_lines args: (buf, changedtick, firstline, old_lastline, new_lastline).
+    -- Neovim has no detach API for buf_attach, so the callback must stay
+    -- cheap after disable(): the enabled_buffers gate makes it a no-op.
+    on_lines = function(_, _changedtick, firstline, _old_lastline, new_lastline)
+      if not enabled_buffers[bufnr] then return end
+      highlight_var_refs(bufnr, firstline, new_lastline)
     end,
   })
 
@@ -237,6 +256,7 @@ end
 
 function M.disable(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  enabled_buffers[bufnr] = nil
   pcall(vim.treesitter.stop, bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
   vim.api.nvim_buf_clear_namespace(bufnr, mapping_ns, 0, -1)

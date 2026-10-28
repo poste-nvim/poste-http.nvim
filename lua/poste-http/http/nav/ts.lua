@@ -134,8 +134,9 @@ function M.goto_definition()
         for i, l in ipairs(buf_lines) do
           local imp_alias = l:match("^import%s+%S+%s+as%s+(%S+)")
           if imp_alias == alias_name then
-            local _, ae = l:find("as%s+")
-            local alias_col = ae or 0 -- not the cursor col from goto_definition
+            -- Shared locator: `as%s+` also matched an "as" inside the path
+            -- (import ../gas as m) and landed the cursor mid-word.
+            local alias_col = (nav_util.find_alias_col(l, imp_alias) or 1) - 1
             vim.cmd("normal! m'")
             vim.api.nvim_win_set_cursor(0, { i, alias_col })
             return
@@ -160,7 +161,9 @@ function M.goto_definition()
 
   if node_type == "var_value" then
     local text = ts_query.node_text(node, buf)
-    local var_name = text:match("{{(.+)}}")
+    -- Lazy: a var_value may carry several {{refs}}; the greedy form
+    -- captured everything between the FIRST {{ and the LAST }}.
+    local var_name = text:match("{{(.-)}}")
     if var_name then
       local req_name = var_name:match("^([^%.]+)")
       if not req_name then req_name = var_name end
