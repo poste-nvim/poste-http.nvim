@@ -311,3 +311,38 @@ describe("copy_as_curl multipart", function()
       "quoted boundary must still yield the -F flags, got: " .. cmd)
   end)
 end)
+
+describe("copy_as_curl method/header fidelity (2026-10-28 round)", function()
+  it("keeps -X GET for a GET block that carries a body", function()
+    -- A GET with a body is legal .http; without the explicit -X GET curl's
+    -- data-flag rule silently promoted the copy to POST — diverging from
+    -- what the executor itself sends (-X <method> always).
+    local buf = make_buf({
+      "### Get With Body",
+      "GET https://api.example.com/search",
+      "Content-Type: application/json",
+      "",
+      '{ "q": "x" }',
+    })
+    vim.api.nvim_set_current_buf(buf)
+    vim.fn.setpos(".", { 0, 2, 1, 0 })
+
+    local cmd = copy.copy_as_curl()
+    assert.is_not_nil(cmd)
+    assert.matches("%-X GET", cmd)
+  end)
+
+  it("preserves headers with an empty value", function()
+    local buf = make_buf({
+      "### Empty Header",
+      "GET https://api.example.com/x",
+      "X-Custom:",
+    })
+    vim.api.nvim_set_current_buf(buf)
+    vim.fn.setpos(".", { 0, 2, 1, 0 })
+
+    local cmd = copy.copy_as_curl()
+    assert.is_not_nil(cmd)
+    assert.matches("X%-Custom:", cmd)
+  end)
+end)

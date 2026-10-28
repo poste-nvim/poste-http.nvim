@@ -202,6 +202,9 @@ end
 function M.build_import_index(imports, buf_dir)
   local index = { bare = {}, aliased = {}, errors = {}, warnings = {} }
   local seen_aliases = {}
+  -- Cumulative bare-name owner (request name → most recent declaring path):
+  -- rebuilding the map from ALL previous entries per import was O(B²·R).
+  local bare_name_owner = {}
 
   for _, imp in ipairs(imports) do
     local file_path = resolve_path(imp.path, buf_dir)
@@ -244,21 +247,20 @@ function M.build_import_index(imports, buf_dir)
           index.aliased[imp.alias] = { path = file_path, requests = requests, content = content }
         end
       else
-        -- Check for name collisions with existing bare imports
-        local existing = {}
-        for _, entry in ipairs(index.bare) do
-          for _, req in ipairs(entry.requests) do
-            existing[req.name] = entry.path
-          end
-        end
+        -- Name collisions with earlier bare imports. resolve_reference scans
+        -- bare entries in REVERSE, so this later import really does override
+        -- the older one — the warning matches the lookup direction.
         for _, req in ipairs(requests) do
-          if existing[req.name] then
+          if bare_name_owner[req.name] then
             table.insert(index.warnings,
               string.format("Warning: request '%s' in %s overrides same name in %s",
-                req.name, imp.path, existing[req.name]))
+                req.name, imp.path, bare_name_owner[req.name]))
           end
         end
         table.insert(index.bare, { path = file_path, requests = requests, content = content })
+        for _, req in ipairs(requests) do
+          bare_name_owner[req.name] = imp.path
+        end
       end
     end
   end
@@ -288,8 +290,12 @@ local function resolve_reference(reference, index)
     -- nil here made such requests unresolvable. Alias form keeps precedence.
   end
 
-  -- Try bare name lookup
-  for _, entry in ipairs(index.bare) do
+  -- Bare name lookup, LATEST import first. The build warns "overrides same
+  -- name" for duplicates and docs/user/syntax.md promises the later import
+  -- wins — a forward ipairs scan returned the FIRST match and silently ran
+  -- the older file's request while the user was told the new one took over.
+  for i = #index.bare, 1, -1 do
+    local entry = index.bare[i]
     -- Lua imports index exports, not requests — nothing to resolve here.
     if not entry.is_lua then
       for _, req in ipairs(entry.requests) do
@@ -671,8 +677,7 @@ local function process_target_post_script(response, content, block_start, block_
   end
 end
 
---- Execute a run directive by constructing and running a poste command.
---- Dispatches to the appropriate execution strategy:
+--- Execute a run directive by dispatching to the curl-based strategies:
 ---   - run #Name / run #alias.Name → execute single request
 ---   - run ./path.http → execute all requests in target file
 --- @param opts table  Result from resolve_run_at_cursor()
@@ -714,7 +719,6 @@ function M.execute_run_directive(opts, callback)
 
       -- Process pre-script from target block (on prompt-resolved content)
       local modified_content, injected_count = process_target_pre_script(prompt_resolved, opts.line, block_end, file_dir)
-      block_end = block_end + injected_count
 
       -- Apply variable overrides if specified
       if opts.vars and next(opts.vars) then
@@ -787,6 +791,13 @@ function M.execute_all_requests(file_path, content, var_map, callback)
         return
       end
       local block_end = find_block_end(dep_resolved_content, req.line)
+      -- Post-script scans the ORIGINAL content, so its window must come from
+      -- the original bounds too: prompt resolution can shift lines in the
+      -- resolved copy, and a resolved-content window over the original text
+      -- over-ran into the NEXT block, running other requests' assertion
+      -- scripts. (The single-request path keeps original bounds for the same
+      -- reason — see orig_block_end above.)
+      local orig_block_end = find_block_end(content, req.line)
       local file_dir = vim.fn.fnamemodify(file_path, ":h")
       local modified_content, _ = process_target_pre_script(dep_resolved_content, req.line, block_end, file_dir)
 
@@ -796,7 +807,7 @@ function M.execute_all_requests(file_path, content, var_map, callback)
 
       execute_import_via_curl(modified_content, file_path, req.line, state.current_env, function(response)
         if response then
-          process_target_post_script(response, content, req.line, block_end, file_dir)
+          process_target_post_script(response, content, req.line, orig_block_end, file_dir)
           request_vars.cache_response(req.name, response)
           table.insert(results, { name = req.name, response = response })
         else

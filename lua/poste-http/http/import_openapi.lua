@@ -19,8 +19,16 @@ local function build_url(server_url, path)
 end
 
 local function parse_request_body(operation, spec)
-  if not operation.requestBody then return "" end
-  local content = operation.requestBody.content or {}
+  local rb = operation.requestBody
+  if not rb then return "" end
+  -- Real specs commonly reference a shared body:
+  -- "requestBody": {"$ref": "#/components/requestBodies/Pet"}. Without
+  -- dereferencing, `.content` was nil and the request body was silently
+  -- dropped (the parameters path already resolves its schemas).
+  rb = import_parser.resolve_schema(rb, spec)
+  if type(rb) ~= "table" then return "" end
+  local content = rb.content
+  if type(content) ~= "table" then return "" end
   local json_content = content["application/json"]
   if json_content and json_content.schema then
     local example = import_parser.schema_to_example(json_content.schema, spec)
@@ -43,8 +51,12 @@ local function parse_operation(path, method, operation, spec, server_url)
     table.insert(headers, auth)
   end
 
-  local api_params = operation.parameters or {}
-  local path_params = spec.paths and spec.paths[path] and spec.paths[path].parameters or {}
+  local api_params = type(operation.parameters) == "table" and operation.parameters or {}
+  local path_params = {}
+  if type(spec.paths) == "table" and type(spec.paths[path]) == "table"
+    and type(spec.paths[path].parameters) == "table" then
+    path_params = spec.paths[path].parameters
+  end
   local all_params = {}
   for _, p in ipairs(api_params) do table.insert(all_params, p) end
   for _, p in ipairs(path_params) do
@@ -81,8 +93,14 @@ function M.import_spec(spec_path, out_dir)
     return nil, "Not an OpenAPI 3.x spec (missing 'openapi' field)"
   end
 
+  -- Drifted specs can carry servers as a scalar or a list of scalars; a
+  -- bare `#servers > 0` reads a string's length and then indexes nil.
   local servers = parse_servers(spec)
-  local server_url = (#servers > 0 and servers[1].url) or "http://localhost"
+  local server_url = "http://localhost"
+  if type(servers) == "table" and type(servers[1]) == "table"
+    and type(servers[1].url) == "string" then
+    server_url = servers[1].url
+  end
 
   local title = (spec.info and spec.info.title) or "api"
   local filename = import_parser.make_filename(title)
@@ -127,9 +145,16 @@ function M.import_spec(spec_path, out_dir)
     end
   end
 
-  -- Add operation-level variables as file-level @var definitions
-  for name, value in pairs(all_op_vars) do
-    table.insert(file_vars, { name = name, value = value })
+  -- Add operation-level variables as file-level @var definitions, sorted:
+  -- the generated file is committed and reviewed, so its order must be a
+  -- pure function of the spec (pairs() hash order differs between runs).
+  local op_var_names = {}
+  for name in pairs(all_op_vars) do
+    table.insert(op_var_names, name)
+  end
+  table.sort(op_var_names)
+  for _, name in ipairs(op_var_names) do
+    table.insert(file_vars, { name = name, value = all_op_vars[name] })
   end
 
   local file_vars_str = import_parser.generate_file_vars(file_vars)
@@ -138,7 +163,10 @@ function M.import_spec(spec_path, out_dir)
   env_vars["base_url"] = server_url
   local env_json = import_parser.generate_env_json("dev", env_vars)
 
-  import_parser.write_output(out_dir, http_content, env_json, filename)
+  local ok, write_err = import_parser.write_output(out_dir, http_content, env_json, filename)
+  if not ok then
+    return nil, write_err
+  end
 
   return { filename = filename, block_count = #blocks }
 end

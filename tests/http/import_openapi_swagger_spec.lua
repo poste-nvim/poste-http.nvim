@@ -272,3 +272,153 @@ describe("Swagger import ordering", function()
     os.remove(spec_path)
   end)
 end)
+
+describe("hostile spec shapes (2026-10-28 round)", function()
+  local function cleanup(path, out_dir)
+    pcall(os.remove, path)
+    pcall(vim.fn.delete, out_dir, "rf")
+  end
+
+  it("read_spec rejects a directory with an error instead of crashing", function()
+    -- io.open succeeds on a directory; only the read fails. The OpenAPI
+    -- finder runs in "both" mode, so confirming a directory landed here.
+    local dir = os.tmpname()
+    os.remove(dir)
+    vim.fn.mkdir(dir, "p")
+    local spec, err = require("poste-http.http.import_parser").read_spec(dir)
+    assert.is_nil(spec)
+    assert.truthy(err:match("Cannot read file"))
+    vim.fn.delete(dir, "rf")
+  end)
+
+  it("extract_auth_header survives scalar security shapes", function()
+    local parser = require("poste-http.http.import_parser")
+    assert.is_nil(parser.extract_auth_header({ security = "junk" }))
+    assert.is_nil(parser.extract_auth_header({ security = { 42 } }))
+    assert.is_nil(parser.extract_auth_header({ security = { { bearer_auth = {} } },
+      components = { securitySchemes = 42 } }))
+    -- Well-formed input still resolves.
+    local auth = parser.extract_auth_header({
+      security = { { bearer_auth = {} } },
+      components = { securitySchemes = { bearer_auth = { type = "http", scheme = "bearer" } } },
+    })
+    assert.equals("Authorization", auth.key)
+  end)
+
+  it("OpenAPI resolves a requestBody $ref instead of dropping the body", function()
+    local spec_path = os.tmpname() .. ".json"
+    local out_dir = os.tmpname() .. "-out"
+    os.remove(out_dir)
+    write_json(spec_path, {
+      openapi = "3.0.0",
+      info = { title = "Ref Body" },
+      servers = { { url = "http://localhost:8080" } },
+      paths = {
+        ["/pets"] = {
+          post = {
+            summary = "Create pet",
+            requestBody = { ["$ref"] = "#/components/requestBodies/Pet" },
+            responses = { ["200"] = { description = "ok" } },
+          },
+        },
+      },
+      components = {
+        requestBodies = {
+          Pet = {
+            content = {
+              ["application/json"] = {
+                schema = { type = "object", properties = { name = { type = "string" } } },
+              },
+            },
+          },
+        },
+      },
+    })
+    local result, err = openapi.import_spec(spec_path, out_dir)
+    assert.is_truthy(result, err)
+    local content = read_file(out_dir .. "/" .. result.filename)
+    -- The generated .http block carries the dereferenced JSON body plus its
+    -- Content-Type (not a curl command — this is the file importer).
+    assert.truthy(content:match('Content%-Type: application/json'), "body content-type must be present")
+    assert.truthy(content:match('%{"name":"string"%}'), "the referenced schema's example must become the body")
+    cleanup(spec_path, out_dir)
+  end)
+
+  it("OpenAPI survives scalar servers and keeps the default base_url", function()
+    local spec_path = os.tmpname() .. ".json"
+    local out_dir = os.tmpname() .. "-out"
+    os.remove(out_dir)
+    write_json(spec_path, {
+      openapi = "3.0.0",
+      info = { title = "Scalar Servers" },
+      servers = "junk",
+      paths = { ["/ping"] = { get = { summary = "Ping", responses = { ["200"] = { description = "ok" } } } } },
+    })
+    local result, err = openapi.import_spec(spec_path, out_dir)
+    assert.is_truthy(result, err)
+    local content = read_file(out_dir .. "/" .. result.filename)
+    assert.truthy(content:match("http://localhost"), "default server URL must be used")
+    cleanup(spec_path, out_dir)
+  end)
+
+  it("Swagger skips nameless parameters instead of crashing", function()
+    local spec_path = os.tmpname() .. ".json"
+    local out_dir = os.tmpname() .. "-out"
+    os.remove(out_dir)
+    write_json(spec_path, {
+      swagger = "2.0",
+      info = { title = "Nameless" },
+      host = "api.example.com",
+      paths = {
+        ["/x"] = {
+          get = {
+            summary = "X",
+            parameters = { { ["in"] = "header" }, { name = "q", ["in"] = "query", type = "string" } },
+            responses = { ["200"] = { description = "ok" } },
+          },
+        },
+      },
+    })
+    local result, err = swagger.import_spec(spec_path, out_dir)
+    assert.is_truthy(result, err)
+    local content = read_file(out_dir .. "/" .. result.filename)
+    assert.truthy(content:match("q=string"), "the named query param must survive")
+    cleanup(spec_path, out_dir)
+  end)
+
+  it("Swagger survives a scalar schemes value", function()
+    local spec_path = os.tmpname() .. ".json"
+    local out_dir = os.tmpname() .. "-out"
+    os.remove(out_dir)
+    write_json(spec_path, {
+      swagger = "2.0",
+      info = { title = "Scalar Schemes" },
+      host = "api.example.com",
+      schemes = "https",
+      paths = { ["/y"] = { get = { summary = "Y", responses = { ["200"] = { description = "ok" } } } } },
+    })
+    local result, err = swagger.import_spec(spec_path, out_dir)
+    assert.is_truthy(result, err)
+    cleanup(spec_path, out_dir)
+  end)
+
+  it("propagates write_output failure instead of reporting success", function()
+    -- An unwritable output path must reach the caller as (nil, err); the old
+    -- silent-write path notified "N blocks → path" with nothing on disk.
+    local spec_path = os.tmpname() .. ".json"
+    write_json(spec_path, {
+      openapi = "3.0.0",
+      info = { title = "Bad Out" },
+      paths = { ["/z"] = { get = { summary = "Z", responses = { ["200"] = { description = "ok" } } } } },
+    })
+    -- A FILE where the output directory should be: mkdir "p" fails.
+    local blocker = os.tmpname()
+    local f = io.open(blocker, "w")
+    f:write("not a dir")
+    f:close()
+    local result, err = openapi.import_spec(spec_path, blocker)
+    assert.is_nil(result)
+    assert.truthy(err, "an error must come back")
+    cleanup(spec_path, blocker)
+  end)
+end)

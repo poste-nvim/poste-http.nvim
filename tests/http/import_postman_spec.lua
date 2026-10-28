@@ -214,3 +214,30 @@ describe("postman import: malformed collections", function()
     assert.equals("t_1.http", import_parser.make_filename("T 1"))
   end)
 end)
+
+describe("postman import: multi-file formdata parts (2026-10-28 round)", function()
+  -- Postman v2.1 gives file parts src as an ARRAY of paths; the bare
+  -- `(p.src or "")` concatenated the table and crashed the import.
+  it("renders one < path line per src array entry", function()
+    local item = {
+      name = "Multi",
+      request = {
+        method = "POST",
+        url = "https://api.example.com/f",
+        body = {
+          mode = "formdata",
+          formdata = {
+            { key = "files", type = "file", src = { "a.bin", "b.bin" } },
+            { key = "one", type = "file", src = "single.bin" },
+          },
+        },
+      },
+    }
+    local blocks = postman._test_parse_item(item, {})
+    assert.is_truthy(blocks)
+    local text = blocks[1]
+    assert.truthy(text:match("< a%.bin"), "first array path")
+    assert.truthy(text:match("< b%.bin"), "second array path")
+    assert.truthy(text:match("< single%.bin"), "string src still works")
+  end)
+end)

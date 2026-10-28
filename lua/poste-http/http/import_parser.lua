@@ -211,31 +211,30 @@ function M.collect_parameters(openapi_params, path_params, spec)
   return headers, query_parts, url_vars, has_body, prompts
 end
 
-function M.parameters_to_url_vars(params)
-  local vars = {}
-  for _, param in ipairs(params or {}) do
-    if param.name and param.value then
-      table.insert(vars, { name = param.name, value = param.value })
-    end
-  end
-  return vars
-end
-
+--- @return table|nil  { key, value } or nil
 function M.extract_auth_header(spec)
-  local security = spec.security or {}
-  local schemes = (spec.components and spec.components.securitySchemes) or {}
+  -- Hand-edited specs reach every importer shape: `security` can be a scalar
+  -- or a list of scalars, and securitySchemes can be any type. The Swagger
+  -- importer's twin carries the same guards; this is the OpenAPI copy.
+  local security = spec.security
+  if type(security) ~= "table" then return nil end
+  local components = spec.components
+  local schemes = (type(components) == "table" and components.securitySchemes) or {}
+  if type(schemes) ~= "table" then schemes = {} end
   for _, req in ipairs(security) do
-    for name, _ in pairs(req) do
-      local scheme = schemes[name]
-      if scheme then
-        local st = scheme.type or ""
-        if st == "http" and scheme.scheme == "bearer" then
-          return { key = "Authorization", value = "Bearer {{token}}" }
-        elseif st == "http" and scheme.scheme == "basic" then
-          return { key = "Authorization", value = "Basic {{credentials}}" }
-        elseif st == "apiKey" then
-          if scheme["in"] == "header" then
-            return { key = scheme.name or "X-API-Key", value = "{{api_key}}" }
+    if type(req) == "table" then
+      for name, _ in pairs(req) do
+        local scheme = schemes[name]
+        if type(scheme) == "table" then
+          local st = scheme.type or ""
+          if st == "http" and scheme.scheme == "bearer" then
+            return { key = "Authorization", value = "Bearer {{token}}" }
+          elseif st == "http" and scheme.scheme == "basic" then
+            return { key = "Authorization", value = "Basic {{credentials}}" }
+          elseif st == "apiKey" then
+            if scheme["in"] == "header" then
+              return { key = scheme.name or "X-API-Key", value = "{{api_key}}" }
+            end
           end
         end
       end
@@ -250,8 +249,15 @@ end
 function M.read_spec(path)
   local fd = io.open(path, "r")
   if not fd then return nil, "Cannot read file: " .. path end
-  local content = fd:read("*a")
+  -- io.open succeeds on a DIRECTORY (the OpenAPI finder runs in "both" mode,
+  -- so confirming a directory lands here); only the read fails, and without
+  -- this guard the YAML probe below indexed the nil and crashed instead of
+  -- reporting the error.
+  local ok_read, content = pcall(fd.read, fd, "*a")
   fd:close()
+  if not ok_read or type(content) ~= "string" then
+    return nil, "Cannot read file: " .. path
+  end
   local ok, spec = pcall(vim.json.decode, content)
   if not ok then
     -- A YAML spec (the other common OpenAPI format) fails JSON decode; name
@@ -319,22 +325,38 @@ function M.run_importer(opts)
   })
 end
 
+--- Write the generated .http (and optional env.json) to out_dir.
+--- Returns (true, nil) on success or (false, err). Callers MUST propagate the
+--- failure — silently returning a block count made the success notification
+--- fire while nothing was written.
+--- @return boolean ok, string|nil err
 function M.write_output(out_dir, http_content, env_json, filename)
-  vim.fn.mkdir(out_dir, "p")
+  local ok_mkdir, mkdir_err = pcall(vim.fn.mkdir, out_dir, "p")
+  if not ok_mkdir then
+    return false, "Cannot create output directory " .. tostring(out_dir) .. ": " .. tostring(mkdir_err)
+  end
   local http_path = out_dir .. "/" .. filename
-  local fd = io.open(http_path, "w")
-  if fd then
+  local ok_write, write_err = pcall(function()
+    local fd = io.open(http_path, "w")
+    if not fd then
+      error("Cannot write file: " .. http_path, 0)
+    end
     fd:write(http_content)
     fd:close()
-  end
-  if env_json then
-    local env_path = out_dir .. "/env.json"
-    local env_fd = io.open(env_path, "w")
-    if env_fd then
+    if env_json then
+      local env_path = out_dir .. "/env.json"
+      local env_fd = io.open(env_path, "w")
+      if not env_fd then
+        error("Cannot write file: " .. env_path, 0)
+      end
       env_fd:write(env_json)
       env_fd:close()
     end
+  end)
+  if not ok_write then
+    return false, tostring(write_err)
   end
+  return true, nil
 end
 
 return M

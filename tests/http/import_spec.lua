@@ -1067,3 +1067,23 @@ describe("import_parser hostile spec shapes (2026-10-06 round)", function()
     assert.equals("level", url_vars[1].name)
   end)
 end)
+
+describe("bare import name conflicts (2026-10-28 round)", function()
+  it("resolves to the LATEST declaring import, matching the override warning", function()
+    -- The build warns "request 'X' in NEW overrides same name in OLD" and
+    -- docs/user/syntax.md promises the later import wins; the forward scan
+    -- returned the FIRST match and silently ran the older file's request.
+    local index = {
+      bare = {
+        { path = "/dir/old.http", requests = { { name = "Ping", line = 1 } } },
+        { path = "/dir/new.http", requests = { { name = "Ping", line = 7 } } },
+      },
+      aliased = {},
+      errors = {},
+      warnings = {},
+    }
+    local r = imp.resolve_reference("Ping", index)
+    assert.are_equal("/dir/new.http", r.path)
+    assert.are_equal(7, r.line)
+  end)
+end)

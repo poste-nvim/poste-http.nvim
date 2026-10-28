@@ -62,7 +62,16 @@ local function parse_body(request_body)
     for _, p in ipairs(type(entries) == "table" and entries or {}) do
       if type(p) == "table" and not p.disabled then
         if p.type == "file" then
-          table.insert(parts, "< " .. (p.src or ""))
+          -- Postman v2.1 gives multi-file uploads src as an ARRAY of paths;
+          -- a bare `(p.src or "")` concatenated the table and crashed.
+          -- One `< path` line per file, matching how the request would send.
+          local srcs = p.src
+          if type(srcs) ~= "table" then srcs = { srcs } end
+          for _, src in ipairs(srcs) do
+            if type(src) == "string" and src ~= "" then
+              table.insert(parts, "< " .. src)
+            end
+          end
         else
           table.insert(parts, (p.key or "") .. "=" .. (p.value or ""))
         end
@@ -145,9 +154,16 @@ function M.import_spec(spec_path, out_dir)
   local title = (collection.info and collection.info.name) or "collection"
   local filename = import_parser.make_filename(title)
 
+  -- Sorted: the generated file is committed and reviewed, so its order must
+  -- be a pure function of the collection (pairs() hash order is not).
   local file_vars = {}
-  for k, v in pairs(vars) do
-    table.insert(file_vars, { name = k, value = v })
+  local var_names = {}
+  for k in pairs(vars) do
+    table.insert(var_names, k)
+  end
+  table.sort(var_names)
+  for _, k in ipairs(var_names) do
+    table.insert(file_vars, { name = k, value = vars[k] })
   end
 
   local blocks = {}
@@ -169,7 +185,10 @@ function M.import_spec(spec_path, out_dir)
   end
   local env_json = import_parser.generate_env_json("dev", env_vars)
 
-  import_parser.write_output(out_dir, http_content, env_json, filename)
+  local ok, write_err = import_parser.write_output(out_dir, http_content, env_json, filename)
+  if not ok then
+    return nil, write_err
+  end
 
   return { filename = filename, block_count = #blocks }
 end

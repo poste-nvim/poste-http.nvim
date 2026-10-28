@@ -635,3 +635,23 @@ describe("curl.parse_curl header-carrying flags", function()
     end
   end)
 end)
+
+describe("curl.parse_curl proxy/network value flags (2026-10-28 round)", function()
+  -- Flags missing from the value-taking table leaked their VALUE into the
+  -- bare-argument URL scan (`--socks5 127.0.0.1:1080 https://api` imported
+  -- url = 127.0.0.1:1080).
+  it("does not treat --socks5's value as the request URL", function()
+    local parsed = curl.parse_curl("curl --socks5 127.0.0.1:1080 https://api.example.com/x")
+    assert.equals("https://api.example.com/x", parsed.url)
+  end)
+
+  it("does not treat --interface's value as the request URL", function()
+    local parsed = curl.parse_curl("curl --interface eth0 https://api.example.com/x")
+    assert.equals("https://api.example.com/x", parsed.url)
+  end)
+
+  it("does not treat --keepalive-time's value as the request URL", function()
+    local parsed = curl.parse_curl("curl --keepalive-time 30 https://api.example.com/x")
+    assert.equals("https://api.example.com/x", parsed.url)
+  end)
+end)

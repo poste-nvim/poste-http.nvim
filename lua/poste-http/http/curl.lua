@@ -146,7 +146,12 @@ local function parse_curl(cmd)
     return nil, "Empty curl command"
   end
 
-  -- Remove leading/trailing whitespace and line continuations
+  -- Remove leading/trailing whitespace and line continuations.
+  -- Known deviation: the shell only folds `\`+newline OUTSIDE quotes —
+  -- inside single quotes it stays a literal backslash+newline, inside double
+  -- quotes the backslash vanishes but the newline stays. This unconditional
+  -- fold joins quoted continuations with a space instead. Rare in pasted
+  -- commands; a quote-aware fold would belong in the tokenizer.
   cmd = vim.trim(cmd)
   cmd = cmd:gsub("\\\n", " ")  -- Remove backslash-newline continuations
   cmd = cmd:gsub("\\\r\n", " ")
@@ -307,6 +312,23 @@ local function parse_curl(cmd)
     ["--engine"] = true, ["--random-file"] = true, ["--crlfile"] = true,
     ["--pinnedpubkey"] = true, ["--pubkey"] = true,
     ["--url-query"] = true,
+    -- Proxy/network knobs whose VALUE would otherwise be picked up as the
+    -- request URL by the bare-argument scan (`--socks5 127.0.0.1:1080
+    -- https://api` imported url=127.0.0.1:1080).
+    ["--socks4"] = true, ["--socks4a"] = true,
+    ["--socks5"] = true, ["--socks5-hostname"] = true, ["--socks5-gssapi-service"] = true,
+    ["--preproxy"] = true, ["--interface"] = true,
+    ["--keepalive-time"] = true, ["--speed-limit"] = true, ["--speed-time"] = true,
+    ["--max-filesize"] = true, ["--limit-rate"] = true,
+    ["--dns-servers"] = true, ["--dns-interface"] = true,
+    ["--dns-ipv4-addr"] = true, ["--dns-ipv6-addr"] = true,
+    ["--happy-eyeballs-timeout-ms"] = true, ["--tftp-blksize"] = true,
+    ["--retry-max-time"] = true,
+    ["--cert-type"] = true, ["--key-type"] = true,
+    ["--proxy-cacert"] = true, ["--proxy-capath"] = true,
+    ["--proxy-cert"] = true, ["--proxy-key"] = true, ["--proxy-crlfile"] = true,
+    ["--proxy-tlsauthtype"] = true, ["--proxy-tlspassword"] = true, ["--proxy-tlsuser"] = true,
+    ["--pass"] = true, ["--login-options"] = true, ["--alt-svc"] = true,
   }
   while idx <= #args do
     local arg = args[idx]

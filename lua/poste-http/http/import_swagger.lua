@@ -4,15 +4,8 @@ local import_parser = require("poste-http.http.import_parser")
 -- spec.schemes/spec.host are read by the exporter but deliberately NOT
 -- baked into the generated URL: the host is swapped for {{base_url}}.
 local function build_url(spec, path)
-  local _ = spec.host or "localhost"
   local base_path = spec.basePath or ""
   return "{{base_url}}" .. base_path .. path
-end
-
-local function parse_swagger_parameter(param, spec)
-  local resolved = import_parser.resolve_schema(param, spec)
-  if not resolved then return nil end
-  return resolved
 end
 
 local function parse_operation(spec, path, method, operation)
@@ -45,13 +38,19 @@ local function parse_operation(spec, path, method, operation)
   local query_parts = {}
   for _, p in ipairs(params) do
     if type(p) == "table" then
-      local resolved = parse_swagger_parameter(p, spec)
-      if resolved then
+      local resolved = import_parser.resolve_schema(p, spec)
+      -- Hand-edited specs can omit `name` ({"in": "header"}) or give
+      -- x-example a table; both used to raise on the concatenations below.
+      -- Every other malformed shape in this module is guarded the same way.
+      if resolved and type(resolved.name) == "string" and resolved.name ~= "" then
         if resolved["in"] == "header" then
           table.insert(headers, { key = resolved.name, value = "{{" .. resolved.name .. "}}" })
         elseif resolved["in"] == "query" then
-          local example = resolved["x-example"] or (resolved.type == "string" and "string" or "0")
-          table.insert(query_parts, resolved.name .. "=" .. example)
+          local example = resolved["x-example"]
+          if type(example) ~= "string" and type(example) ~= "number" then
+            example = (resolved.type == "string" and "string" or "0")
+          end
+          table.insert(query_parts, resolved.name .. "=" .. tostring(example))
         end
       end
     end
@@ -90,7 +89,7 @@ function M.import_spec(spec_path, out_dir)
   local filename = import_parser.make_filename(title)
 
   local scheme = "https"
-  if spec.schemes and #spec.schemes > 0 then
+  if type(spec.schemes) == "table" and type(spec.schemes[1]) == "string" then
     scheme = spec.schemes[1]
   end
   local host = spec.host or "localhost"
@@ -131,7 +130,10 @@ function M.import_spec(spec_path, out_dir)
   env_vars["base_url"] = base_url
   local env_json = import_parser.generate_env_json("dev", env_vars)
 
-  import_parser.write_output(out_dir, http_content, env_json, filename)
+  local ok, write_err = import_parser.write_output(out_dir, http_content, env_json, filename)
+  if not ok then
+    return nil, write_err
+  end
 
   return { filename = filename, block_count = #blocks }
 end

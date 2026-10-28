@@ -16,7 +16,6 @@ local M = {}
 -- Delegates to vars.load_env_vars: this module used to keep a private copy
 -- whose `data[env_name] or {}` handed a NON-TABLE env section (`"dev": 42`
 -- typo) straight back, and the multipart path's `pairs()` over it crashed.
-local load_env_vars = vars.load_env_vars
 
 --- Simple {{var}} substitution with iterative resolution (handles nested refs).
 --- `var_map` avoids shadowing the poste-http.http.vars module upvalue.
@@ -55,7 +54,7 @@ local function collect_vars(buf, block_start_line, block_lines)
   local file_lines = block_start_line > 1
     and vim.api.nvim_buf_get_lines(buf, 0, block_start_line - 1, false) or {}
   local file_path = vim.api.nvim_buf_get_name(buf)
-  local env_vars = load_env_vars(file_path, state.current_env)
+  local env_vars = vars.load_env_vars(file_path, state.current_env)
   local var_map = vars.collect_var_defs(file_lines)
   if block_lines then
     for k, v in pairs(vars.collect_var_defs(block_lines)) do
@@ -263,10 +262,12 @@ function M.copy_as_curl()
       if not line:match("%S") then
         in_headers = false
       else
-        -- Parse header line
-        local key, value = line:match("^([^:]+):%s*(.+)$")
-        if key and value then
-          table.insert(headers, { vim.trim(key), vim.trim(value) })
+        -- Parse header line. The value may be EMPTY (`X-Custom:`) — `.+`
+        -- dropped such headers whole, while the curl importer direction
+        -- explicitly preserves them.
+        local key, value = line:match("^([^:]+):%s*(.*)$")
+        if key then
+          table.insert(headers, { vim.trim(key), vim.trim(value or "") })
         end
       end
     else
@@ -283,10 +284,10 @@ function M.copy_as_curl()
   -- Build curl command
   local parts = { "curl" }
 
-  -- Method (only if not GET)
-  if method:upper() ~= "GET" then
-    table.insert(parts, "-X " .. method:upper())
-  end
+  -- Method: always explicit. The executor sends `-X <method>` too
+  -- (curl_exec), and a GET with a body copied without `-X GET` was silently
+  -- promoted to POST by curl's data-flag rule.
+  table.insert(parts, "-X " .. method:upper())
 
   -- URL
   table.insert(parts, util.shell_escape(url))
