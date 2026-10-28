@@ -1,4 +1,3 @@
-local cache = require("poste-http.http.cache")
 local util = require("poste-http.util")
 
 local M = {}
@@ -28,9 +27,22 @@ function M.substitute_magic_vars(line, generated)
   return line
 end
 
-function M.process_form_data(src_buf, cursor_line, content)
-  local start_line, end_line = cache.find_request_block_bounds(src_buf, cursor_line)
-  if not start_line then return content end
+--- Substitute {{$magic}} vars across one request block.
+---
+--- Bounds arrive in CONTENT coordinates (the coordinates of `content` itself,
+--- which injections may have shifted relative to the source buffer) from the
+--- caller — run.lua tracks them as it injects. Reading them from the buffer
+--- instead used to miss the block's tail lines: with a pre-script/global
+--- injection inside the block, the buffer bounds stopped short and the tail's
+--- {{$uuid}} fell through to the later VarResolver pass, which drew a SECOND,
+--- different value for the same request.
+---
+--- @param start_line integer|nil  content-coord first line of the block
+--- @param end_line integer|nil    content-coord last line of the block
+--- @param content string          resolved request content
+--- @return string
+function M.process_form_data(start_line, end_line, content)
+  if not start_line or not end_line then return content end
 
   local generated = {}
   util.seed_random() -- magic draws must differ across sessions (fixed LuaJIT seed)

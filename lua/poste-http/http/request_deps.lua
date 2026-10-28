@@ -38,7 +38,10 @@ local function value_to_http_string(val)
     return val
   elseif t == "number" or t == "boolean" then
     return tostring(val)
-  elseif t == "table" and val ~= vim.NIL then
+  elseif t == "table" then
+    -- vim.NIL is a userdata, never a table: `type(vim.NIL) == "table"` is
+    -- always false, so no NIL check is needed in this branch (a NIL value
+    -- falls through to the "" below).
     local ok, encoded = pcall(vim.json.encode, val)
     if ok then return encoded end
     return tostring(val)
@@ -449,13 +452,15 @@ local function execute_deps_for_block(opts)
         state.log("WARN", string.format("Could not resolve variable: %s", ref.full))
       end
     end
+    -- Splice the whole resolved block back instead of mapping it onto the
+    -- ORIGINAL block height: a replacement value can itself contain newlines
+    -- (a multi-line body field injected as-is), so the resolved block may be
+    -- taller than the original. A 1:1 line mapping silently dropped every
+    -- line past the original height.
     local result_lines = {}
-    local resolved_split = vim.split(resolved_block, "\n", { plain = true })
-    for i, l in ipairs(all_lines) do
-      if i >= block_start and i <= block_end then
-        table.insert(result_lines, resolved_split[i - block_start + 1] or l)
-      elseif i <= file_var_end then
-        local line = l
+    for i = 1, block_start - 1 do
+      local line = all_lines[i]
+      if i <= file_var_end then
         for _, ref in ipairs(refs) do
           local value = resolve_request_variable(ref.norm or ref.full:sub(3, -3), request_response_cache)
           if value ~= nil then
@@ -463,10 +468,14 @@ local function execute_deps_for_block(opts)
               function() return value_to_http_string(value) end)
           end
         end
-        table.insert(result_lines, line)
-      else
-        table.insert(result_lines, l)
       end
+      table.insert(result_lines, line)
+    end
+    for _, l in ipairs(vim.split(resolved_block, "\n", { plain = true })) do
+      table.insert(result_lines, l)
+    end
+    for i = block_end + 1, #all_lines do
+      table.insert(result_lines, all_lines[i])
     end
     return table.concat(result_lines, "\n")
   end
@@ -608,6 +617,16 @@ resolve_content_dependencies_impl = function(buf, file_path, env_name, content, 
   local handle_prompt = deps.handle_prompt or handle_prompt_fn
 
   _depth = _depth or 0
+  -- This impl is the entry the real pipeline reaches (run.lua → resolve.lua →
+  -- request_vars), so the per-run chain bookkeeping must reset HERE. Without
+  -- it, the previous request's deps stayed in _chain_dep_order and were
+  -- rebuilt into _dep_chain on the next run: stale responses re-entered the
+  -- multi-response view and were written to history a second time. Nested
+  -- resolutions recurse with _depth > 0 and must NOT reset.
+  if _depth == 0 then
+    _chain_dep_set = {}
+    _chain_dep_order = {}
+  end
   if _depth > 10 then
     state.log("ERROR", string.format("Max dependency depth (10) reached at block line %d, aborting resolution", block_line))
     on_complete(content)

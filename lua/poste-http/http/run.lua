@@ -183,14 +183,12 @@ local function add_to_history(name, response_data, file_path)
 end
 
 --- Handle the parsed response from curl_exec.
---- @param ctx table  Pipeline context with src_buf, req_line, req_block, req_text,
----                   assertion_code, script_vars, current_req_name, file, start_hires
+--- @param ctx table  Pipeline context with src_buf, req_line, assertion_code,
+---                   script_vars, current_req_name, file
 local function handle_curl_response(response, ctx)
   vim.schedule(function()
     local ok, err = pcall(function()
-      state._json.query = nil
-      state._json.original_lines = nil
-      state._json.is_filtered = false
+      state.clear_json_state()
 
       local src_buf = ctx.src_buf
       local req_line = ctx.req_line
@@ -199,13 +197,14 @@ local function handle_curl_response(response, ctx)
       local assertion_code = ctx.assertion_code
       local script_vars = ctx.script_vars
 
-      if state.pending_request then
-        state.pending_request = vim.tbl_extend("keep", {
-          method = (response.metadata and response.metadata.method) or "",
-          url = response.url or "",
-          timestamp = util.timestamp(),
-        }, state.pending_request)
-      end
+      -- state.pending_request is the request-time snapshot written by
+      -- start_curl_exec (method/url/timestamp included). It must NOT be
+      -- re-stamped here: the previous `vim.tbl_extend("keep", {…new…},
+      -- pending)` preferred the FIRST table, so a fresh response-arrival
+      -- timestamp overwrote the request-send time (a 30s request showed a
+      -- Request Time 30s late), and the response-derived method/url only
+      -- ever fed the error-path fallback in format_verbose, where the
+      -- original request values are the more honest display anyway.
 
       if response.error then
         response = {
@@ -458,6 +457,21 @@ local function prepare_request(ctx, callback)
       state._busy = false
       return
     end
+    -- Resolution rewrites the CONTENT (multi-line dep values splice extra
+    -- lines into the block), so the buffer-derived end bound no longer
+    -- matches. The block's ### line index is stable across resolution, so
+    -- re-derive the end from the content itself: everything downstream
+    -- (assertion extraction, form-data substitution, describe) scans content.
+    if block_start then
+      local content_lines = vim.split(modified_content, "\n", { plain = true })
+      block_end = #content_lines
+      for i = block_start + 1, #content_lines do
+        if content_lines[i]:match("^%s*###") then
+          block_end = i - 1
+          break
+        end
+      end
+    end
     ctx.modified_content = modified_content
     ctx.req_line = req_line
     ctx.block_start = block_start
@@ -509,8 +523,13 @@ local function execute_request(ctx, callback)
       -- as the >>>/<<< heredoc form), not variables — pairs() under-counts.
       local injected_count
       buf_content, injected_count = scripts.inject_pre_script_vars(buf_content, block_start, pre_result.variables)
+      -- block_end tracks the injected CONTENT (its consumers scan the content
+      -- string); `line` must stay in BUFFER coordinates — the buffer never
+      -- gained lines, and every line consumer below (process_form_data,
+      -- resolve_current_req_name, extract_request_block) reads the buffer.
+      -- Shifting it here used to push the cursor line past the block end and
+      -- lose the request name whenever the cursor sat on the block's tail.
       block_end = block_end + injected_count
-      line = line + injected_count
       for name, value in pairs(pre_result.variables) do
         state.set_script_variable(name, value)
       end
@@ -523,7 +542,10 @@ local function execute_request(ctx, callback)
   block_end = block_end + global_count
 
   -- Process form data and extract assertion blocks
-  buf_content = request_vars.process_form_data(src_buf, line, buf_content)
+  -- block_start/block_end are content coordinates here: injections above
+  -- already shifted block_end (see execute_request), so the substitution
+  -- window matches the content this is applied to.
+  buf_content = request_vars.process_form_data(block_start, block_end, buf_content)
   local assertion_code
   buf_content, assertion_code = assertions.extract_assertion_blocks(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
 
@@ -797,24 +819,22 @@ function M.run_request()
           return
         end
 
-        -- SCRIPT block without an orchestration body: keep the legacy behavior.
+        -- SCRIPT block without an orchestration body: render the script
+        -- receipt. This branch is only reached when assertion_code is nil
+        -- (the orchestration path took it otherwise), so there is nothing to
+        -- assert — the log-driven views and the verbose receipt are it.
         local script_response = make_script_response(exec_ctx.req_text, exec_ctx.req_block)
         state.set_response(script_response)
         state.clear_json_state()
         emit_response(script_response, exec_ctx.current_req_name, file, nil, nil)
 
-        local ass_line = find_assertion_line(src_buf, exec_ctx.block_start, exec_ctx.block_end)
-        local assertion_results = run_and_store_assertions(script_response, exec_ctx.assertion_code, exec_ctx.script_vars, file, ass_line)
-
-        if assertion_results and assertion_results.total > 0 then
-          view.show_view("assertions")
-        elseif state.last_script_logs and #state.last_script_logs > 0 then
+        if state.last_script_logs and #state.last_script_logs > 0 then
           view.show_view("script_logs")
         else
           view.show_view("verbose")
         end
 
-        set_result_indicator(src_buf, exec_ctx.req_line - 1, script_response, assertion_results)
+        set_result_indicator(src_buf, exec_ctx.req_line - 1, script_response, nil)
         local hist_name = (exec_ctx.current_req_name or "") ~= "" and exec_ctx.current_req_name or ("Script #" .. tostring(exec_ctx.req_line))
         add_to_history(hist_name, script_response, file)
         state._busy = false

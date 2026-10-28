@@ -5,8 +5,8 @@ local request_deps = require("poste-http.http.request_deps")
 
 local M = {}
 
-function M.process_form_data(src_buf, cursor_line, content)
-  return form_data.process_form_data(src_buf, cursor_line, content)
+function M.process_form_data(start_line, end_line, content)
+  return form_data.process_form_data(start_line, end_line, content)
 end
 
 function M.collect_requests(buf)
@@ -44,8 +44,16 @@ function M.collect_requests_from_content(content)
   return request_deps.collect_requests_from_content(content)
 end
 
-M.find_request_variable_refs = request_deps.find_request_variable_refs
-M.find_dynamic_prompt_refs = request_deps.find_dynamic_prompt_refs
+-- Call-time dispatch, not load-time binding: a test that stubs
+-- request_deps.find_* after both modules are loaded must be honored (the
+-- repo guardrail against pre-bound locals).
+function M.find_request_variable_refs(...)
+  return request_deps.find_request_variable_refs(...)
+end
+
+function M.find_dynamic_prompt_refs(...)
+  return request_deps.find_dynamic_prompt_refs(...)
+end
 
 function M.get_dep_chain()
   return request_deps._dep_chain
@@ -56,8 +64,14 @@ function M.clear_dep_chain()
 end
 
 M._handle_prompt_variables_impl = handle_prompt_variables_impl
-M._resolve_request_variables_impl = request_deps._resolve_request_variables_impl
-M._resolve_content_dependencies_impl = request_deps._resolve_content_dependencies_impl
+
+function M._resolve_request_variables_impl(...)
+  return request_deps._resolve_request_variables_impl(...)
+end
+
+function M._resolve_content_dependencies_impl(...)
+  return request_deps._resolve_content_dependencies_impl(...)
+end
 
 function M.handle_prompt_variables(...)
   return handle_prompt_variables_impl(...)
