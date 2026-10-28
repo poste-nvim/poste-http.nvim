@@ -114,8 +114,11 @@ end
 ---------------------------------------------------------------------------
 -- Verbose view (re-exported from format/verbose.lua)
 ---------------------------------------------------------------------------
-function M.format_verbose(r, pending)
-  return verbose_mod.format_verbose(r, pending)
+function M.format_verbose(r, pending, opts)
+  -- opts must reach the sub-module: format_view forwards its opts here, and
+  -- dropping the third parameter silently discarded opts.width (the verbose
+  -- view always rendered at the 80-column default).
+  return verbose_mod.format_verbose(r, pending, opts)
 end
 function M.format_request_payload(r)
   return verbose_mod.format_request_payload(r)

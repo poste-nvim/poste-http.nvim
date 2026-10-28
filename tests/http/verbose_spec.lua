@@ -228,3 +228,70 @@ describe("verbose.lua drifted response fields", function()
     end)
   end)
 end)
+
+describe("verbose JSON body highlights (run-merged extmarks)", function()
+  -- The highlighter used to emit one extmark per CHARACTER: a 200KB string
+  -- value produced 200k extmarks and 105ms per repaint (measured). It now
+  -- emits one extmark per maximal same-group run — same coverage, ~5 marks.
+  local function highlight_lines(lines, content_type)
+    local r = {
+      url = "http://example.com/x", metadata = { method = "GET" }, status = 200,
+      status_text = "200 OK", headers = {}, body = table.concat(lines, "\n"),
+      content_type = content_type, latency_ms = 1,
+    }
+    local formatted = verbose.format_verbose(r, nil, { width = 80 })
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, formatted)
+    verbose.apply_verbose_highlights(buf, formatted, r)
+    return buf
+  end
+
+  local function marks_in(buf)
+    local ns = vim.api.nvim_create_namespace("poste_verbose_json")
+    return vim.api.nvim_buf_get_extmarks(buf, ns, 0, -1, { details = true })
+  end
+
+  it("covers strings, numbers, booleans and structure with few extmarks", function()
+    local buf = highlight_lines({ '{ "name": "value", "n": 42, "ok": true }' }, "application/json")
+    local marks = marks_in(buf)
+    assert.is_true(#marks > 0, "JSON body must be highlighted")
+    assert.is_true(#marks < 40, "run-merged highlighting must not be per-character, got " .. #marks)
+    local groups = {}
+    for _, m in ipairs(marks) do
+      groups[m[4].hl_group] = true
+    end
+    assert.truthy(groups.PosteJsonString, "string runs highlighted")
+    assert.truthy(groups.PosteJsonBraces or groups.PosteJsonBrackets, "structure highlighted")
+    assert.truthy(groups.PosteJsonNumber, "numbers highlighted")
+    assert.truthy(groups.PosteJsonBoolean, "booleans highlighted")
+  end)
+
+  it("a huge single-line string value stays cheap", function()
+    local big = '{ "data": "' .. string.rep("abcdefgh", 25000) .. '" }'
+    local buf = highlight_lines({ big }, "application/json")
+    local marks = marks_in(buf)
+    assert.is_true(#marks < 20,
+      "a 200KB string must not produce per-character extmarks, got " .. #marks)
+  end)
+end)
+
+describe("format.format_view forwards opts.width to the verbose formatter", function()
+  -- The format.lua re-export used to drop its third parameter, so the width
+  -- option never reached format_verbose and every verbose render ran at the
+  -- 80-column default.
+  it("respects a width passed through format_view", function()
+    local fmt = require("poste-http.http.format")
+    local r = {
+      url = "http://example.com/foo", metadata = { method = "GET" }, status = 200,
+      status_text = "200 OK", headers = {}, body = "x",
+      content_type = "text/plain", latency_ms = 42,
+    }
+    local lines = fmt.format_view("verbose", r, { width = 30 })
+    local max_w = 0
+    for _, l in ipairs(lines) do
+      local w = vim.fn.strdisplaywidth(l)
+      if w > max_w then max_w = w end
+    end
+    assert.is_true(max_w <= 30, string.format("max line width %d exceeds 30", max_w))
+  end)
+end)

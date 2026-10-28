@@ -9,9 +9,14 @@
 local M = {}
 
 --- Normalize a frame entry: tables carry .data, plain strings are the data.
+--- Total by contract: frames re-render from persisted history too, where
+--- `.data` can be any JSON type — a nil/table used to raise on the
+--- `"→ " .. data` concatenation and take the whole Msgs tab down.
 local function frame_data(f)
-  if type(f) == "table" then return f.data end
-  return f
+  local data = type(f) == "table" and f.data or f
+  if type(data) == "string" then return data end
+  if data == nil or data == vim.NIL then return "" end
+  return tostring(data)
 end
 
 --- Format the messages view for a response carrying metadata.frames.

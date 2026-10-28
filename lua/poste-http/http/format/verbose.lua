@@ -591,6 +591,10 @@ local function json_token_hl(ch)
   end
 end
 
+--- Highlight the JSON body region. Emits ONE extmark per maximal
+--- same-group run instead of one per character: a single long string value
+--- (a 200KB base64 field renders as one pretty-printed line) produced
+--- 200k extmarks and 105ms per repaint; run-merging produces a handful.
 local function apply_verbose_json_highlights(buf, lines, body_start, body_end)
   for i = body_start, body_end do
     local line = lines[i]
@@ -601,8 +605,16 @@ local function apply_verbose_json_highlights(buf, lines, body_start, body_end)
     local in_string = false
     local escape = false
     local j = s + 1
-    local token_start = s + 1
-    local token_hl = nil
+    local run_start, run_hl = nil, nil
+    local function flush(upto)
+      if run_hl and run_start and upto >= run_start then
+        vim.api.nvim_buf_set_extmark(buf, json_ns, row, run_start - 1, {
+          end_row = row, end_col = upto,
+          hl_group = run_hl, priority = 200,
+        })
+      end
+      run_start, run_hl = nil, nil
+    end
 
     while j <= e do
       local ch = line:sub(j, j)
@@ -614,51 +626,32 @@ local function apply_verbose_json_highlights(buf, lines, body_start, body_end)
         elseif ch == '"' then
           in_string = false
         end
+      elseif ch == '"' then
+        in_string = true
+      end
+
+      local new_hl
+      if in_string then
+        new_hl = "PosteJsonString"
       else
-        if ch == '"' then
-          in_string = true
+        new_hl = json_token_hl(ch)
+        if not new_hl and ch:match("%w") then
+          local rest = line:sub(j)
+          if rest:match("^true") or rest:match("^false") or rest:match("^null") then
+            new_hl = "PosteJsonBoolean"
+          else
+            new_hl = "PosteJsonNumber"
+          end
         end
       end
 
-      local new_hl = in_string and "PosteJsonString" or json_token_hl(ch)
-      if not in_string and not new_hl and ch:match("%w") and not token_hl then
-        local rest = line:sub(j)
-        local hl
-        if rest:match("^true") or rest:match("^false") or rest:match("^null") then
-          hl = "PosteJsonBoolean"
-        else
-          hl = "PosteJsonNumber"
-        end
-        token_hl = hl
-        token_start = j
-      end
-
-      if token_hl and (in_string or new_hl) then
-        local prev_e = j - 1
-        if prev_e >= token_start then
-          vim.api.nvim_buf_set_extmark(buf, json_ns, row, token_start - 1, {
-            end_row = row, end_col = prev_e,
-            hl_group = token_hl, priority = 200,
-          })
-        end
-        token_hl = nil
-      end
-
-      if new_hl then
-        vim.api.nvim_buf_set_extmark(buf, json_ns, row, j - 1, {
-          end_row = row, end_col = j,
-          hl_group = new_hl, priority = 200,
-        })
+      if new_hl ~= run_hl then
+        flush(j - 1)
+        run_start, run_hl = j, new_hl
       end
       j = j + 1
     end
-
-    if token_hl and e >= token_start then
-      vim.api.nvim_buf_set_extmark(buf, json_ns, row, token_start - 1, {
-        end_row = row, end_col = e,
-        hl_group = token_hl, priority = 200,
-      })
-    end
+    flush(e)
 
     ::continue::
   end
