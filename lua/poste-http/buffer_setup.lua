@@ -44,6 +44,19 @@ function M.setup_buffer_keymaps(buf)
     table.insert(specs, 1, { action = "run", default = "<CR>", handler = run.run_request })
   end
 
+  -- Insert-mode <Tab> expands the > / < script-block snippet (buffer-local:
+  -- the plugin-wide insert-mode map used to shadow the user's own <Tab>).
+  table.insert(specs, {
+    action = "script_snippet_expand", default = "<Tab>",
+    opts = { modes = "i", expr = true },
+    handler = function()
+      if require("poste-http.http.script_snippet").expand() then
+        return ""
+      end
+      return "<Tab>"
+    end,
+  })
+
   if nav_ok then
     local nav_specs = {
       { action = "jump_next", default = "]]", handler = nav.jump_next },

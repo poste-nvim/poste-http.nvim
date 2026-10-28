@@ -33,12 +33,11 @@ function M.setup()
     end,
   })
 
-  vim.keymap.set("i", "<Tab>", function()
-    if require("poste-http.http.script_snippet").expand() then
-      return ""
-    end
-    return "<Tab>"
-  end, { expr = true })
+  -- The <Tab> expansion is registered BUFFER-LOCALLY by
+  -- buffer_setup.setup_buffer_keymaps ("script_snippet_expand" action):
+  -- setup() used to map <Tab> in insert mode GLOBALLY, clobbering whatever
+  -- the user had mapped there (completion/snippet plugins) in every
+  -- filetype, while the expansion only ever applies to .http/.rest buffers.
 end
 
 function M.refresh()

@@ -44,6 +44,9 @@ M.config = {
       textobj_headers = "iH",
       textobj_body = "iB",
       textobj_script = "iS",
+      -- Insert-mode <Tab> expands the > / < script-block snippet
+      -- (buffer-local; other plugins' insert-mode <Tab> is untouched).
+      script_snippet_expand = "<Tab>",
       help = "g?",
     },
     http_response = {

@@ -29,6 +29,21 @@ describe("script_snippet", function()
     assert.is_true(events["InsertLeave"], "should register InsertLeave autocmd")
     assert.is_true(events["BufDelete"], "should register BufDelete autocmd")
 
+    -- The <Tab> expansion used to be a GLOBAL insert-mode map registered in
+    -- setup(), shadowing the user's own <Tab> in every filetype. It is now
+    -- buffer-local and config-driven ("script_snippet_expand" in
+    -- buffer_setup.setup_buffer_keymaps), so setup() must NOT register it.
+    local kms = harness.get_keymaps()
+    for _, modes in pairs(kms) do
+      assert.falsy(modes["i"] and modes["i"]["<Tab>"],
+        "setup() must not register a global insert-mode <Tab>")
+    end
+  end)
+
+  it("Tab expansion is registered buffer-locally by setup_buffer_keymaps", function()
+    local buffer_setup = require("poste-http.buffer_setup")
+    buffer_setup.setup_buffer_keymaps(vim.api.nvim_get_current_buf())
+
     local kms = harness.get_keymaps()
     local has_tab = false
     for _, modes in pairs(kms) do
@@ -36,7 +51,7 @@ describe("script_snippet", function()
         has_tab = true
       end
     end
-    assert.is_true(has_tab, "should register <Tab> keymap in insert mode")
+    assert.is_true(has_tab, "buffer_setup should register the insert-mode <Tab> expansion")
   end)
 
   it("refresh shows hint when line contains only >", function()

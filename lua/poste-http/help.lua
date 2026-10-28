@@ -12,6 +12,7 @@ local DESCRIPTIONS = {
     quickfix_next = "Next quickfix item",
     quickfix_prev = "Previous quickfix item",
     paste_curl = "Paste clipboard as cURL request",
+    script_snippet_expand = "Expand the > / < script-block snippet",
     copy_as_curl = "Copy request as cURL command",
     toggle_outline = "Toggle outline window",
     pick_env = "Pick environment",
