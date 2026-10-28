@@ -7,6 +7,46 @@ The per-round review archives (`docs/dev/review-YYYY-MM-DD.md`,
 `docs/dev/code-review-*.md`) were removed — the entries below carry the
 lesson itself, so cite the source file that holds the fix, not the archive.
 
+- 2026-10-28: test-mock-teardown — a mock that patches the REAL `vim.api`
+  table in place cannot be undone by re-assigning the table reference:
+  teardown's `vim.api = _originals.vim_api` restored the SAME (now-stubbed)
+  table, so every stub survived into all later describes in the file (first
+  hit: a real-buffer spec after a mocked describe got "Invalid buffer id").
+  The obvious "fix" — swapping in a sandbox table that inherits from the real
+  one — is WRONG in a subtler way: Neovim's own runtime Lua captured `vim.api`
+  at startup, so internal option validation (real `vim.wo[winid]` writes) no
+  longer saw the stubs and started raising under mocked windows. What works:
+  patch in place AND record every patched key, then restore key-by-key in
+  teardown. Rule: a guard that "restores" a table it never replaced restores
+  nothing; a guard that hides patched tables from the runtime breaks the
+  runtime. See `tests/helpers/mock_nvim.lua`,
+  `tests/http/verbose_spec.lua` (the spec that caught the leak).
+
+- 2026-10-28: run-pipeline/buffer-vs-content-coords — the request pipeline
+  carries TWO line-number systems (the real buffer, which never changes, and
+  the resolved content string, which injections stretch), and every consumer
+  must be labeled with which one it reads. This round alone: pre-script
+  injection shifted `line` (buffer-coord consumers lost the request name when
+  the cursor sat on the block tail), `process_form_data` took bounds from the
+  buffer but indexed content (a `{{$uuid}}` near the block tail fell through
+  to the resolver and drew a SECOND, different value), and block bounds read
+  before `resolve.resolve` were stale after a multi-line dep substitution
+  spliced lines into the content. Fixes: `line` never shifts
+  (`lua/poste-http/http/run.lua` execute_request), bounds are passed in
+  content coordinates explicitly (`form_data.process_form_data`), and the
+  block end is re-derived from the resolved content after resolution. The
+  2026-06-24 `--line` entry was the same pit one layer down.
+
+- 2026-10-28: import-conflict-direction — "X overrides Y" needs the lookup
+  DIRECTION pinned by a test, because the three declarations of one rule
+  (warning text, user doc, code) can disagree: the build warned "request 'X'
+  in NEW overrides same name in OLD" and the docs promised later-wins, while
+  `resolve_reference`'s forward ipairs scan silently returned the FIRST
+  match — the user was told the wrong request ran. Fixes: reverse scan
+  (`lua/poste-http/http/import.lua` resolve_reference) plus a regression spec
+  in `tests/http/import_spec.lua`. Any "either order" / "overrides" claim
+  needs both orders in the spec (09-27's -X/-I lesson, one layer up).
+
 - 2026-10-24: test-portability — a test script that hard-depends on a
   non-portable binary fails on the platform CI never runs. GNU coreutils
   `timeout` in `tests/injection_spec.sh` made the ENTIRE suite exit 1 on
