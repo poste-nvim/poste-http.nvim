@@ -255,6 +255,7 @@ function M.open_doc_preview(lines, opts)
     vim.api.nvim_create_autocmd("WinClosed", {
       group = hover_group,
       pattern = tostring(win),
+      once = true, -- a closed window's id can be reused; the hook is done then
       callback = function() hover_tracker = nil end,
     })
   end

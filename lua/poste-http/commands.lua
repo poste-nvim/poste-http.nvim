@@ -81,6 +81,13 @@ local commands = {
       local import = require("poste-http.http.import")
       local lines = import.status()
       local buf = vim.api.nvim_create_buf(false, true)
+      -- Drop a still-open previous status buffer first: bufhidden=wipe
+      -- keeps it alive while its window shows, and re-naming a second buffer
+      -- to "poste://import-status" raised E95.
+      local existing = vim.fn.bufnr("poste://import-status")
+      if existing and existing > 0 then
+        pcall(vim.api.nvim_buf_delete, existing, { force = true })
+      end
       vim.api.nvim_buf_set_name(buf, "poste://import-status")
       render.set_lines(buf, lines, { filetype = "poste" })
       vim.bo[buf].bufhidden = "wipe"

@@ -4,6 +4,13 @@ local M = {}
 local ns = vim.api.nvim_create_namespace(C.INDICATOR_NS_NAME)
 local _extmarks = {}  -- buf -> { line_0 = extmark_id, ... } (payload on the separator line)
 local spinners = {}   -- buf -> { line_0 = { timer, gen }, ... }
+-- Generation counter: stop_timer() bumps it, and each spinner's scheduled
+-- callback carries the generation it was born with. A stale callback whose
+-- generation no longer matches (success/error landed, line re-entered
+-- "running") must not paint its frame over the NEW spinner. The 2026-06-27
+-- incident in LEARNINGS.md; a refactor dropped the mechanism while keeping
+-- this comment's data shape.
+local spinner_gen = 0
 local spinner_frames = C.SPINNER_FRAMES
 local sign_group = "poste_indicator_sg"
 
@@ -34,6 +41,10 @@ local function stop_timer(buf, line_0)
   s.timer:stop()
   s.timer:close()
   spinners[buf][line_0] = nil
+  -- Invalidate every in-flight callback of this spinner BEFORE a new one can
+  -- be created for the same line (set_indicator may re-enter "running"
+  -- immediately after the success/error branch stopped us).
+  spinner_gen = spinner_gen + 1
 end
 
 local function stop_all_timers(buf)
@@ -148,8 +159,12 @@ function M.set_indicator(buf, line_0, status, latency_ms, assertion_results)
     local frame = 1
     local timer = uv.new_timer()
     if not spinners[buf] then spinners[buf] = {} end
-    spinners[buf][line_0] = { timer = timer }
+    local my_gen = spinner_gen
+    spinners[buf][line_0] = { timer = timer, gen = my_gen }
     local function update_spinner()
+      -- Stale callback: its generation was superseded by a stop_timer()
+      -- bump, so the sign it would paint belongs to a dead animation.
+      if my_gen ~= spinner_gen then return end
       if not spinners[buf] or not spinners[buf][line_0] then return end
       if not vim.api.nvim_buf_is_valid(buf) then return end
       frame = (frame % #spinner_frames) + 1

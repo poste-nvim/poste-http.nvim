@@ -280,7 +280,7 @@ local function handle_curl_response(response, ctx)
     if not ok then
       notify("internal error: " .. tostring(err), vim.log.levels.ERROR)
     end
-    state._busy = false
+    state.finish_run()
   end)
 end
 
@@ -334,7 +334,7 @@ local function handle_directive_response(success, response, src_buf, indicator_l
     if not ok then
       notify("internal error: " .. tostring(err), vim.log.levels.ERROR)
     end
-    state._busy = false
+    state.finish_run()
   end)
 end
 
@@ -395,7 +395,7 @@ local function render_orchestration_result(result, ctx)
   end
   local hist_name = (current_req_name or "") ~= "" and current_req_name or ("Script #" .. tostring(req_line))
   add_to_history(hist_name, summary, file)
-  state._busy = false
+  state.finish_run()
 end
 
 local function handle_orchestration_result(result, ctx)
@@ -406,7 +406,7 @@ local function handle_orchestration_result(result, ctx)
     if not ok then
       notify("internal error: " .. tostring(err), vim.log.levels.ERROR)
     end
-    state._busy = false
+    state.finish_run()
   end)
 end
 
@@ -431,7 +431,7 @@ local function prepare_request(ctx, callback)
   local req_line = cache.find_request_line(src_buf, line)
   if not req_line then
     indicators.clear_all(src_buf)
-    state._busy = false
+    state.finish_run()
     -- The no-request no-op used to be silent: <CR> outside a block just
     -- did nothing, which reads like a dead key. Say what was missing
     -- (poste-mq's run_cursor carries the same message).
@@ -454,7 +454,7 @@ local function prepare_request(ctx, callback)
     if not modified_content then
       indicators.clear_all(src_buf)
       state.set_pending_request(nil)
-      state._busy = false
+      state.finish_run()
       return
     end
     -- Resolution rewrites the CONTENT (multi-line dep values splice extra
@@ -512,7 +512,7 @@ local function execute_request(ctx, callback)
       state.set_response(nil)
       state.set_pending_request(nil)
       view.show_view("errors")
-      state._busy = false
+      state.finish_run()
       return
     end
     if #pre_result.logs > 0 then
@@ -632,7 +632,7 @@ local function start_curl_exec(ctx)
 
   if not url or url == "" then
     indicators.set_indicator(src_buf, req_line - 1, "error")
-    state._busy = false
+    state.finish_run()
     notify("Could not determine request URL", vim.log.levels.ERROR)
     return
   end
@@ -657,7 +657,7 @@ local function start_curl_exec(ctx)
     state.set_response(nil)
     state.set_pending_request(nil)
     view.show_view("errors")
-    state._busy = false
+    state.finish_run()
     return
   end
 
@@ -721,7 +721,7 @@ function M.make_ws_progress_handler()
     end
     published = resp
     state.set_response(resp)
-    state._busy = false
+    state.finish_run()
     if not switched or state.current_view == "messages" then
       switched = true
       view.show_view("messages")
@@ -766,7 +766,7 @@ function M.run_request()
     if resolved.error then
       notify(resolved.error, vim.log.levels.ERROR)
       indicators.set_indicator(src_buf, (resolved.run_line or line) - 1, "error")
-      state._busy = false
+      state.finish_run()
       return
     end
 
@@ -837,7 +837,7 @@ function M.run_request()
         set_result_indicator(src_buf, exec_ctx.req_line - 1, script_response, nil)
         local hist_name = (exec_ctx.current_req_name or "") ~= "" and exec_ctx.current_req_name or ("Script #" .. tostring(exec_ctx.req_line))
         add_to_history(hist_name, script_response, file)
-        state._busy = false
+        state.finish_run()
         return
       end
 

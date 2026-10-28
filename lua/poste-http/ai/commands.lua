@@ -5,7 +5,6 @@
 --- The chosen bindings are displayed above the chat input, injected into the
 --- system prompt and steer auto_context + codeblock execution.
 
-local notify = require("poste-http.ui.notify").notify
 local M = {}
 
 --- Environment names from the scope file's env.json (walk-up discovery, same
@@ -58,9 +57,11 @@ end
 --- @param scope table chat scope snapshot
 --- @param cb function(candidates)
 function M.complete_envs(prefix, scope, cb)
-  local names, err = M.env_names(scope)
+  local names = M.env_names(scope)
   if not names then
-    notify(err, vim.log.levels.INFO)
+    -- Silent empty: the completion callback fires per keystroke, and a
+    -- project without env.json would spam a notification per character
+    -- (mentions.complete fails silently for the same reason).
     cb({})
     return
   end

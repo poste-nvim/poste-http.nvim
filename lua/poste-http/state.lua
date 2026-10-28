@@ -94,6 +94,16 @@ M.pending_request = nil
 M.current_view = "body"
 M._split_override = nil
 M._busy = false
+
+--- End one request run: clear the busy flag and the one-shot split override
+--- together. run_hsplit sets _split_override right before run_request; every
+--- early-return path must drop it too, or the NEXT plain <CR> with no
+--- response window open split horizontally out of nowhere.
+--- (Reads of M._busy stay direct; this is the single write-exit point.)
+function M.finish_run()
+  M._busy = false
+  M._split_override = nil
+end
 M._http_session = nil
 M.http_history = {}
 M.http_history_max = M.config.http_history_max

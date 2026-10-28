@@ -39,7 +39,6 @@ local function pick_snacks(items, prompt, on_select)
     picker_items,
     {
       prompt = prompt or 'Select items:',
-      layout = 'select',
       format_item = function(item)
         local text = item.text
         if item.description and item.description ~= "" then
@@ -47,12 +46,9 @@ local function pick_snacks(items, prompt, on_select)
         end
         return text
       end,
-      close = function()
-        if not resolved then
-          resolved = true
-          on_select(nil)
-        end
-      end,
+      -- No `close`/`layout` here: snacks' ui_select form drops both, and
+      -- cancellation already arrives as on_choice(nil) through the callback
+      -- below (snacks has its own completed guard).
     },
     function(item, _idx)
       if not resolved then

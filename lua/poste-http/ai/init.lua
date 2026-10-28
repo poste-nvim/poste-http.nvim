@@ -56,12 +56,14 @@ function M.register()
 end
 
 --- Bind file/env keys on the chat scope so prompts and execution target the
---- right file and environment.
+--- right file and environment. nil/"" CLEARS the key (poste-ai's contract):
+--- skipping the set left the previous chat's file binding alive, so an
+--- unnamed buffer silently executed against the LAST chat's directory.
 local function scope_chat_target(file, env)
   local ok, scope = pcall(require, "poste-ai.chat.scope")
   if not ok then return end
-  if file and file ~= "" then scope.set("file", file) end
-  if env and env ~= "" then scope.set("env", env) end
+  scope.set("file", (file and file ~= "") and file or nil)
+  scope.set("env", (env and env ~= "") and env or nil)
 end
 
 --- Open the AI chat with the http context active, scoped to the current
@@ -127,7 +129,11 @@ function M.build_question(opts)
     local resp = {}
     resp[#resp + 1] = ("Status: %s %s"):format(tostring(r.status or "?"), r.status_text or "")
     if r.metadata and r.metadata.method and r.url and r.url ~= "" then
-      resp[#resp + 1] = ("Request: %s %s"):format(r.metadata.method, r.url)
+      -- Same redaction as the log chain: a response URL can carry a RESOLVED
+      -- query/api-key or userinfo, and this text goes to the LLM.
+      local util = require("poste-http.util")
+      resp[#resp + 1] = ("Request: %s %s"):format(r.metadata.method,
+        util.redact_url_userinfo(util.redact_url_query(r.url)))
     end
     if type(r.headers) == "table" and #r.headers > 0 then
       resp[#resp + 1] = "Response headers:"

@@ -21,7 +21,11 @@ function M.open(items, prompt, on_select)
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = list_buf })
   vim.api.nvim_set_option_value("filetype", "PosteSelect", { buf = list_buf })
   local width = math.min(80, vim.o.columns - 4)
-  local height = math.min(24, #items + 2)
+  -- Grow past the old 24-row cap: with the fallback picker (no snacks), a
+  -- 25th item was invisible while j/k still moved the highlight onto it and
+  -- <CR> selected what the user could not see. The cap leaves room for the
+  -- command line; longer lists scroll inside the window.
+  local height = math.min(#items + 2, math.max(10, vim.o.lines - 6))
 
   local selected_idx = 1
   local search_text = ""

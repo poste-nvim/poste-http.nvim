@@ -44,6 +44,24 @@ describe("ai.build_question", function()
     assert.truthy(q:match("Errors:\n```\npre_script: boom\n```"))
     assert.truthy(q:match("Status: 500 Internal Server Error"))
     assert.truthy(q:match("Request: GET http://x/x"))
+    -- A resolved query/api-key in the URL must be redacted before the text
+    -- goes to the LLM (same redaction as the log chain).
+    local q2 = ai.build_question({
+      file = "api.http",
+      env = "dev",
+      request_text = "### Get\nGET /x",
+      response = {
+        status = 200,
+        url = "https://user:pw@host/x?api_key=secret",
+        headers = {},
+        body = "",
+        metadata = { method = "GET" },
+      },
+      max_body = 100,
+    })
+    assert.falsy(q2:find("secret", 1, true), "resolved query value must not enter the chat")
+    assert.falsy(q2:find("pw@", 1, true), "userinfo must not enter the chat")
+    assert.truthy(q2:find("Request: GET https://user:***@host/x?api_key=[REDACTED]", 1, true))
     assert.truthy(q:match("%- content%-type: application/json"))
     assert.truthy(q:match("truncated"))
     assert.truthy(q:match("Assertions: 0/1 passed"))

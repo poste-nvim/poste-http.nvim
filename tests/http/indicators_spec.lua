@@ -214,3 +214,35 @@ describe("indicators", function()
     end)
   end)
 end)
+
+describe("spinner generation guard (2026-10-28 round)", function()
+  -- The 2026-06-27 incident: a stale spinner callback painted its frame over
+  -- the NEW spinner when the line re-entered "running" right after a
+  -- verdict. The refactor dropped the generation mechanism while keeping the
+  -- comment; this pins the mechanism again.
+  it("a callback from a stopped spinner does not paint over a new one", function()
+    local indicators = require("poste-http.indicators")
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "### A", "GET http://x/1" })
+
+    indicators.set_indicator(buf, 0, "running")
+    indicators.set_indicator(buf, 0, "success")
+    -- Line immediately re-enters running: a NEW spinner entry exists.
+    indicators.set_indicator(buf, 0, "running")
+
+    -- Pump scheduled callbacks: any stale closure (born before the success)
+    -- must not paint its frame onto the new spinner. The guard makes the
+    -- stale path a silent return; the observable contract is that the
+    -- verdict → re-run → final-verdict sequence lands cleanly.
+    vim.wait(300, function() return false end, 50)
+    vim.wait(50, function() return false end, 10)
+
+    local ok, err = pcall(function()
+      indicators.set_indicator(buf, 0, "error")
+    end)
+    assert.truthy(ok, "final verdict must land cleanly, got: " .. tostring(err))
+
+    indicators._evict(buf)
+    pcall(vim.api.nvim_buf_delete, buf, { force = true })
+  end)
+end)

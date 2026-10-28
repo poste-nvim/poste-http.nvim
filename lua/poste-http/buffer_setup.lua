@@ -38,10 +38,12 @@ function M.setup_buffer_keymaps(buf)
     table.insert(specs, 1, {
       action = "run_hsplit", default = "<M-CR>", handler = function()
         state._split_override = "horizontal"
-        run.run_request()
+        run.run_request()  -- every exit clears it via state.finish_run()
       end,
     })
-    table.insert(specs, 1, { action = "run", default = "<CR>", handler = run.run_request })
+    table.insert(specs, 1, { action = "run", default = "<CR>", handler = function()
+      run.run_request()
+    end })
   end
 
   -- Insert-mode <Tab> expands the > / < script-block snippet (buffer-local:
@@ -59,10 +61,10 @@ function M.setup_buffer_keymaps(buf)
 
   if nav_ok then
     local nav_specs = {
-      { action = "jump_next", default = "]]", handler = nav.jump_next },
-      { action = "jump_prev", default = "[[", handler = nav.jump_prev },
+      { action = "jump_next", default = "]]", handler = function() nav.jump_next() end },
+      { action = "jump_prev", default = "[[", handler = function() nav.jump_prev() end },
       { action = "goto_definition", default = "gd", handler = function() nav.goto_definition() end },
-      { action = "goto_references", default = "grr", handler = nav.goto_references },
+      { action = "goto_references", default = "grr", handler = function() nav.goto_references() end },
       { action = "show_var_value", default = "K", handler = nav.show_var_value },
       { action = "show_variable_inspector", default = "gi", handler = function()
         require("poste-http.http.variable_inspector").show_inspector()

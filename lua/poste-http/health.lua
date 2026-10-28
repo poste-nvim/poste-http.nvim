@@ -1,25 +1,7 @@
 local M = {}
 
-local GRAMMARS = {
-  {
-    name = "poste_http",
-    dir = "tree-sitter-poste-http",
-    src = "src/parser.c",
-    so = "poste_http.so",
-  },
-  {
-    name = "poste_json",
-    dir = "tree-sitter-poste-json",
-    src = "src/parser.c",
-    so = "poste_json.so",
-  },
-  {
-    name = "poste_graphql",
-    dir = "tree-sitter-poste-graphql",
-    src = "src/parser.c",
-    so = "poste_graphql.so",
-  },
-}
+-- Shared with install.lua (single source of truth for the grammar list).
+local GRAMMARS = require("poste-http.install").GRAMMARS
 
 local function plugin_root()
   local src = debug.getinfo(1, "S").source:sub(2)

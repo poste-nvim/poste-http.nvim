@@ -1,7 +1,9 @@
 local notify = require("poste-http.ui.notify").notify
 local M = {}
 
-local GRAMMARS = {
+-- Single source of truth for the buildable grammars; health.lua reads this
+-- table so :checkhealth and the build targets can never drift apart.
+M.GRAMMARS = {
   {
     name = "poste_http",
     dir = "tree-sitter-poste-http",
@@ -21,6 +23,7 @@ local GRAMMARS = {
     so = "poste_graphql.so",
   },
 }
+local GRAMMARS = M.GRAMMARS
 
 local function plugin_root()
   local src = debug.getinfo(1, "S").source:sub(2)

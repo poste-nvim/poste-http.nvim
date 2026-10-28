@@ -176,8 +176,12 @@ function M.execute_http(text, refs, cb)
     else
       local label = (response.metadata and response.metadata.method) or method
       local status = ("%d %s"):format(response.status or 0, response.status_text or "")
+      -- Same redaction as the log chain: the response URL can carry a
+      -- RESOLVED query/api-key and this receipt goes to the LLM.
+      local util = require("poste-http.util")
+      local url = util.redact_url_userinfo(util.redact_url_query(response.url or ""))
       cb(nil, ("✓ ran %s %s → %s — details in the response panel")
-        :format(label, response.url or "", vim.trim(status)))
+        :format(label, url, vim.trim(status)))
     end
   end
   poll_completion(finish, (state.config.timeout or 30000) + 10000)

@@ -98,7 +98,9 @@ function M.open()
         local description = desc[action] or ""
         local line = string.format("  %-12s  %s", key_display, description)
         table.insert(lines, line)
-        width = math.max(width, #line + 2)
+        -- strdisplaywidth, not #line: the ─ separator line is 3 bytes per
+        -- char, and byte-counting pushed the float to ~142 columns.
+        width = math.max(width, vim.fn.strdisplaywidth(line) + 2)
       end
     end
   end
