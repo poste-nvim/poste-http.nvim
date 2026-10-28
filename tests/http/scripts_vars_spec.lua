@@ -154,3 +154,62 @@ describe("pre-script variable logging", function()
     state.config.log_file = nil
   end)
 end)
+
+describe("post-script and orchestration variable logging", function()
+  it("never writes the stored value to the log file (post-script runner)", function()
+    -- Regression: the PRE-script runner redacted set() values, but the
+    -- POST-script runner logged them verbatim — a post-script
+    -- client.global.set('token', response.body.access_token) put the whole
+    -- JWT into the log file.
+    local secret = "post-script-secret-token"
+    local log_file = vim.fn.tempname() .. "-poste-post.log"
+    state.config.log_file = log_file
+    vim.fn.delete(log_file)
+
+    local assertions = require("poste-http.http.assertions")
+    local response = { status = 200, body = "{}", headers = {} }
+    local code = "client.global.set('token', '" .. secret .. "')\n"
+      .. "request.variables.set('v', '" .. secret .. "')\n"
+      .. "client.global.header.set('Authorization', 'Bearer " .. secret .. "')"
+    assertions.run_assertions(response, code, { variables = {}, env = {} })
+
+    local f = io.open(log_file, "r")
+    assert.truthy(f, "log file was written")
+    local logged = f:read("*a")
+    f:close()
+    assert.falsy(logged:find(secret, 1, true), "the secret must not appear in the log")
+    assert.truthy(logged:find("client%.global%.set%('token', %[REDACTED len=24%]%)"))
+    assert.truthy(logged:find("request%.variables%.set%('v', %[REDACTED len=24%]%)"))
+
+    os.remove(log_file)
+    state.config.log_file = nil
+  end)
+
+  it("never writes the stored value to the log file (orchestration runner)", function()
+    local secret = "orchestration-secret-token"
+    local log_file = vim.fn.tempname() .. "-poste-orch.log"
+    state.config.log_file = log_file
+    vim.fn.delete(log_file)
+
+    local orchestration = require("poste-http.http.orchestration")
+    local done = nil
+    orchestration.run_script(
+      "client.global.set('token', '" .. secret .. "')\n"
+        .. "client.global.header.set('Authorization', 'Bearer " .. secret .. "')",
+      { response = { status = 200, body = "{}" } },
+      function(result) done = result end
+    )
+    vim.wait(200, function() return done ~= nil end)
+    assert.is_nil(done and done.error, "script should run cleanly")
+
+    local f = io.open(log_file, "r")
+    assert.truthy(f, "log file was written")
+    local logged = f:read("*a")
+    f:close()
+    assert.falsy(logged:find(secret, 1, true), "the secret must not appear in the log")
+    assert.truthy(logged:find("client%.global%.set%('token', %[REDACTED len=26%]%)"))
+
+    os.remove(log_file)
+    state.config.log_file = nil
+  end)
+end)

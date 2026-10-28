@@ -68,8 +68,8 @@ function M.extract_script_block(buf, cursor_line, cursor_col)
   local all_lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local total = #all_lines
 
-  -- Walk backwards to find opening marker
-  -- Uses same anchored patterns as scripts.lua for consistency
+  -- Walk backwards to find opening marker. Anchored patterns match
+  -- script_block.lua's extractor (the shared < {% %}/> {% %} authority)
   local block_start = nil
   local lua_start_col = nil
   for i = math.min(cursor_line, total), 1, -1 do
@@ -90,10 +90,17 @@ function M.extract_script_block(buf, cursor_line, cursor_col)
   end
   if not block_start then return nil end
 
-  -- Walk forwards to find closing marker: exact match after trim (matches scripts.lua)
+  -- Walk forwards to find the closing marker: a standalone "%}" line, or —
+  -- for the single-line form `< {% code %}` — the "%}" on the opening line
+  -- itself (script_block.lua accepts both; this copy used to accept only
+  -- the standalone line, so hover silently skipped single-line blocks).
   local block_end = nil
   for i = block_start, total do
     local line = all_lines[i] or ""
+    if i == block_start and vim.trim(line):match("<%s*{%%.*%%}$") then
+      block_end = i
+      break
+    end
     if vim.trim(line) == "%}" then
       block_end = i
       break

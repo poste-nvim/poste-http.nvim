@@ -3,6 +3,7 @@
 local state = require("poste-http.state")
 local script_block = require("poste-http.http.script_block")
 local script_sandbox = require("poste-http.http.script_sandbox")
+local util = require("poste-http.util")
 local vars = require("poste-http.http.vars")
 
 local M = {}
@@ -56,8 +57,10 @@ local function read_env_vars(env_name, file_dir)
     dir = vim.fn.fnamemodify(bufname, ":h")
   end
 
-  while dir and dir ~= "" and dir ~= "/" do
-    local candidate = vim.fs.joinpath(dir, "env.json")
+  -- One shared upward walk (util.find_file_upwards) instead of a third
+  -- hand-rolled copy; this one stopped at "/" and lacked the util's guards.
+  local candidate = util.find_file_upwards("env.json", dir)
+  if candidate then
     local f = io.open(candidate, "r")
     if f then
       local content = f:read("*a")
@@ -66,9 +69,7 @@ local function read_env_vars(env_name, file_dir)
       if ok and type(data) == "table" and data[env_name] then
         return data[env_name]
       end
-      return {}
     end
-    dir = vim.fn.fnamemodify(dir, ":h")
   end
 
   return {}
@@ -193,8 +194,6 @@ function M.run_pre_script(code, script_vars)
           return state.global_headers[name]
         end,
         remove = function(name)
-          local ctx = state._exec_context
-          local _ = ctx and ctx.line
           state.remove_global_header(name)
           state.log("INFO", string.format("Pre-script: client.global.header.remove('%s')", name))
         end,
@@ -283,8 +282,13 @@ end
 --- multi-line values occupy three lines (>>>/value/<<<), so callers must use
 --- the returned count for block_end/line bookkeeping, never pairs(variables).
 --- @return string, number
-function M.inject_pre_script_vars(content, block_start, variables)
-  if not variables or not next(variables) then
+--- Serialize { name = value } pairs as @var lines and splice them into the
+--- content right after `block_start` (the ### header line, 1-indexed).
+--- Returns PHYSICAL lines inserted — a multi-line value serializes as the
+--- grammar's >>>/<<< heredoc form, so pairs()-style counting under-counts.
+--- @return string, number  modified content, lines actually injected
+local function inject_var_lines(content, block_start, var_pairs)
+  if not block_start or not var_pairs or not next(var_pairs) then
     return content, 0
   end
 
@@ -294,9 +298,8 @@ function M.inject_pre_script_vars(content, block_start, variables)
 
   for i, line in ipairs(lines) do
     table.insert(result, line)
-    -- Insert variables right after the ### header line (block_start is 1-indexed)
     if i == block_start then
-      for name, value in pairs(variables) do
+      for name, value in pairs(var_pairs) do
         for _, serialized_line in ipairs(serialize_var_line(name, value)) do
           table.insert(result, serialized_line)
           injected = injected + physical_lines(serialized_line)
@@ -308,38 +311,23 @@ function M.inject_pre_script_vars(content, block_start, variables)
   return table.concat(result, "\n"), injected
 end
 
+function M.inject_pre_script_vars(content, block_start, variables)
+  return inject_var_lines(content, block_start, variables)
+end
+
 ---------------------------------------------------------------------------
 -- Inject global variables into content
 ---------------------------------------------------------------------------
 
---- Inject global variables as @var = value lines after the given line.
---- Mirrors inject_pre_script_vars but for client.global.set() values.
+--- Inject client.global.set() values as @var = value lines after the given
+--- line. Same injector as inject_pre_script_vars — the two copies drifted
+--- once already (nil block_start guard existed in only one of them).
 --- @param content string
 --- @param block_start number  1-indexed line to inject after
 --- @param global_vars table  { name = value, ... }
 --- @return string, number  modified content, lines actually injected
 function M.inject_global_vars(content, block_start, global_vars)
-  if not block_start or not global_vars or not next(global_vars) then
-    return content, 0
-  end
-
-  local lines = vim.split(content, "\n", { plain = true })
-  local result = {}
-  local count = 0
-
-  for i, line in ipairs(lines) do
-    table.insert(result, line)
-    if i == block_start then
-      for name, value in pairs(global_vars) do
-        for _, serialized_line in ipairs(serialize_var_line(name, value)) do
-          table.insert(result, serialized_line)
-          count = count + physical_lines(serialized_line)
-        end
-      end
-    end
-  end
-
-  return table.concat(result, "\n"), count
+  return inject_var_lines(content, block_start, global_vars)
 end
 
 ---------------------------------------------------------------------------

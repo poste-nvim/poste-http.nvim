@@ -381,3 +381,38 @@ describe("history persistence", function()
     assert.is_truthy(joined:find("2.0 KB", 1, true), "the size renders as a human size")
   end)
 end)
+
+describe("history non-finite numbers (2026-10-28 round)", function()
+  -- `"time": 1e999` decodes to math.huge and passed the number check, so
+  -- vim.json.encode raised on every persist and the pcall swallowed it —
+  -- history.json froze at its last good state with zero signal.
+  it("drops non-finite numbers at the load boundary", function()
+    reset()
+    vim.fn.mkdir(tmp_dir, "p")
+    local f = io.open(state.config.history_file, "w")
+    -- The persisted format is a flat entry array (vim.json.encode of
+    -- state.http_history), not a wrapper object.
+    f:write('[{"id":1,"time":1e999,"name":"x",'
+      .. '"response":{"status":200,"body":"ok","headers":[]}}]')
+    f:close()
+
+    history.load()
+    assert.equals(1, #state.http_history, "the entry itself survives")
+    assert.falsy(state.http_history[1].time == math.huge,
+      "an infinite time must not survive the boundary as a number")
+  end)
+
+  it("a persist that cannot encode logs a warning instead of silence", function()
+    reset()
+    local logs = {}
+    local orig_log = state.log
+    state.log = function(level, msg) logs[#logs + 1] = level .. ": " .. msg end
+    -- An in-memory entry carrying inf (only reachable via a drifted load
+    -- before the boundary fix, or a stub): encode fails and must log.
+    state.http_history = { { id = 1, name = "x", response = { status = 200, body = "", headers = {} }, time = math.huge } }
+    history.add_entry("after", { status = 200, body = "", headers = {} })
+    state.log = orig_log
+
+    assert.is_true(#logs > 0, "a failed encode must log, got " .. vim.inspect(logs))
+  end)
+end)

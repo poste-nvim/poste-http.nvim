@@ -44,6 +44,19 @@ local function truncate_response(response)
   if r.body and type(r.body) == "string" and #r.body > MAX_BODY_SAVE then
     r.body = r.body:sub(1, MAX_BODY_SAVE) .. "\n... [truncated " .. #r.body .. " bytes]"
   end
+  -- metadata.request_body/request_headers mirror the FULL expanded request
+  -- (run.lua stamps pending_request.body there); without the same cap a
+  -- multi-MB body rode inside every history entry and was re-encoded on
+  -- every subsequent persist (O(entries x body) bytes written per batch).
+  local m = r.metadata
+  if type(m) == "table" then
+    if type(m.request_body) == "string" and #m.request_body > MAX_BODY_SAVE then
+      m.request_body = m.request_body:sub(1, MAX_BODY_SAVE) .. "\n... [truncated " .. #m.request_body .. " bytes]"
+    end
+    if type(m.request_headers) == "string" and #m.request_headers > MAX_BODY_SAVE then
+      m.request_headers = m.request_headers:sub(1, MAX_BODY_SAVE) .. "\n... [truncated " .. #m.request_headers .. " bytes]"
+    end
+  end
   return r
 end
 
@@ -75,7 +88,12 @@ local function persist()
   for i, entry in ipairs(state.http_history) do
     entry._jq = saved_jq[i]
   end
-  if not ok or not payload then return end
+  if not ok or not payload then
+    -- Silent return froze the file with zero signal (every later add_entry
+    -- retried the same failing encode); say what broke.
+    if state.log then state.log("WARN", "history persist failed: " .. tostring(payload)) end
+    return
+  end
   local file = history_file()
   local ok_dir, _ = pcall(vim.fn.mkdir, vim.fn.fnamemodify(file, ":h"), "p")
   if not ok_dir then return end
@@ -102,10 +120,18 @@ local METADATA_STRING_FIELDS = {
   "file_path", "file_content_type", "error", "exit_code", "verbose",
 }
 
---- Coerce a value to a number, or nil when it is not one.
+--- Coerce a value to a finite number, or nil when it is not one.
+--- Non-finite (a hand-edited `"time": 1e999` decodes to math.huge) must not
+--- survive: vim.json.encode raises on inf, and the swallowed error froze the
+--- whole history file at its last good state.
 local function as_number(v)
-  if type(v) == "number" then return v end
-  return tonumber(v)
+  if type(v) == "number" then
+    if v ~= v or v == math.huge or v == -math.huge then return nil end
+    return v
+  end
+  local n = tonumber(v)
+  if n ~= n or n == math.huge or n == -math.huge then return nil end
+  return n
 end
 
 --- @param m any

@@ -85,7 +85,8 @@ function M.run_script(code, opts, on_complete)
         local stored = script_sandbox.coerce_set_value("Orchestration: client.global.set", name, value)
         if stored == nil then return end
         state.set_global_var(name, stored)
-        state.log("INFO", string.format("Orchestration: client.global.set('%s', '%s')", name, stored))
+        -- Leak-surface rule (scripts.lua): value never reaches the log.
+        state.log("INFO", string.format("Orchestration: client.global.set('%s', [REDACTED len=%d])", name, #stored))
       end,
       get = function(name)
         return state.global_vars[name]
@@ -95,7 +96,7 @@ function M.run_script(code, opts, on_complete)
           local stored = script_sandbox.coerce_set_value("Orchestration: client.global.header.set", name, value)
           if stored == nil then return end
           state.set_global_header(name, stored)
-          state.log("INFO", string.format("Orchestration: client.global.header.set('%s', '%s')", name, stored))
+          state.log("INFO", string.format("Orchestration: client.global.header.set('%s', [REDACTED len=%d])", name, #stored))
         end,
         get = function(name)
           return state.global_headers[name]
@@ -153,8 +154,13 @@ function M.run_script(code, opts, on_complete)
     if finished then return end
     finished = true
     if not err and #test_failures > 0 then
-      local t = test_failures[1]
-      err = ("Test '%s' failed: %s"):format(t.name, t.error)
+      -- Report EVERY failing client.test, not just the first: failure
+      -- information destroyed at the runner is invisible everywhere below.
+      local parts = {}
+      for i, t in ipairs(test_failures) do
+        parts[i] = ("Test '%s' failed: %s"):format(t.name, t.error)
+      end
+      err = table.concat(parts, "\n")
     end
     if on_complete then
       on_complete({ logs = logs, calls = calls, error = err })
@@ -172,13 +178,19 @@ function M.run_script(code, opts, on_complete)
       return
     end
     if yielded and yielded.kind == "run" then
-      import.execute_request_reference(yielded.target, yielded.args, { buf = opts.buf }, function(ok2, response, name)
+      -- pcall: state._busy stays true until on_complete fires, so a raise in
+      -- the import/resolve chain must be routed into finish() instead of
+      -- wedging every later request behind "Request already in progress".
+      local ok_call, call_err = pcall(import.execute_request_reference, yielded.target, yielded.args, { buf = opts.buf }, function(ok2, response, name)
         if ok2 and response then
           drive({ name = name, response = response })
         else
           drive({ error = response and response.error or ("Request '%s' failed"):format(tostring(yielded.target)) })
         end
       end)
+      if not ok_call then
+        finish(tostring(call_err))
+      end
     else
       finish("Unknown yield from orchestration script")
     end

@@ -52,6 +52,10 @@ function M.refresh()
     return
   end
 
+  -- Clear any earlier hint first: arming a second line in the same insert
+  -- session (arrow-down without TextChangedI on the first) used to leave the
+  -- old line's virt_text/virt_lines hint behind until InsertLeave.
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   vim.api.nvim_buf_set_extmark(buf, ns, cur_line - 1, #line_content, {
     virt_text = {{" {%", "Comment"}},
     virt_lines = {{{"%}", "Comment"}}},

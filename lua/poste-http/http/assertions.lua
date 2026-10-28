@@ -106,7 +106,9 @@ function M.run_assertions(response_data, code, script_vars)
         if line then
           state.script_variables_sources[name] = { file = ctx.file, line = line }
         end
-        state.log("INFO", string.format("Post-script: request.variables.set('%s', '%s')", name, stored))
+        -- Same leak-surface rule as scripts.lua: the stored VALUE never
+        -- reaches the log (tokens land here); name + length stay for debugging.
+        state.log("INFO", string.format("Post-script: request.variables.set('%s', [REDACTED len=%d])", name, #stored))
       end,
       get = function(name)
         return state.script_variables[name]
@@ -125,7 +127,7 @@ function M.run_assertions(response_data, code, script_vars)
         if line then
           state.global_vars_sources[name] = { file = ctx.file, line = line }
         end
-        state.log("INFO", string.format("Post-script: client.global.set('%s', '%s')", name, stored))
+        state.log("INFO", string.format("Post-script: client.global.set('%s', [REDACTED len=%d])", name, #stored))
       end,
       get = function(name)
         return state.global_vars[name]
@@ -140,7 +142,7 @@ function M.run_assertions(response_data, code, script_vars)
           if line then
             state.global_headers_sources[name] = { file = ctx.file, line = line }
           end
-          state.log("INFO", string.format("Post-script: client.global.header.set('%s', '%s')", name, stored))
+          state.log("INFO", string.format("Post-script: client.global.header.set('%s', [REDACTED len=%d])", name, #stored))
         end,
         get = function(name)
           return state.global_headers[name]
@@ -314,11 +316,13 @@ function M.apply_highlights(buf, lines)
     if not matched then
       local pass_name = line:match("^  ✓ (.+)$")
       if pass_name then
+        -- "  ✓ " is 5 bytes (2 spaces + the 3-byte glyph): splitting at 3/4
+        -- clipped the icon's tail into the text highlight.
         vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 0, {
-          end_row = row, end_col = 3,
+          end_row = row, end_col = 5,
           hl_group = "PosteAssertIconPass", priority = 100,
         })
-        vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 4, {
+        vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 5, {
           end_row = row, end_col = #line,
           hl_group = "PosteAssertPass", priority = 100,
         })
@@ -331,10 +335,10 @@ function M.apply_highlights(buf, lines)
       local fail_name = line:match("^  ✘ (.+)$")
       if fail_name then
         vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 0, {
-          end_row = row, end_col = 3,
+          end_row = row, end_col = 5,
           hl_group = "PosteAssertIconFail", priority = 100,
         })
-        vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 4, {
+        vim.api.nvim_buf_set_extmark(buf, assertions_ns, row, 5, {
           end_row = row, end_col = #line,
           hl_group = "PosteAssertFail", priority = 100,
         })
