@@ -556,3 +556,63 @@ describe("buffer cache var names", function()
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
 end)
+
+describe("body file-include line typing (2026-10-28 round)", function()
+  -- `< ./payload.json` is a body file include (the grammar and
+  -- describe.is_body_file_include agree); only `< ./x.lua` is a pre-script.
+  -- The line-type scan used to type ANY `< ./…` line as pre_script, so the
+  -- no-tree-sitter fallback (context detection, folding) disagreed with the
+  -- tested grammar semantics.
+  it('types a body file include as "body", not "pre_script"', function()
+    local buf = create_buf({
+      "### Upload",
+      "POST /upload",
+      "Content-Type: application/json",
+      "",
+      "< ./payload.json",
+    })
+    assert.equals("body", cache.get_line_type(buf, 5),
+      "`< ./payload.json` must not be typed as a script line")
+  end)
+
+  it('still types an external lua pre-script as "pre_script"', function()
+    local buf = create_buf({
+      "### Upload",
+      "POST /upload",
+      "< ./scripts/auth.lua",
+      "Authorization: Bearer {{token}}",
+    })
+    assert.equals("pre_script", cache.get_line_type(buf, 3))
+    assert.equals("header", cache.get_line_type(buf, 4))
+  end)
+
+  it('types a parent-dir lua include as "pre_script"', function()
+    local buf = create_buf({
+      "### Upload",
+      "POST /upload",
+      "< ../common/setup.lua",
+      "GET /x",
+    })
+    assert.equals("pre_script", cache.get_line_type(buf, 3))
+  end)
+end)
+
+describe("collect_script_local_vars (2026-10-28 round)", function()
+  -- The `local` scan was unanchored, so the first `local` SUBSTRING won —
+  -- including one inside a string literal in the same script.
+  it("does not harvest 'local' occurrences inside string literals", function()
+    local buf = create_buf({
+      "### Script",
+      "POST /x",
+      "< {%",
+      'client.log("use local debug here")',
+      "local real_var = 1",
+      "%}",
+      "GET /y",
+    })
+    local names = cache.collect_script_local_vars(buf, 2)
+    assert.truthy(names.real_var, "the real local declaration must be collected")
+    assert.falsy(names.debug, "a 'local' inside a string literal must not leak")
+    assert.falsy(names["here"])
+  end)
+end)

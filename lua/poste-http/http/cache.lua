@@ -2,14 +2,14 @@
 ---
 --- UI-level indexing only (line types, block bounds, var names, imports).
 --- HTTP semantics (method / path / headers / body) come from the single
---- tree-sitter parse authority via `poste.http.describe`.
+--- tree-sitter parse authority via `poste-http.http.describe`.
 
 local M = {}
 
 local block_boundary = require("poste-http.http.block_boundary")
 
 -- Buffer-level caches (invalidated on text change via changedtick)
-local buffer_caches = {}     -- bufnr → { changedtick, file_vars, req_names, import_index }
+local buffer_caches = {}     -- bufnr → { changedtick, file_vars, req_names, line_type, blocks, file_imports }
 local semantic_caches = {}   -- bufnr → { changedtick, blocks }  -- from describe
 local env_cache = {}         -- path → { mtime, env_name, vars }
 local cache_autocmds = {}    -- bufnr → true
@@ -126,7 +126,10 @@ function M.get_buffer_cache(buf)
           if trimmed == "%}" then
             in_post_block = false
           end
-        elseif line:match("^%s*<%s+%.%.?") then
+        elseif line:match("^%s*<%s+%.%.?") and line:match("%.lua%s*$") then
+          -- `< ./file.lua` external pre-script only: `< ./payload.json` is a
+          -- body file include (describe.is_body_file_include and
+          -- find_request_line gate on the .lua suffix the same way).
           t = "pre_script"
         elseif line:match("^%s*<%s+{%%") then
           t = "pre_script"
@@ -202,7 +205,9 @@ function M.get_buffer_cache(buf)
         if trimmed == "%}" then
           in_pre_block = false
         end
-      elseif line:match("^%s*<%s+%.%.?") then
+      elseif line:match("^%s*<%s+%.%.?") and line:match("%.lua%s*$") then
+        -- `.lua` gate: `< ./payload.json` is a body file include, matching
+        -- describe.is_body_file_include and find_request_line.
         t = "pre_script"
         if current_block then current_block.has_pre = true end
       elseif line:match("^%s*<%s+{%%") then
@@ -316,7 +321,10 @@ function M.collect_script_local_vars(buf, cursor_line)
     local line_num = start_line + i - 1
     local lt = cache.line_type[line_num]
     if lt == "pre_script" or lt == "post_script" then
-      local after_local = line:match("local%s+(.*)")
+      -- Anchored: without `^`, the first `local` substring wins — even one
+      -- inside a string literal (`client.log("use local debug here")`
+      -- harvested "debug"/"here" as completion candidates).
+      local after_local = line:match("^%s*local%s+(.*)")
       if after_local then
         local names_part = after_local:match("^(.-)%s*=") or after_local
         for name in names_part:gmatch("([%w_]+)") do
@@ -539,16 +547,11 @@ function M.get_semantic_blocks(buf)
     file = vim.fn.getcwd() .. "/untitled.http"
   end
 
+  -- describe_content is total: it always returns a table as its first value
+  -- and hands errors back as the second (nil on success), so no
+  -- not-blocks guard is needed here.
   local describe = require("poste-http.http.describe")
-  local blocks, err = describe.describe_content(content, file)
-  if not blocks then
-    if err then
-      pcall(function()
-        require("poste-http.state").log("WARN", "describe failed: " .. tostring(err))
-      end)
-    end
-    blocks = {}
-  end
+  local blocks = describe.describe_content(content, file)
 
   -- If tree-sitter returned no blocks, fall back to buffer cache blocks.
   -- This avoids a divergence where semantic_caches holds [] while

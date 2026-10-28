@@ -30,7 +30,9 @@ end
 --- @param lines string[] 1-indexed array of buffer lines
 --- @param start number 1-indexed line of the block's `###` separator
 --- @return integer end_line  line before the next separator, or #lines
---- @return integer last_content_line  last non-empty, non-comment line in [start, end_line]
+--- @return integer last_content_line  last non-empty, non-comment line in
+---   [start, end_line]; a block with no content line at all (header-only,
+---   cursor parked on the separator) falls back to `start` itself
 function M.compute_block_range(lines, start)
   local n = #lines
   local end_line = n

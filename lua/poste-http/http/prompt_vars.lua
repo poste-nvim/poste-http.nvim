@@ -64,8 +64,10 @@ function M.handle_prompt_variables(buf, cursor_line, content, file, env_name, on
           or normalized:match("{{(.+%.request%..+)}}")
 
         if ref_match and execute_dep and resolve_req_var and collect_requests then
+          -- parse_dynamic_mapping cannot return nil here: the input is
+          -- built as "{{" .. ref_match .. "}}" with ref_match non-nil, so it
+          -- always matches {{(.+)}}.
           local ref_text, mapping = jq_mapping.parse_dynamic_mapping("{{" .. ref_match .. "}}")
-          if not ref_text then ref_text = ref_match end
 
           local requests = collect_requests(buf)
           local req_name = ref_text:match("^([^%.]+)%.")
@@ -80,10 +82,11 @@ function M.handle_prompt_variables(buf, cursor_line, content, file, env_name, on
             end
 
             if dep_req then
-              local all_lines = vim.split(content, "\n", { plain = true })
+              -- `lines` (split at the top of this function) is the same
+              -- content; re-splitting it here was a duplicate.
               local dep_lines = {}
               for i = dep_req.start_line, dep_req.end_line do
-                table.insert(dep_lines, all_lines[i] or "")
+                table.insert(dep_lines, lines[i] or "")
               end
               local dep_resolved = table.concat(dep_lines, "\n")
 

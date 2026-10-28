@@ -212,36 +212,41 @@ function M.collect_block_vars(lines, block_start, block_end)
   return M.collect_var_defs(lines, block_start, block_end)
 end
 
-function M.load_env_vars(file_path, env_name)
-  if not file_path or file_path == "" then return {} end
-  if not env_name or env_name == "" then return {} end
+--- Walk up from the file's directory to find the nearest env.json.
+--- @return string|nil  absolute path, or nil when none exists
+local function find_env_json(file_path)
+  if not file_path or file_path == "" then return nil end
   local dir = vim.fn.fnamemodify(file_path, ":h")
-  local seen = {}
   while true do
     local candidate = vim.fs.joinpath(dir, "env.json")
-    if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
-      seen[dir] = true
-      local f = io.open(candidate, "r")
-      if f then
-        local content = f:read("*a")
-        f:close()
-        local ok, data = pcall(vim.json.decode, content)
-        if ok and type(data) == "table" then
-          -- The env SECTION must also be a table: `{"dev": 42}` (typo'd
-          -- file) used to hand the raw number back, and the next
-          -- `self.env[name]` index crashed the whole resolve chain —
-          -- cache.collect_env_vars (completion) already guarded this way.
-          local section = data[env_name]
-          if type(section) == "table" then
-            return section
-          end
-          return {}
-        end
-      end
+    if vim.fn.filereadable(candidate) == 1 then
+      return candidate
     end
     local parent = vim.fn.fnamemodify(dir, ":h")
     if parent == dir then break end
     dir = parent
+  end
+  return nil
+end
+
+function M.load_env_vars(file_path, env_name)
+  if not env_name or env_name == "" then return {} end
+  local env_path = find_env_json(file_path)
+  if not env_path then return {} end
+  local f = io.open(env_path, "r")
+  if not f then return {} end
+  local content = f:read("*a")
+  f:close()
+  local ok, data = pcall(vim.json.decode, content)
+  if ok and type(data) == "table" then
+    -- The env SECTION must also be a table: `{"dev": 42}` (typo'd
+    -- file) used to hand the raw number back, and the next
+    -- `self.env[name]` index crashed the whole resolve chain —
+    -- cache.collect_env_vars (completion) already guarded this way.
+    local section = data[env_name]
+    if type(section) == "table" then
+      return section
+    end
   end
   return {}
 end
@@ -273,21 +278,8 @@ end
 
 function M.load_env_vars_with_lines(file_path, env_name)
   local result = {}
-  if not file_path or file_path == "" then return result end
   if not env_name or env_name == "" then return result end
-  local dir = vim.fn.fnamemodify(file_path, ":h")
-  local seen = {}
-  local env_path = nil
-  while true do
-    local candidate = vim.fs.joinpath(dir, "env.json")
-    if not seen[dir] and vim.fn.filereadable(candidate) == 1 then
-      env_path = candidate
-      break
-    end
-    local parent = vim.fn.fnamemodify(dir, ":h")
-    if parent == dir then break end
-    dir = parent
-  end
+  local env_path = find_env_json(file_path)
   if not env_path then return result end
 
   local lines = {}
@@ -302,22 +294,35 @@ function M.load_env_vars_with_lines(file_path, env_name)
   local brace_depth = 0
   for i, line in ipairs(lines) do
     local trimmed = vim.trim(line)
+    local delta = brace_delta_outside_strings(trimmed)
     if not in_section then
       if trimmed:match('^"' .. vim.pesc(env_name) .. '"%s*:') then
         in_section = true
-        brace_depth = brace_depth + brace_delta_outside_strings(trimmed)
-      end
-    else
-      local key = trimmed:match('^"([^"]+)"%s*:')
-      if key then
-        local value = trimmed:match('^"[^"]+"%s*:%s*(.+)')
-        if value then
-          value = value:gsub(",%s*$", "")
-          value = value:match("^%s*'(.-)'%s*$") or value:match('^%s*"(.-)"%s*$') or value:match("^%s*(%S.-)%s*$") or value
-          result[key] = { value = value, line = i }
+        brace_depth = delta
+        if brace_depth <= 0 then
+          -- Fully inline section (`"dev": {}`) or a scalar section: the
+          -- section is already over. Continuing would capture the NEXT
+          -- section's keys into this one.
+          break
         end
       end
-      brace_depth = brace_depth + brace_delta_outside_strings(trimmed)
+    else
+      -- Capture direct members only: depth 1, and the value must not open a
+      -- nested container. Pretty-printed sections used to leak every nested
+      -- key (`"a": 1` inside "cfg") as top-level vars and truncated the
+      -- container value to its opening "{".
+      if brace_depth == 1 and delta == 0 then
+        local key = trimmed:match('^"([^"]+)"%s*:')
+        if key then
+          local value = trimmed:match('^"[^"]+"%s*:%s*(.+)')
+          if value then
+            value = value:gsub(",%s*$", "")
+            value = value:match("^%s*'(.-)'%s*$") or value:match('^%s*"(.-)"%s*$') or value:match("^%s*(%S.-)%s*$") or value
+            result[key] = { value = value, line = i }
+          end
+        end
+      end
+      brace_depth = brace_depth + delta
       if brace_depth <= 0 then
         break
       end

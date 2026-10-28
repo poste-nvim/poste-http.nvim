@@ -367,3 +367,75 @@ describe("hostile env.json / var-name shapes (2026-10-06 round)", function()
     assert.equals("{{ nope }}", r:substitute("{{ nope }}"))
   end)
 end)
+
+describe("load_env_vars_with_lines nested + inline-empty sections (2026-10-28 round)", function()
+  local dir, env_path
+
+  before_each(function()
+    dir = vim.fn.tempname()
+    vim.fn.mkdir(dir, "p")
+    env_path = vim.fs.joinpath(dir, "env.json")
+  end)
+
+  after_each(function()
+    pcall(vim.fn.delete, dir, "rf")
+  end)
+
+  local function write_env(content)
+    local f = io.open(env_path, "w")
+    f:write(content)
+    f:close()
+  end
+
+  it("captures only direct members of a pretty-printed section", function()
+    write_env([=[
+{
+  "dev": {
+    "cfg": {
+      "a": 1,
+      "b": 2
+    },
+    "host": "https://dev.example.com"
+  },
+  "prod": {
+    "host": "https://prod.example.com"
+  }
+}
+]=])
+    local env = require("poste-http.http.vars").load_env_vars_with_lines(env_path, "dev")
+    -- The leak signature: nested keys surfaced as top-level vars and the
+    -- container truncated to its opening "{".
+    assert.falsy(env.a, "nested key 'a' must not leak into the section")
+    assert.falsy(env.b, "nested key 'b' must not leak into the section")
+    assert.equals("https://dev.example.com", env.host.value)
+    assert.falsy(env.prod, "the next section must not leak")
+  end)
+
+  it("stops after an inline-empty section instead of capturing the next one", function()
+    write_env([=[
+{
+  "dev": {},
+  "stage": {
+    "host": "https://stage.example.com"
+  }
+}
+]=])
+    local env = require("poste-http.http.vars").load_env_vars_with_lines(env_path, "dev")
+    assert.falsy(env.host, "the following section's keys must not leak into an empty section")
+    assert.falsy(env.stage)
+  end)
+
+  it("still captures inline object values on a single line", function()
+    write_env([=[
+{
+  "dev": {
+    "cfg": {"a": 1},
+    "host": "h"
+  }
+}
+]=])
+    local env = require("poste-http.http.vars").load_env_vars_with_lines(env_path, "dev")
+    assert.equals('{"a": 1}', env.cfg.value)
+    assert.equals("h", env.host.value)
+  end)
+end)
