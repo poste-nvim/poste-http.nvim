@@ -47,11 +47,13 @@ describe("nav/ts var_ref match (2026-10-28 round)", function()
 end)
 
 describe("shared alias-column locator (2026-10-28 round)", function()
-  -- The helper is file-local in nav/util; this pins its pattern against the
-  -- three shapes the former per-site copies each broke on.
+  -- Dispatch through the module (mirrors the nav.text/nav.ts call sites):
+  -- the helper used to be file-local, so those call sites called nil and
+  -- gd on an import alias crashed — a mirrored copy here would have stayed
+  -- green through exactly that failure.
+  local nav_util = require("poste-http.http.nav.util")
   local function locate(line, alias)
-    -- 1-based start col of the alias token, or nil (mirrors find_alias_col).
-    return line:find("%f[%w]" .. vim.pesc(alias) .. "%s*$")
+    return nav_util.find_alias_col(line, alias)
   end
 
   it("locates the alias regardless of spacing around 'as'", function()

@@ -391,6 +391,10 @@ end
 local function find_alias_col(line, alias)
   return line:find("%f[%w]" .. vim.pesc(alias) .. "%s*$")
 end
+--- Exported for nav.text/nav.ts, which dispatch through nav_util.* — a
+--- local-only definition here used to leave those call sites calling nil
+--- (pressing gd on an import alias crashed).
+M.find_alias_col = find_alias_col
 
 function M.goto_import_keypath(buf, alias, keypath, opts)
   local import_path, import_line = nil, nil
