@@ -279,6 +279,28 @@ describe("hostile spec shapes (2026-10-28 round)", function()
     pcall(vim.fn.delete, out_dir, "rf")
   end
 
+  it("a scalar paths map imports as an empty file, not a crash", function()
+    -- Both importers used to feed the scalar straight into pairs()
+    -- ("bad argument #1 to 'pairs'") when a hand-edited spec carried
+    -- "paths": "junk".
+    local cases = {
+      { label = "OpenAPI", mod = openapi, base = { openapi = "3.0.0" } },
+      { label = "Swagger", mod = swagger, base = { swagger = "2.0" } },
+    }
+    for _, case in ipairs(cases) do
+      local spec_path = os.tmpname() .. ".json"
+      local out_dir = os.tmpname() .. "-out"
+      os.remove(out_dir)
+      local base = case.base
+      base.info = { title = "Scalar Paths" }
+      base.paths = "junk"
+      write_json(spec_path, base)
+      local result, err = case.mod.import_spec(spec_path, out_dir)
+      assert.is_truthy(result, case.label .. " import must survive, got: " .. tostring(err))
+      cleanup(spec_path, out_dir)
+    end
+  end)
+
   it("read_spec rejects a directory with an error instead of crashing", function()
     -- io.open succeeds on a directory; only the read fails. The OpenAPI
     -- finder runs in "both" mode, so confirming a directory landed here.

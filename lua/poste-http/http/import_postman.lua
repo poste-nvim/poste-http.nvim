@@ -117,7 +117,9 @@ local function parse_item(item, vars, collection_vars)
   local headers = {}
   local header_list = req.header
   for _, h in ipairs(type(header_list) == "table" and header_list or {}) do
-    if type(h) == "table" and h.key and h.key ~= "" and not h.disabled then
+    -- type check on key: a numeric key passes `h.key ~= ""` but crashes
+    -- generate_http_block's h.key:lower() downstream.
+    if type(h) == "table" and type(h.key) == "string" and h.key ~= "" and not h.disabled then
       local value = resolve_postman_var(h.value, vars)
       table.insert(headers, { key = h.key, value = value })
     end
@@ -167,7 +169,9 @@ function M.import_spec(spec_path, out_dir)
   end
 
   local blocks = {}
-  local items = collection.item or {}
+  -- Same total-shape rule as collection.variable/item.request below: a
+  -- hand-edited collection may carry a scalar (or null) item list.
+  local items = type(collection.item) == "table" and collection.item or {}
   for _, item in ipairs(items) do
     local result = parse_item(item, vars, vars)
     if result then

@@ -191,6 +191,11 @@ function M.collect_directives(buf_content)
   return { imports = imports, runs = runs }
 end
 
+--- Forward declaration: build_import_index (below) reuses this mtime-keyed
+--- loader so re-indexing — every `#` completion runs it — does not
+--- re-execute the same Lua import file.
+local cached_lua_exports
+
 --- Build an import index from a list of import directives.
 --- Reads each imported file and extracts its request names.
 --- @param imports table[]  List of import directives
@@ -208,58 +213,59 @@ function M.build_import_index(imports, buf_dir)
 
   for _, imp in ipairs(imports) do
     local file_path = resolve_path(imp.path, buf_dir)
-    local content, err = read_file(file_path)
-    if not content then
-      table.insert(index.errors, string.format("Cannot read import '%s': %s", imp.path, err or "unknown error"))
-    elseif file_path:match("%.lua$") then
-      -- Lua module import: load and execute the file to get exports
-      local fn, load_err = load(content, "@" .. file_path)
-      if not fn then
-        table.insert(index.errors, string.format("Cannot load Lua import '%s': %s", imp.path, load_err))
+    if file_path:match("%.lua$") then
+      -- Lua module import: load and execute through the cached loader.
+      -- Rebuilding the index (cache.collect_import_index runs on every `#`
+      -- completion) used to bare-load and EXECUTE the file each time —
+      -- side effects stacked up per keystroke, and the mtime cache below
+      -- was bypassed entirely on this path.
+      local exports, lua_err = cached_lua_exports(file_path, imp.path, false)
+      if lua_err then
+        table.insert(index.errors, lua_err)
       else
-        local ok, exports = pcall(fn)
-        if not ok then
-          table.insert(index.errors, string.format("Cannot execute Lua import '%s': %s", imp.path, exports))
-        else
-          exports = exports or {}
-          local entry = { path = file_path, exports = exports, is_lua = true }
-          if imp.type == "aliased" then
-            if seen_aliases[imp.alias] then
-              table.insert(index.errors, string.format("Duplicate alias '%s': %s and %s",
-                imp.alias, seen_aliases[imp.alias], imp.path))
-            else
-              seen_aliases[imp.alias] = imp.path
-              index.aliased[imp.alias] = entry
-            end
+        exports = exports or {}
+        local entry = { path = file_path, exports = exports, is_lua = true }
+        if imp.type == "aliased" then
+          if seen_aliases[imp.alias] then
+            table.insert(index.errors, string.format("Duplicate alias '%s': %s and %s",
+              imp.alias, seen_aliases[imp.alias], imp.path))
           else
-            table.insert(index.bare, entry)
+            seen_aliases[imp.alias] = imp.path
+            index.aliased[imp.alias] = entry
           end
+        else
+          table.insert(index.bare, entry)
         end
       end
     else
-      local requests = extract_request_names(content)
-      if imp.type == "aliased" then
-        if seen_aliases[imp.alias] then
-          table.insert(index.errors, string.format("Duplicate alias '%s': %s and %s",
-            imp.alias, seen_aliases[imp.alias], imp.path))
-        else
-          seen_aliases[imp.alias] = imp.path
-          index.aliased[imp.alias] = { path = file_path, requests = requests, content = content }
-        end
+      local content, err = read_file(file_path)
+      if not content then
+        table.insert(index.errors, string.format("Cannot read import '%s': %s", imp.path, err or "unknown error"))
       else
-        -- Name collisions with earlier bare imports. resolve_reference scans
-        -- bare entries in REVERSE, so this later import really does override
-        -- the older one — the warning matches the lookup direction.
-        for _, req in ipairs(requests) do
-          if bare_name_owner[req.name] then
-            table.insert(index.warnings,
-              string.format("Warning: request '%s' in %s overrides same name in %s",
-                req.name, imp.path, bare_name_owner[req.name]))
+        local requests = extract_request_names(content)
+        if imp.type == "aliased" then
+          if seen_aliases[imp.alias] then
+            table.insert(index.errors, string.format("Duplicate alias '%s': %s and %s",
+              imp.alias, seen_aliases[imp.alias], imp.path))
+          else
+            seen_aliases[imp.alias] = imp.path
+            index.aliased[imp.alias] = { path = file_path, requests = requests, content = content }
           end
-        end
-        table.insert(index.bare, { path = file_path, requests = requests, content = content })
-        for _, req in ipairs(requests) do
-          bare_name_owner[req.name] = imp.path
+        else
+          -- Name collisions with earlier bare imports. resolve_reference scans
+          -- bare entries in REVERSE, so this later import really does override
+          -- the older one — the warning matches the lookup direction.
+          for _, req in ipairs(requests) do
+            if bare_name_owner[req.name] then
+              table.insert(index.warnings,
+                string.format("Warning: request '%s' in %s overrides same name in %s",
+                  req.name, imp.path, bare_name_owner[req.name]))
+            end
+          end
+          table.insert(index.bare, { path = file_path, requests = requests, content = content })
+          for _, req in ipairs(requests) do
+            bare_name_owner[req.name] = imp.path
+          end
         end
       end
     end
@@ -1022,42 +1028,41 @@ end
 --- @param file_path string  Resolved absolute path
 --- @param imp_path string  As written in the import line (for log messages)
 --- @param log_warn boolean  Log read/load/exec failures (status-style callers)
---- @return table  Exports table; empty when the file is unusable
-local function cached_lua_exports(file_path, imp_path, log_warn)
+--- @return table exports  Empty when the file is unusable
+--- @return string|nil err  Full failure message for callers that surface
+---   errors themselves (build_import_index); nil on success
+cached_lua_exports = function(file_path, imp_path, log_warn)
   local key = mtime_key(file_path)
   local cached = lua_module_cache[file_path]
   if cached and cached.mtime == key then
     return cached.exports
   end
 
-  local exports = {}
+  local exports, load_err = {}, nil
   local f, err = io.open(file_path, "r")
   if not f then
-    if log_warn then
-      state.log("WARN", string.format("Cannot read Lua import '%s': %s", imp_path, err or "unknown"))
-    end
+    load_err = string.format("Cannot read Lua import '%s': %s", imp_path, err or "unknown")
   else
     local src = f:read("*a")
     f:close()
-    local fn, load_err = load(src, "@" .. file_path)
+    local fn, l_err = load(src, "@" .. file_path)
     if not fn then
-      if log_warn then
-        state.log("WARN", string.format("Cannot load Lua import '%s': %s", imp_path, load_err))
-      end
+      load_err = string.format("Cannot load Lua import '%s': %s", imp_path, l_err)
     else
       local ok, result = pcall(fn)
       if not ok then
-        if log_warn then
-          state.log("WARN", string.format("Cannot execute Lua import '%s': %s", imp_path, result))
-        end
+        load_err = string.format("Cannot execute Lua import '%s': %s", imp_path, result)
       else
         exports = result or {}
       end
     end
   end
 
+  if load_err and log_warn then
+    state.log("WARN", load_err)
+  end
   lua_module_cache[file_path] = { mtime = key, exports = exports }
-  return exports
+  return exports, load_err
 end
 
 --- Resolve Lua import references in content.

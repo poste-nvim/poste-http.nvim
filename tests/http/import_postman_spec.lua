@@ -12,7 +12,10 @@ local function render(spec)
     vars[v.key or v.name or ""] = v.value or ""
   end
   local blocks = {}
-  for _, item in ipairs(spec.item or {}) do
+  -- Mirror the production guard: a scalar top-level item list reaches the
+  -- module as the same shape a real import would see.
+  local items = type(spec.item) == "table" and spec.item or {}
+  for _, item in ipairs(items) do
     local result = postman._test_parse_item(item, vars)
     if result then
       for _, b in ipairs(result) do
@@ -194,6 +197,26 @@ describe("postman import: malformed collections", function()
     assert.truthy(blocks:match("GET https://h/x"), "the usable request imports")
     assert.truthy(blocks:match("POST https://h/login"), "the drifted-request imports")
     assert.falsy(blocks:match("scalar%-entry"), "garbage items stay out of the output")
+  end)
+
+  it("a scalar top-level item list yields no blocks instead of crashing", function()
+    -- The one remaining unguarded shape: "item": "junk" fed the scalar to
+    -- ipairs ("bad argument #1 to 'ipairs'") while variable/item.request/
+    -- req.header were already guarded.
+    local ok, err = pcall(render, { info = { name = "Scalar Item" }, item = "junk" })
+    assert.truthy(ok, "a scalar item list must not raise, got: " .. tostring(err))
+  end)
+
+  it("a non-string header key is skipped instead of crashing generate_http_block", function()
+    -- {"key": 123} passes the old `h.key and h.key ~= ""` guard but crashed
+    -- the h.key:lower() content-type check downstream.
+    local blocks = render({ item = { { name = "H", request = {
+      method = "GET", url = "https://h",
+      header = { { key = 123, value = "v" }, { key = "X-Ok", value = "1" } },
+    } } } })
+    assert.truthy(blocks:match("GET https://h"))
+    assert.truthy(blocks:match("X%-Ok: 1"), "the usable header imports")
+    assert.falsy(blocks:match("123"), "the non-string key stays out")
   end)
 
   it("a non-string raw body imports as an empty body, not a crash", function()

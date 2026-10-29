@@ -100,7 +100,11 @@ function M.import_spec(spec_path, out_dir)
   table.insert(file_vars, { name = "base_url", value = base_url })
 
   local blocks = {}
-  local paths = spec.paths or {}
+  local paths = spec.paths
+  -- Same total-shape rule as the rest of this module: a hand-edited
+  -- spec may carry a scalar (or null) paths map; ipairs/pairs on one
+  -- crashes the import instead of producing an empty file.
+  if type(paths) ~= "table" then paths = {} end
   -- Sorted path order + table-only path items: same rules as import_openapi
   -- (deterministic, reviewable output; malformed specs skip, not crash).
   local sorted_paths = {}

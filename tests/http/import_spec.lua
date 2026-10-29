@@ -269,6 +269,51 @@ describe("Lua import support", function()
 
       os.remove(tmpfile)
     end)
+
+    it("executes a Lua import file once per mtime, not once per re-index", function()
+      -- build_import_index runs on every `#` completion (cache
+      -- collect_import_index path). Bare-loading here re-EXECUTED the file
+      -- each time — side effects stacked per keystroke.
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("_G.__POSTE_IMPORT_EXEC_COUNT = (_G.__POSTE_IMPORT_EXEC_COUNT or 0) + 1\nreturn { v = 1 }")
+      f:close()
+
+      _G.__POSTE_IMPORT_EXEC_COUNT = nil
+      local imports = { { type = "aliased", path = tmpfile, alias = "m" } }
+      import_mod.build_import_index(imports, "/tmp")
+      import_mod.build_import_index(imports, "/tmp")
+      import_mod.build_import_index(imports, "/tmp")
+      assert.equals(1, _G.__POSTE_IMPORT_EXEC_COUNT,
+        "three re-indexes of the same file must execute it once")
+
+      -- Editing the file bumps the mtime and must re-execute.
+      f = io.open(tmpfile, "w")
+      f:write("_G.__POSTE_IMPORT_EXEC_COUNT = (_G.__POSTE_IMPORT_EXEC_COUNT or 0) + 1\nreturn { v = 2 }")
+      f:close()
+      local index = import_mod.build_import_index(imports, "/tmp")
+      assert.equals(2, _G.__POSTE_IMPORT_EXEC_COUNT, "an edited file re-executes")
+      assert.equals(2, index.aliased.m.exports.v)
+
+      _G.__POSTE_IMPORT_EXEC_COUNT = nil
+      os.remove(tmpfile)
+    end)
+
+    it("reports a failed Lua import into index.errors", function()
+      -- build_import_index used to own its own bare load; now the failure
+      -- message must still land in index.errors (via the cached loader).
+      local tmpfile = os.tmpname() .. ".lua"
+      local f = io.open(tmpfile, "w")
+      f:write("error('boom from loader')")
+      f:close()
+
+      local index = import_mod.build_import_index(
+        { { type = "aliased", path = tmpfile, alias = "bad" } }, "/tmp")
+      assert.are_equal(1, #index.errors)
+      assert.matches("Cannot execute Lua import", index.errors[1])
+
+      os.remove(tmpfile)
+    end)
   end)
 
   describe("resolve_path_for_export", function()

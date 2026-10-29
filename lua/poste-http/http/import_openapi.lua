@@ -115,7 +115,11 @@ function M.import_spec(spec_path, out_dir)
 
   local blocks = {}
   local all_op_vars = {}
-  local paths = spec.paths or {}
+  local paths = spec.paths
+  -- Same total-shape rule as the rest of this module: a hand-edited
+  -- spec may carry a scalar (or null) paths map; ipairs/pairs on one
+  -- crashes the import instead of producing an empty file.
+  if type(paths) ~= "table" then paths = {} end
   -- Sorted path order: the generated file is committed and reviewed, so its
   -- block order must be a pure function of the spec — pairs() hash order
   -- differs between runs and nvim sessions.
