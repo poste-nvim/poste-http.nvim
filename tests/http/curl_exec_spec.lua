@@ -33,9 +33,55 @@ describe("curl_exec.execute", function()
     assert.is_string(captured_args)
     assert.matches("curl", captured_args)
     assert.matches("https://api%.example%.com/users", captured_args)
-    assert.matches("-X POST", captured_args)
     assert.matches("Content%-Type: application/json", captured_args)
     assert.matches("--data%-binary", captured_args)
+  end)
+
+  -- Method passing: -X applies to every hop of a -L chain, so POST+body must
+  -- ride on --data-binary's implicit POST (redirects then switch to GET per
+  -- curl's standard semantics), and a bodyless HEAD must use -I (-X HEAD
+  -- waits for a body HTTP/1.1 servers never send and dies at --max-time).
+  describe("method argument selection", function()
+    it("POST with a body implies POST via --data-binary, no -X", function()
+      curl_exec.execute({ method = "POST", url = "https://example.com", body = "k=v" }, function() end)
+      assert.matches("%-%-data%-binary", captured_args)
+      assert.is_nil(captured_args:match("%-X POST"))
+    end)
+
+    it("GET without a body omits -X (curl's default method)", function()
+      curl_exec.execute({ method = "GET", url = "https://example.com" }, function() end)
+      assert.is_nil(captured_args:match("%-X GET"))
+    end)
+
+    it("POST without a body keeps an explicit -X POST", function()
+      curl_exec.execute({ method = "POST", url = "https://example.com" }, function() end)
+      assert.matches("%-X POST", captured_args)
+    end)
+
+    it("HEAD without a body uses -I instead of -X HEAD", function()
+      curl_exec.execute({ method = "HEAD", url = "https://example.com" }, function() end)
+      assert.matches("%-I ", captured_args)
+      assert.is_nil(captured_args:match("%-X HEAD"))
+    end)
+
+    it("HEAD with a body falls back to -X HEAD", function()
+      -- Rare and non-standard, but the -I + data combination is rejected by
+      -- curl outright; keep the previous spelling there.
+      curl_exec.execute({ method = "HEAD", url = "https://example.com", body = "x" }, function() end)
+      assert.matches("%-X HEAD", captured_args)
+    end)
+
+    it("PUT keeps an explicit -X PUT (no inferable default)", function()
+      curl_exec.execute({ method = "PUT", url = "https://example.com" }, function() end)
+      assert.matches("%-X PUT", captured_args)
+    end)
+
+    it("GET with a body keeps an explicit -X GET", function()
+      -- curl would infer POST from --data-binary; the explicit -X preserves
+      -- the method the user wrote.
+      curl_exec.execute({ method = "GET", url = "https://example.com", body = "x" }, function() end)
+      assert.matches("%-X GET", captured_args)
+    end)
   end)
 
   it("asks curl for %{num_redirects} into a redirect count file", function()

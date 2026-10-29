@@ -84,16 +84,33 @@ function M.execute(opts, callback)
     "--compressed",
     "--globoff",
     "--max-time", tostring(math.max(1, math.ceil(timeout / 1000))),
-    "-X", method,
     "-D", headers_file,
     "-o", resp_body_file,
     "--write-out", "%{num_redirects}",
     "-A", "poste/0.1.0",
   }
 
+  -- -X applies to EVERY hop of a -L redirect chain, so passing it for POST
+  -- replayed the POST (payload included) onto the redirect target instead of
+  -- following curl's standard switch to GET on 301/302/303. Pass -X only for
+  -- the methods curl cannot infer from the argument list: GET without a body
+  -- is curl's default and --data-binary below implies POST, so those two go
+  -- without -X. HEAD goes through -I instead: with -X HEAD curl waits for a
+  -- body that HTTP/1.1 servers never send, the request dies at --max-time
+  -- and reports exit 28 even though the response headers were fine.
+  local bodyless = not expanded_body or expanded_body == ""
+  if method == "HEAD" and bodyless then
+    table.insert(args, "-I")
+  elseif not ((method == "GET" and bodyless) or (method == "POST" and not bodyless)) then
+    table.insert(args, "-X")
+    table.insert(args, method)
+  end
+
   for _, h in ipairs(headers) do
     table.insert(args, "-H")
-    table.insert(args, h[1] .. ": " .. h[2])
+    -- grpc.lua/websocket.lua learned the hard way that a nil header value
+    -- raises in the concat; keep the same guard at the curl boundary.
+    table.insert(args, (h[1] or "") .. ": " .. (h[2] or ""))
   end
 
   if expanded_body and expanded_body ~= "" then
