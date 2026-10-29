@@ -139,6 +139,10 @@ vim.api.nvim_create_user_command("PosteHttpInfo", function()
   require("poste-http.ui.notify").notify(table.concat(parts, "\n"), vim.log.levels.INFO)
 end, { desc = "Show Poste HTTP environment info" })
 
+-- Registered here as a fallback for users who never call setup()
+-- (commands.lua's list re-registers the same handler on setup; creating
+-- a user command over an existing name is a silent overwrite, so the
+-- final handler/desc come from whichever ran last).
 vim.api.nvim_create_user_command("PosteHttpBuildParsers", function()
   require("poste-http.install").force_build()
 end, { desc = "Compile tree-sitter parsers for poste-http" })

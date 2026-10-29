@@ -286,6 +286,40 @@ lesson itself, so cite the source file that holds the fix, not the archive.
 
 ## Entries
 
+- 2026-10-30: nav/mirrored-test — a regression spec that MIRRORS the
+  implementation (`local function locate(line, alias) ... "mirrors
+  find_alias_col"`) pins the pattern, not the wiring: nav/text and nav/ts
+  called `nav_util.find_alias_col` (nil — the helper was file-local) and gd
+  on an import alias crashed in production while the mirrored spec stayed
+  green. Rule: a spec guarding a shared helper dispatches through the
+  module, exactly like the production call sites. See
+  `lua/poste-http/http/nav/util.lua`, `tests/http/nav_regression_spec.lua`.
+
+- 2026-10-30: deps/failure-caching — a dependency's network failure arrives
+  as parse_error's canonical response (protocol "error", status 0, NO
+  `.error` field), so a callback that checks only `.error` caches the
+  failure as a success and the cache-hit short-circuit then serves it for
+  the rest of the session. Any "did the request fail" gate must test
+  `status == 0 and protocol == "error"` too, and caches fed from network
+  results need an invalidation story (here: simply never caching failures).
+  See `lua/poste-http/http/request_deps.lua` (execute_dependent_request_async).
+
+- 2026-10-30: curl/method-inference — `-X` applies to EVERY hop of a `-L`
+  chain, so `-X POST` replays the POST (payload included) onto redirect
+  targets; and `-X HEAD` waits for a body HTTP/1.1 servers never send, so
+  the request dies at --max-time with exit 28 despite clean 200 headers.
+  Pass `-X` only for methods curl cannot infer from the argument list
+  (--data-binary implies POST; GET is the default; HEAD goes through -I).
+  See `lua/poste-http/http/curl_exec.lua`.
+
+- 2026-10-30: buffer/mount-time-window-setup — window-dependent buffer
+  setup (fold options via bufwinid) silently bails on a buffer that is not
+  yet in any window, and multi-response pre-rendering creates exactly such
+  buffers. Anything window-scoped must run at mount time (the
+  nvim_win_set_buf site), not at buffer-creation time. See
+  `lua/poste-http/http/buffer.lua` (navigate_response),
+  `lua/poste-http/http/json.lua` (setup_buffer).
+
 - 2026-09-12: http/dep-resolution — the `.res.` shorthand was normalized to `.response.` for ref DETECTION but substitution gsub'd the normalized `{{...}}` against the UN-normalized block text: the dependency executed while the literal ref stayed in the request (detection and substitution used different spellings of the same ref). Fix: refs carry the raw spelling for substitution plus a normalized form for lookup — normalize once per ref, never mutate the scanned copy of the text. See `lua/poste-http/http/request_deps.lua` (`make_ref`).
 
 - 2026-09-12: http/ts_query — `.luacheckrc` sets `allow_defined = true`, which silences "setting global variable" warnings: `ok, parent = pcall(...)` silently wrote `_G.parent` and worked by accident. When a multi-assignment pcall reuses a local from a previous line, check whether the second name is actually declared. See `lua/poste-http/http/ts_query.lua` (`parent_of_type`).

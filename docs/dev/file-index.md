@@ -17,7 +17,7 @@
 | `buffer_setup.lua` | Buffer boilerplate creation |
 | `constants.lua` | Shared constants |
 | `help.lua` | Help window |
-| `commands.lua` | `:Poste*` command registration + `:PosteStatus` |
+| `commands.lua` | `:PosteHttp*` command registration (`M.status()` backs `:PosteHttpInfo` in plugin/poste.lua) |
 | `event.lua` | In-process pub/sub bus (`on`/`once`/`emit`/`clear`), pcall-guarded handlers |
 | `health.lua` | `:checkhealth poste-http` |
 | `install.lua` | Parser build/install helpers (`ensure_parsers`, `force_build`) |

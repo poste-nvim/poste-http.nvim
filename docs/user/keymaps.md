@@ -80,6 +80,7 @@ cannot provide.
 | `R` | `view_request` | Switch to Request tab |
 | `E` | `view_verbose` | Switch to Verbose tab |
 | `A` | `view_assertions` | Switch to Assertions tab |
+| `X` | `view_errors` | Switch to Errors tab |
 | `S` | `view_script_logs` | Switch to Script Logs tab |
 | `M` | `view_messages` | Switch to Messages tab (WebSocket frames) |
 | `s` | `ws_send` | Send a message on the live WebSocket session |
@@ -132,9 +133,11 @@ Set to `false` to disable:
 ```lua
 require("poste-http").setup({
   keymaps = {
-    sql_dataset = {
-      sort_column = false,
-      toggle_raw_mode = false,
+    http_source = {
+      run = false, -- unbind the request key entirely
+    },
+    http_response = {
+      image_preview = false,
     },
   },
 })
@@ -180,6 +183,7 @@ require("poste-http").setup({
       textobj_headers = "iH",
       textobj_body = "iB",
       textobj_script = "iS",
+      script_snippet_expand = "<Tab>",
       help = "g?",
     },
     http_response = {
@@ -188,6 +192,7 @@ require("poste-http").setup({
       view_request = "R",
       view_verbose = "E",
       view_assertions = "A",
+      view_errors = "X",
       view_script_logs = "S",
       view_messages = "M",
       ws_send = "s",
@@ -201,6 +206,7 @@ require("poste-http").setup({
       json_restore = "<leader>jc",
       json_toggle_raw = "<leader>jr",
       json_outline = "<leader>jo",
+      image_preview = "K",
       ask_ai = "a",
     },
     http_history = {

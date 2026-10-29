@@ -36,8 +36,11 @@ The highest priority. When executing a request from another file via `run`:
 import ./auth.http as auth
 
 ### Login
-run auth#Login (@username=admin, @password=secret, @timeout=30)
+run #auth.Login (@username=admin, @password=secret, @timeout=30)
 ```
+
+The target is always `#alias.Name` (or `#Name` within the same file) —
+`run auth#Login` would be parsed as a relative FILE path and fail to open.
 
 These override everything — request-local `@var`, file-level `@var`, session
 variables, env.json, and magic. They act like function arguments passed to the
@@ -159,11 +162,11 @@ the file's directory.
 ```
 
 ```http
-@host = {{api_base}}     ← file-level (P3) — env.json (P5) not used directly
+@host = {{api_base}}     ← file-level (P3) — env.json (P6) not used directly
 GET {{host}}/health
 ```
 
-> **Note**: File-level `@var` takes priority over env.json (P3 > P5), so you
+> **Note**: File-level `@var` takes priority over env.json (P3 > P6), so you
 > can define a file-level default that the environment file won't override.
 
 ### 7. Magic Variables (Built-in)

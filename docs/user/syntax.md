@@ -208,6 +208,11 @@ Content-Type: multipart/form-data; boundary=----boundary
 > instead — `import ./vars.lua as m` then `{{m.key}}` or `@var = m.key` — because the
 > imported values resolve as variables (substitution, request chaining) rather than
 > as a byte-for-byte file insert.
+>
+> **Security note**: `import ./x.lua` EXECUTES the Lua file (its return table
+> provides the values). Unlike `{% %}` script blocks — which run in a sandbox
+> without `io`/`require` — an imported Lua file runs unsandboxed and can do
+> anything, including filesystem access. Only import files you control.
 
 ### 2.8 Variable References
 
@@ -275,7 +280,7 @@ client.log(msg)        — Log output
 client.global.set(key, value)  — Global variables (cross-request)
 client.global.get(key)
 variables.*                — Read @variable definitions (file + block level)
-env.*                      — Read current env.json config (not yet implemented)
+env.*                      — Read current env.json config (nearest file upwards)
 ```
 
 ### 2.10 Post-request Assertion
@@ -300,6 +305,11 @@ env.*                      — Read current env.json config (not yet implemented
 > ./scripts/validate.lua
 ```
 
+> **Note**: the `> ./path.lua` spelling PARSES and highlights (grammar +
+> `PosteExternalScript`), but the assertion side does not execute external
+> scripts yet — see the implementation-status table at the end of this
+> document. Pre-request external scripts (`< ./path.lua`) DO execute.
+
 **Rules**:
 - Starts with `>` (must be at beginning of line)
 - `{% %}` wraps JS/Lua code
@@ -316,8 +326,8 @@ response.latency       — Response time (ms)
 client.test(name, fn)  — Test case
 client.assert(cond, msg)  — Assertion
 client.log(msg)        — Log output
-variables.*            — Read @variable definitions (not yet implemented)
-env.*                  — Read current env.json config (not yet implemented)
+variables.*            — Read @variable definitions
+env.*                  — Read current env.json config (nearest file upwards)
 ```
 
 ### 2.11 Environment Override

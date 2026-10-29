@@ -137,8 +137,10 @@ lookup table.
 
 1. **Target dir**: mention ref `data.file` → scope `file` → cwd (env.json
    walk-up discovers envs relative to this).
-2. Create a named scratch buffer `poste://ai_request` (`nofile`,
-   `bufhidden=hide`), write the block text raw (placeholders intact so the
+2. Create a scratch buffer named `<dir>/.poste-ai-request.http` in the
+   source file's directory (`nofile`, `bufhidden=hide`; the dir-anchored
+   name is what makes env.json walk-up discovery work), write the block
+   text raw (placeholders intact so the
    resolver/env pipeline runs exactly like a hand-written block), set
    `filetype = "poste_http"`, open it in a split, cursor on the request line.
 3. Call `run.run_request()` — the whole regular pipeline (prompt vars, deps,

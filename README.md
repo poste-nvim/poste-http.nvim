@@ -319,6 +319,7 @@ There is no standalone CLI. Requests run directly from Neovim:
 - `:PosteHttpOutline` / `:PosteHttpSymbols` for the request outline
 - `:PosteHttpFormat` to format the current `.http` buffer
 - `:PosteHttpImportResolve` to show import resolution status
+- `:PosteHttpInfo` for install/diagnostic status, `:PosteHttpTSStatus` for the tree-sitter parser
 - `:PosteHttpImportOpenAPI` / `:PosteHttpImportSwagger` / `:PosteHttpImportPostman` to import specs
 - `:PosteHttpClearCache` to remove old cached response files
 - `:PosteHttpBoundary` to toggle the request-block boundary highlight
