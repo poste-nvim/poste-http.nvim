@@ -268,8 +268,18 @@ local function execute_dependent_request_async(buf, file, env_name, dep_req, dep
     buf_dir = buf_dir,
     timeout = state.config.timeout,
   }, function(response)
-    if response.error then
-      state.log("WARN", string.format("Dependency '%s' failed: %s", dep_req.name, response.error))
+    -- Same gate as run.lua's handle_curl_response: .error covers curl_exec's
+    -- own failures (no URL, unwritable temp file); a network-level failure
+    -- (timeout, DNS, refused) comes back as parse_error's canonical
+    -- response with protocol="error", status=0 and NO .error field. That
+    -- shape used to be cached as a success and the cache-hit short-circuit
+    -- above then served it for the rest of the session — the real cause
+    -- lived only in the log, and re-running the dependent block could never
+    -- recover until the user re-ran the dependency by hand.
+    if response.error
+        or (response.status == 0 and response.protocol == "error") then
+      state.log("WARN", string.format("Dependency '%s' failed: %s",
+        dep_req.name, response.error or response.status_text or "request failed"))
       on_complete(nil)
       return
     end
@@ -679,13 +689,6 @@ M._resolve_content_dependencies_impl = resolve_content_dependencies_impl
 
 function M.resolve_request_variables(buf, file, env_name, cursor_line, content, on_complete, deps)
   resolve_request_variables_impl(buf, file, env_name, cursor_line, content, on_complete, deps)
-end
-
-function M.resolve_content_dependencies(buf, file_path, env_name, content, block_line, on_complete, deps)
-  _chain_dep_set = {}
-  _chain_dep_order = {}
-  request_response_cache = {}
-  resolve_content_dependencies_impl(buf, file_path, env_name, content, block_line, on_complete, nil, deps)
 end
 
 return M

@@ -84,10 +84,4 @@ function M.resolve_request_variables(buf, file, env_name, cursor_line, content, 
   })
 end
 
-function M.resolve_content_dependencies(buf, file_path, env_name, content, block_line, on_complete)
-  request_deps.resolve_content_dependencies(buf, file_path, env_name, content, block_line, on_complete, {
-    handle_prompt = handle_prompt_variables_impl,
-  })
-end
-
 return M

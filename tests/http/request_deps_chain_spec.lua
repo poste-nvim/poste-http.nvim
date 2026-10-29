@@ -1,7 +1,6 @@
 --- Regression specs for the dependency-chain state used by the real run
 --- pipeline (`_resolve_content_dependencies_impl`, the entry resolve.lua
---- dispatches to — NOT the `M.resolve_content_dependencies` wrapper, which
---- is what earlier tests exercised).
+--- dispatches to).
 ---
 --- Bug 1 (chain leak): `_chain_dep_set`/`_chain_dep_order` were only reset by
 --- the two other entry points, so a second request kept the first request's
@@ -85,6 +84,67 @@ describe("request_deps chain state across runs (real pipeline entry)", function(
     assert.equals(1, #chain_two, "chain must contain only this run's dep, got "
       .. vim.inspect(chain_two))
     assert.equals("dep_two", chain_two[1].name)
+  end)
+
+  it("does not cache a network-failed dependency response", function()
+    -- parse_error's canonical shape for a network-level failure: protocol
+    -- "error", status 0, ok false — and NO .error field (that one is only
+    -- for curl_exec's own failures). Caching this shape used to poison the
+    -- session: every later run hit the cache short-circuit and could never
+    -- recover until the dependency was re-run by hand.
+    local wire_error = {
+      protocol = "error", status = 0, status_text = "Failed (exit 28)",
+      url = "", content_type = "text/plain", headers = {}, body = "",
+      cookies = {}, ok = false,
+      metadata = { method = "GET", exit_code = "28", verbose = "timeout" },
+    }
+    local executed = 0
+    curl_exec.execute = function(req, cb)
+      executed = executed + 1
+      cb(vim.deepcopy(wire_error))
+    end
+
+    local content = table.concat({
+      "### dep_fail",
+      "GET http://dep.fail/x",
+      "",
+      "### target",
+      "GET http://t.example/x",
+      "X-From: {{dep_fail.response.body.ok}}",
+    }, "\n")
+
+    local first = resolve_impl(content, 4)
+    -- impl semantics: a failed dep is skipped, the block completes with the
+    -- reference left unresolved (run.lua's pre-request gate reports it).
+    -- The assertion that matters: the FAILED response must not be usable
+    -- as a substitution value.
+    assert.truthy(first, "resolution should still complete after a dep failure")
+    assert.truthy(first:match("X%-From: {{dep_fail%.response%.body%.ok}}"),
+      "the failed dep must not substitute any value")
+    assert.equals(1, executed, "the dependency should have gone to curl once")
+    assert.is_false(request_deps.is_response_cached("dep_fail"),
+      "a failed response must not enter the response cache")
+
+    -- Second run: the failed dep must be re-executed, not served from cache.
+    resolve_impl(content, 4)
+    assert.equals(2, executed, "the second run must re-execute the failed dep")
+  end)
+
+  it("does not cache a dependency whose curl_exec reported its own error", function()
+    curl_exec.execute = function(req, cb)
+      cb({ error = "No URL provided" })
+    end
+
+    local first = resolve_impl(table.concat({
+      "### dep_err",
+      "GET http://dep.err/x",
+      "",
+      "### target",
+      "GET http://t.example/x",
+      "X-From: {{dep_err.response.body.ok}}",
+    }, "\n"), 4)
+    assert.truthy(first)
+    assert.is_false(request_deps.is_response_cached("dep_err"))
   end)
 end)
 

@@ -266,8 +266,10 @@ local function handle_curl_response(response, ctx)
 
       if vim.api.nvim_buf_is_valid(src_buf) then
         local buf_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
-        state._exec_context = { file = file, line = req_line, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.block_end) }
-        local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.block_end)
+        -- Both consumers index BUFFER lines, so they take the buffer-
+        -- coordinate block end (ctx.block_end is content coordinates).
+        state._exec_context = { file = file, line = req_line, set_lines = scripts.scan_script_set_calls(buf_lines, ctx.block_start, ctx.buf_block_end) }
+        local assertion_line = find_assertion_line(src_buf, ctx.block_start, ctx.buf_block_end)
         local assertion_results = run_and_store_assertions(response, assertion_code, script_vars, file, assertion_line)
         state._exec_context = nil
         local view_name = choose_view_tab(response, assertion_results)
@@ -495,6 +497,14 @@ local function execute_request(ctx, callback)
   local buf_content = modified_content
   local pre_script_code
   local script_vars = nil
+  -- Buffer-coordinate block end, captured BEFORE the injections below shift
+  -- block_end into content coordinates (the injected lines exist only in
+  -- buf_content). Consumers that index the BUFFER's lines — the unresolved-
+  -- var gate's error line lookup, find_assertion_line, scan_script_set_calls
+  -- over buf_lines — need this value; one fed a content-coordinate end used
+  -- to let an `> {%` marker from the NEXT block be reported as this block's
+  -- assertion line.
+  local buf_block_end = block_end
   if block_start then
     buf_content, pre_script_code = scripts.extract_pre_script_blocks(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
     script_vars = scripts.collect_script_variables(buf_content, block_start, block_end, vim.fn.fnamemodify(file, ":h"))
@@ -577,6 +587,7 @@ local function execute_request(ctx, callback)
   ctx.current_req_name = current_req_name
   ctx.block_start = block_start
   ctx.block_end = block_end
+  ctx.buf_block_end = buf_block_end
   callback(ctx)
 end
 
@@ -591,6 +602,10 @@ local function start_curl_exec(ctx)
   local src_buf = ctx.src_buf
   local block_start = ctx.block_start
   local block_end = ctx.block_end
+  -- Buffer-coordinate block end (ctx.block_end is content coordinates after
+  -- the pre-script/global-var injections); buffer-line consumers below take
+  -- this one.
+  local buf_block_end = ctx.buf_block_end or block_end
   local req_block = ctx.req_block
 
   local buf_dir = file ~= "" and vim.fn.fnamemodify(file, ":h") or vim.fn.getcwd()
@@ -642,13 +657,21 @@ local function start_curl_exec(ctx)
   -- that a literal {{var}} in a header NAME slipped past and went to curl
   -- verbatim). Sending a request with literal {{var}} in it is almost
   -- certainly a mistake, so fail fast instead of hitting the network.
-  local unresolved = errors.find_unresolved_vars(M.unresolved_var_parts(url, body, headers))
+  -- Global headers are merged FIRST for the same reason: merge substitutes
+  -- each global value through the resolver, and whatever a global header
+  -- could NOT resolve stays as a literal {{var}} that must hit this gate
+  -- too, not the wire.
+  local merged_headers = global_headers.merge(headers, resolver)
+  local unresolved = errors.find_unresolved_vars(M.unresolved_var_parts(url, body, merged_headers))
   if #unresolved > 0 then
     indicators.set_indicator(src_buf, req_line - 1, "error")
     local src_lines = vim.api.nvim_buf_get_lines(src_buf, 0, -1, false)
     local errs = {}
     for _, name in ipairs(unresolved) do
-      local real_line = errors.find_var_line(src_lines, name, block_start, block_end)
+      -- The buffer never gained lines from the injections; block_end here
+      -- is a content coordinate, so look the line up against the buffer-
+      -- coordinate end captured before them.
+      local real_line = errors.find_var_line(src_lines, name, block_start, buf_block_end)
       table.insert(errs, errors.pre_request("variable_resolution",
         string.format("Cannot resolve variable '{{%s}}' in request", name),
         { var = name, line = real_line, file = file }))
@@ -660,8 +683,6 @@ local function start_curl_exec(ctx)
     state.finish_run()
     return
   end
-
-  local merged_headers = global_headers.merge(headers, resolver)
   state.log("INFO", string.format("%s %s (%d headers, %d global)", method, util.redact_url_query(url), #headers, #merged_headers - #headers))
 
   local start_hires = (vim.uv or vim.loop).hrtime()
@@ -733,13 +754,9 @@ end
 -- Main entry point
 ---------------------------------------------------------------------------
 
---- Run the HTTP request at the current cursor position.
-function M.run_request()
-  if state._busy then
-    notify("Request already in progress", vim.log.levels.WARN)
-    return
-  end
-  state._busy = true
+--- Full pipeline body, split from M.run_request so the busy flag can guard
+--- the synchronous part with xpcall (see the entry point below).
+local function run_request_pipeline()
   local src_buf = vim.api.nvim_get_current_buf()
   local line = vim.fn.line(".")
   local file = vim.api.nvim_buf_get_name(src_buf)
@@ -844,6 +861,28 @@ function M.run_request()
       start_curl_exec(exec_ctx)
     end)
   end)
+end
+
+--- Run the HTTP request at the current cursor position.
+function M.run_request()
+  if state._busy then
+    notify("Request already in progress", vim.log.levels.WARN)
+    return
+  end
+  state._busy = true
+
+  -- The synchronous segment of the pipeline (import resolution, block
+  -- parsing, var resolution) runs unprotected above: one unexpected raise
+  -- left state._busy stuck at true and every later run bailed with
+  -- "Request already in progress" until a restart. The async callbacks
+  -- already pcall themselves; mirror that on the sync side and always
+  -- release the flag.
+  local ok, err = xpcall(run_request_pipeline, debug.traceback)
+  if not ok then
+    notify("internal error: " .. tostring(err), vim.log.levels.ERROR)
+    state.log("ERROR", tostring(err))
+    state.finish_run()
+  end
 end
 
 M.make_script_response = make_script_response

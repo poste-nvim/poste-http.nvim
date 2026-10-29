@@ -68,4 +68,39 @@ describe("run_request busy-flag reset", function()
     assert.equal(false, state._busy)
     vim.api.nvim_buf_delete(buf, { force = true })
   end)
+
+  it("resets _busy when the synchronous pipeline raises", function()
+    -- The synchronous segment (import resolution, block parsing, var
+    -- resolution) used to run unprotected: one unexpected raise left _busy
+    -- stuck and every later run bailed with "Request already in progress"
+    -- until a restart. Force a raise inside the pipeline and require that
+    -- the flag is still released and the failure is reported.
+    -- run.lua binds ui.notify at load time (a pre-bound local), so capture
+    -- the failure through state.log instead, which is dispatched per call.
+    local orig_log = state.log
+    local logged = {}
+    state.log = function(level, msg) logged[#logged + 1] = { level = level, msg = msg } end
+
+    local cache = require("poste-http.http.cache")
+    local orig_bounds = cache.find_request_block_bounds
+    cache.find_request_block_bounds = function() error("boom: injected pipeline failure") end
+
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "### a", "GET http://x.example/y", "" })
+    vim.api.nvim_set_current_buf(buf)
+    vim.api.nvim_win_set_cursor(0, { 2, 0 })
+
+    run.run_request()
+
+    assert.equal(false, state._busy, "a pipeline raise must still release the busy flag")
+    local saw_error = false
+    for _, e in ipairs(logged) do
+      if e.level == "ERROR" and e.msg:match("boom") then saw_error = true end
+    end
+    assert.truthy(saw_error, "the failure should be logged as ERROR")
+
+    cache.find_request_block_bounds = orig_bounds
+    state.log = orig_log
+    vim.api.nvim_buf_delete(buf, { force = true })
+  end)
 end)
