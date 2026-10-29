@@ -197,18 +197,46 @@ describe("poste-http.http.image_cache", function()
   end)
 
   describe("temp file tracking", function()
-    it("cleanup_temp_files removes registered files and resets the list", function()
+    after_each(function()
+      image_cache._clear_temp_files_for_test()
+    end)
+
+    it("cleanup_temp_files removes DONE files and keeps the table clean", function()
       local f1 = vim.fn.tempname() .. "_t1"
       local f2 = vim.fn.tempname() .. "_t2"
       io.open(f1, "w"):close()
       io.open(f2, "w"):close()
       image_cache.register_temp_file(f1)
       image_cache.register_temp_file(f2)
+      image_cache.mark_temp_file_done(f1)
+      image_cache.mark_temp_file_done(f2)
       image_cache.cleanup_temp_files()
       assert.equals(0, vim.fn.filereadable(f1))
       assert.equals(0, vim.fn.filereadable(f2))
       -- second call is a safe no-op
       assert.has_no_errors(image_cache.cleanup_temp_files)
+    end)
+
+    it("cleanup_temp_files skips IN-FLIGHT downloads (re-render during a download must not delete curl's write target)", function()
+      local f = vim.fn.tempname() .. "_inflight"
+      io.open(f, "w"):close()
+      image_cache.register_temp_file(f)
+      image_cache.cleanup_temp_files()
+      assert.equals(1, vim.fn.filereadable(f),
+        "an in-flight download target must survive a cleanup sweep")
+      -- Delivered later: the next sweep removes it.
+      image_cache.mark_temp_file_done(f)
+      image_cache.cleanup_temp_files()
+      assert.equals(0, vim.fn.filereadable(f))
+    end)
+
+    it("mark_temp_file_done ignores unknown paths", function()
+      image_cache.register_temp_file(vim.fn.tempname() .. "_known")
+      assert.has_no_errors(function()
+        image_cache.mark_temp_file_done(vim.fn.tempname() .. "_nope")
+        image_cache.mark_temp_file_done(nil)
+      end)
+      assert.equals(1, image_cache.tracked_temp_file_count())
     end)
 
     -- Regression: the registry used to be an ARRAY and every completion
@@ -230,7 +258,11 @@ describe("poste-http.http.image_cache", function()
       -- `a` is no longer tracked, so a cleanup must leave it on disk …
       image_cache.cleanup_temp_files()
       assert.equals(1, vim.fn.filereadable(a))
-      -- … while the still-tracked `b` is removed.
+      -- … while the still-tracked `b` is in-flight and survives this sweep …
+      assert.equals(1, vim.fn.filereadable(b))
+      -- … and is removed once its download marks it delivered.
+      image_cache.mark_temp_file_done(b)
+      image_cache.cleanup_temp_files()
       assert.equals(0, vim.fn.filereadable(b))
       assert.equals(0, image_cache.tracked_temp_file_count())
 
@@ -248,6 +280,7 @@ describe("poste-http.http.image_cache", function()
         image_cache.register_temp_file("")
         image_cache.register_temp_file(42)
       end)
+      image_cache.mark_temp_file_done(f)
       image_cache.cleanup_temp_files()
       assert.equals(0, vim.fn.filereadable(f))
     end)
@@ -346,6 +379,44 @@ describe("poste-http.http.image_cache", function()
       vim.wait(2000, function() return got ~= "unset" end)
       vim.fn.jobstart = saved
       assert.is_nil(got)
+    end)
+  end)
+
+  describe("response cache sweeping", function()
+    local format_body
+
+    after_each(function()
+      image_cache._clear_temp_files_for_test()
+    end)
+
+    it("clean_response_cache also ages out the img/ subdirectory", function()
+      -- The image cache lives one level down; the sweep used to read only
+      -- the top level, so downloaded previews grew without bound.
+      format_body = format_body or require("poste-http.http.format.body")
+      local dir = vim.fn.tempname() .. "-cache"
+      vim.fn.mkdir(dir .. "/img", "p")
+      local old_img = dir .. "/img/old.png"
+      local new_img = dir .. "/img/new.png"
+      local top_old = dir .. "/resp_old.bin"
+      io.open(old_img, "w"):close()
+      io.open(new_img, "w"):close()
+      io.open(top_old, "w"):close()
+      -- Backdate two of the three files past the cutoff.
+      local uv = vim.uv or vim.loop
+      uv.fs_utime(old_img, 1000, 1000)
+      uv.fs_utime(top_old, 1000, 1000)
+
+      local saved_dir = require("poste-http.state").config.response_cache_dir
+      require("poste-http.state").config.response_cache_dir = dir
+      local ok, count = pcall(format_body.clean_response_cache, 60)
+      require("poste-http.state").config.response_cache_dir = saved_dir
+      assert.truthy(ok)
+      assert.equals(2, count, "one stale top-level file + one stale img file")
+      assert.equals(0, vim.fn.filereadable(old_img))
+      assert.equals(0, vim.fn.filereadable(top_old))
+      assert.equals(1, vim.fn.filereadable(new_img), "a fresh image file must survive")
+
+      vim.fn.delete(dir, "rf")
     end)
   end)
 end)

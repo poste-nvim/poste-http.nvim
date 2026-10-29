@@ -124,6 +124,20 @@ function M.clean_response_cache(max_age_minutes)
     end
   end
 
+  -- The image cache lives one level down (img/<hash><ext>); the top-level
+  -- sweep above never saw it, so downloaded previews grew without bound.
+  local img_dir = cache_dir .. "/img"
+  if vim.fn.isdirectory(img_dir) == 1 then
+    for _, name in ipairs(vim.fn.readdir(img_dir)) do
+      local full = img_dir .. "/" .. name
+      local mtime = vim.fn.getftime(full)
+      if mtime > 0 and (now - mtime) > max_age_seconds then
+        os.remove(full)
+        count = count + 1
+      end
+    end
+  end
+
   return count
 end
 

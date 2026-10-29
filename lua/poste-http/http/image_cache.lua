@@ -114,13 +114,33 @@ end
 -- unregisters exactly the file it owns" is what keeps cleanup_url_preview
 -- (called on every response re-render) from deleting a live download target
 -- and from leaking a dead one.
+--
+-- Values carry a STATE, not just true: "inflight" (curl is writing the file
+-- right now) vs "done" (delivered but not cache-eligible, waiting for the
+-- next cleanup sweep). cleanup_temp_files used to remove EVERYTHING tracked,
+-- so a re-render during an async download deleted the file curl was still
+-- writing — the rename at on_exit failed silently and the preview just
+-- never appeared.
 local temp_files = {}
 
 --- Track a temp file for cleanup_temp_files. Idempotent per path.
+--- Newly registered files are in-flight until marked done by the download
+--- completion path.
 --- @param path string
 function M.register_temp_file(path)
   if type(path) ~= "string" or path == "" then return end
-  temp_files[path] = true
+  temp_files[path] = "inflight"
+end
+
+--- Mark a tracked temp file as delivered (safe for the next cleanup sweep).
+--- Unknown paths are ignored: only the download that owns the file may
+--- transition it.
+--- @param path string
+function M.mark_temp_file_done(path)
+  if type(path) ~= "string" then return end
+  if temp_files[path] == "inflight" then
+    temp_files[path] = "done"
+  end
 end
 
 --- Forget a tracked temp file. Removes only the given path.
@@ -139,11 +159,20 @@ function M.tracked_temp_file_count()
   return n
 end
 
---- Remove all tracked temp files. Safe to call repeatedly.
+--- Remove delivered temp files. In-flight downloads are SKIPPED — their
+--- file is curl's write target right now. Safe to call repeatedly.
 function M.cleanup_temp_files()
-  for f in pairs(temp_files) do
-    pcall(os.remove, f)
+  for f, st in pairs(temp_files) do
+    if st == "done" then
+      pcall(os.remove, f)
+      temp_files[f] = nil
+    end
   end
+end
+
+--- Test seam: drop all tracking state. cleanup_temp_files no longer empties
+--- the table (in-flight entries survive it by design).
+function M._clear_temp_files_for_test()
   temp_files = {}
 end
 
@@ -249,6 +278,9 @@ function M.download_image_url(url)
       return cache_path, ct
     end
   end
+  -- Delivered but not cache-eligible: keep the file for the caller and let
+  -- the next cleanup sweep remove it.
+  M.mark_temp_file_done(tmp)
   return tmp, ct
 end
 
@@ -298,6 +330,8 @@ function M.download_image_url_async(url, on_done)
             return
           end
         end
+        -- Delivered but not cache-eligible: next cleanup sweep removes it.
+        M.mark_temp_file_done(tmp)
         on_done(tmp, ct)
       end)
     end,
