@@ -188,6 +188,29 @@ describe("parse_response effective URL", function()
     }, nil, "GET", "https://example.com/start", nil)
     assert.equals("https://example.com/start", r.url)
   end)
+
+  it("does not mistake Content-Location for a redirect target", function()
+    -- The old unanchored "Location:" pattern matched inside ANY header
+    -- ending in -Location; Content-Location is a regular RFC 7231 header
+    -- that carries a body URL, not the next hop.
+    local r = parser.parse_response(nil, {}, {
+      "< HTTP/1.1 200 OK",
+      "< Content-Location: https://cdn.example.com/body.json",
+    }, nil, "GET", "https://example.com/start", nil)
+    assert.equals("https://example.com/start", r.url)
+  end)
+
+  it("picks up HTTP/2 lowercase location headers", function()
+    -- curl renders h2 header names lowercase in the verbose log; the old
+    -- case-sensitive pattern missed them and always reported the request
+    -- URL after a redirect over HTTP/2.
+    local r = parser.parse_response(nil, {}, {
+      "< HTTP/2 302",
+      "< location: https://example.com/h2-final",
+      "< HTTP/2 200",
+    }, nil, "GET", "https://example.com/start", nil)
+    assert.equals("https://example.com/h2-final", r.url)
+  end)
 end)
 
 describe("parse_response cookies", function()

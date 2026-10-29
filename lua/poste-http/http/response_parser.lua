@@ -227,7 +227,12 @@ function M.parse_response(headers_file, stdout_data, stderr_data, start_hires, m
   -- without replaying every hop's base URL, so they don't replace the
   -- request URL (a bare path like `/new` is not a usable URL).
   local last_loc
-  for loc in verbose:gmatch("Location:%s*([^\r\n]+)") do
+  -- Anchored to the verbose response-header prefix ("< " in both the
+  -- HTTP/1.1 and the lowercased-HTTP/2 spellings): the unanchored
+  -- "Location:" pattern matched a Content-Location header's tail too, and
+  -- HTTP/2 renders `location:` lowercase, which the old case-sensitive
+  -- pattern missed entirely.
+  for loc in verbose:gmatch("<%s*[Ll]ocation:%s*([^\r\n]+)") do
     if loc:match("^https?://") then
       last_loc = loc
     end

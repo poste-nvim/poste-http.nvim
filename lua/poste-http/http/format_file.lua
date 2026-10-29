@@ -1,66 +1,9 @@
 local M = {}
 
---- @return string  the trailing parens drop gsub's substitution count —
---- every call site concatenates today, but the contract is "a string".
-local function json_escape_string(s)
-  return (s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t'))
-end
-
-local function json_pretty(value, indent)
-  indent = indent or 0
-  local indent_str = string.rep("  ", indent)
-  local indent_str_inner = string.rep("  ", indent + 1)
-  if type(value) == "table" then
-    local is_array = true
-    local max_idx = 0
-    for k in pairs(value) do
-      if type(k) ~= "number" or k ~= math.floor(k) or k < 1 then
-        is_array = false
-        break
-      end
-      max_idx = math.max(max_idx, k)
-    end
-    is_array = is_array and max_idx == #value
-    if is_array then
-      if #value == 0 then return "[]" end
-      local items = {}
-      for _, v in ipairs(value) do
-        table.insert(items, indent_str_inner .. json_pretty(v, indent + 1))
-      end
-      return "[\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "]"
-    else
-      local keys = {}
-      for k in pairs(value) do table.insert(keys, k) end
-      table.sort(keys)
-      if #keys == 0 then return "{}" end
-      local items = {}
-      for _, k in ipairs(keys) do
-        local v = value[k]
-        -- keys need the same escaping as string values: a decoded key can
-        -- legitimately contain `"` or `\`, and re-emitting it raw would
-        -- produce invalid JSON
-        table.insert(items, indent_str_inner .. '"' .. json_escape_string(k) .. '": ' .. json_pretty(v, indent + 1))
-      end
-      return "{\n" .. table.concat(items, ",\n") .. "\n" .. indent_str .. "}"
-    end
-  elseif type(value) == "string" then
-    return '"' .. json_escape_string(value) .. '"'
-  elseif type(value) == "number" then
-    -- vim.json.decode accepts 1e999 and hands back math.huge; tostring
-    -- emitted a bare "inf", invalid JSON that broke every later parse of
-    -- the formatted body. Non-finite encodes as null (jq/JS convention).
-    if value ~= value or value == math.huge or value == -math.huge then
-      return "null"
-    end
-    return tostring(value)
-  elseif type(value) == "boolean" then
-    return value and "true" or "false"
-  elseif value == nil or value == vim.NIL then
-    return "null"
-  else
-    return tostring(value)
-  end
-end
+-- json_pretty lives in format/util (mixed-key-safe sort, control-char
+-- escaping); this module used to carry a drifted copy that emitted raw
+-- control bytes and crashed on mixed-type keys.
+local format_util = require("poste-http.http.format.util")
 
 local function fix_json_commas(text)
   -- Insert missing commas before newlines followed by a key (")
@@ -102,7 +45,7 @@ local function format_json_body(body)
     end
   end
   if not ok then return body end
-  local formatted = json_pretty(decoded)
+  local formatted = format_util.json_pretty(decoded)
 
   -- Restore unquoted {{var}} first (replace "__POSTE_VAR_U_N__" with {{var}})
   for i, ph in ipairs(unquoted_ph) do

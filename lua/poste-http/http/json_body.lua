@@ -16,13 +16,10 @@ local M = {}
 --- @return boolean
 function M.looks_like_json(text)
   if type(text) ~= "string" then return false end
-  for i = 1, #text do
-    local c = text:sub(i, i)
-    if c ~= " " and c ~= "\t" and c ~= "\r" and c ~= "\n" then
-      return c == "{" or c == "["
-    end
-  end
-  return false
+  -- Single C-level match instead of a per-byte sub() loop: this runs on
+  -- every request body before send, including 1MB payloads.
+  local c = text:match("^[ \t\r\n]*([^ \t\r\n])")
+  return c == "{" or c == "["
 end
 
 local function decodes(text)

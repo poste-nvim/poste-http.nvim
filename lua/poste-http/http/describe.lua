@@ -4,11 +4,12 @@ local json_body = require("poste-http.http.json_body")
 
 local M = {}
 
-local function get_node_text(node, source)
+local function get_node_text(node, lines)
   local ok, sr, sc, er, ec = pcall(node.range, node)
   if not ok then return "" end
-  local lines = vim.split(source, "\n", { plain = true })
-  -- A node range past the source (stale/partial parse) would index nil.
+  -- Takes the pre-split line array: this runs per request_line/header/
+  -- body node and sits on the CursorMoved path (boundary indicator), so
+  -- re-splitting the whole source per NODE was O(nodes × lines).
   if sr < 0 or er >= #lines or er < sr then return "" end
   if sr == er then
     return lines[sr + 1]:sub(sc + 1, ec)
@@ -201,7 +202,7 @@ local function describe_via_treesitter(content)
       local name_nodes = get_children_by_type(child, "request_name")
       local name = ""
       if #name_nodes > 0 then
-        name = get_node_text(name_nodes[1], content)
+        name = get_node_text(name_nodes[1], lines)
       end
       current_block = {
         name = vim.trim(name),
@@ -220,7 +221,7 @@ local function describe_via_treesitter(content)
       }
     elseif type == "request_line" then
       if current_block then
-        local text = get_node_text(child, content)
+        local text = get_node_text(child, lines)
         current_block.request_line = vim.trim(text)
         local method = text:match("^(%S+)")
         local path = text:match("^%S+%s+(%S+)")
@@ -235,9 +236,9 @@ local function describe_via_treesitter(content)
         for gc in child:iter_children() do
           local gt = gc:type()
           if gt == "header_key" then
-            key = get_node_text(gc, content) or ""
+            key = get_node_text(gc, lines) or ""
           elseif gt == "header_value" then
-            value = get_node_text(gc, content) or ""
+            value = get_node_text(gc, lines) or ""
           end
         end
         table.insert(current_block.headers, { vim.trim(key), vim.trim(value) })
@@ -249,10 +250,14 @@ local function describe_via_treesitter(content)
         -- node texts and line-based assembly (see the GRAPHQL case).
         table.insert(current_block._body_parts, {
           start_row = line_num,
-          text = get_node_text(child, content),
+          text = get_node_text(child, lines),
         })
       end
-    elseif type == "external_assertion" or type == "external_script" or type == "file_upload" or type == "comment" or type == "pre_script" or type == "post_script" then
+    elseif type == "external_assertion" or type == "external_script" or type == "file_upload" or type == "comment" or type == "pre_script" or type == "post_script" or type == "prompt_variable" then
+      -- prompt_variable (the `<<var [options]` line) belongs here too: when
+      -- its options fail to resolve, the line survives resolution, and a
+      -- body assembled line-based used to carry the `<<...` directive text
+      -- onto the wire as request body.
       if current_block then
         for l = sr + 1, er + 1 do
           current_block._non_body_lines[l] = true

@@ -54,6 +54,12 @@ function M.setup()
     end
   end
 
+  -- NOTE: entries here that are ALSO defined further down via
+  -- define_hl_custom (PosteFileRef, PosteSeparator, PosteRequestName, the
+  -- PosteMethod* colors, ...) have their link overridden by those fixed
+  -- colors — editing the link target for them changes nothing. They stay
+  -- in the table as the `@group.poste_http` fallback spelling; move a name
+  -- out only when dropping the custom definition too.
   local syntax_links = {
     { "PosteLatency",    "Constant" },
     { "PosteSeparator",    "Delimiter" },
