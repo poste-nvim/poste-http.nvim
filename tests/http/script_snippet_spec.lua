@@ -27,7 +27,9 @@ describe("script_snippet", function()
 
     assert.is_true(events["TextChangedI"], "should register TextChangedI autocmd")
     assert.is_true(events["InsertLeave"], "should register InsertLeave autocmd")
-    assert.is_true(events["BufDelete"], "should register BufDelete autocmd")
+    -- BufWipeout, not BufDelete: nvim_buf_delete on an unloaded scratch
+    -- buffer fires only BufWipeout (see indicators.lua's note).
+    assert.is_true(events["BufWipeout"], "should register BufWipeout autocmd")
 
     -- The <Tab> expansion used to be a GLOBAL insert-mode map registered in
     -- setup(), shadowing the user's own <Tab> in every filetype. It is now

@@ -10,7 +10,7 @@
 local buffer_setup = require("poste-http.buffer_setup")
 
 describe("buffer_setup.attach_boundary", function()
-  it("attaches CursorMoved + BufDelete into one per-buffer group", function()
+  it("attaches CursorMoved + BufWipeout into one per-buffer group", function()
     local buf = vim.api.nvim_create_buf(false, true)
     buffer_setup.attach_boundary(buf)
 
@@ -23,15 +23,19 @@ describe("buffer_setup.attach_boundary", function()
       events[au.event] = true
     end
     assert.is_truthy(events.CursorMoved, "must refresh the block indicator on CursorMoved")
-    assert.is_truthy(events.BufDelete, "must clean the group up on BufDelete")
+    -- BufWipeout, not BufDelete: nvim_buf_delete on an unloaded buffer
+    -- fires only BufWipeout (see indicators.lua's note).
+    assert.is_truthy(events.BufWipeout, "must clean the group up on BufWipeout")
 
-    -- Deleting the buffer fires BufDelete and removes the group again.
+    -- Deleting the buffer fires BufWipeout and removes the group again.
     vim.api.nvim_buf_delete(buf, { force = true })
     local ok, remaining = pcall(vim.api.nvim_get_autocmds, { group = group_name })
     if ok then
       assert.equals(0, #remaining, "augroup must be deleted with the buffer")
     else
-      assert.matches("augroup", tostring(remaining), 1, true)
+      -- nvim's message for a nonexistent group names the group with the
+      -- numeric id appended ("Invalid 'group': 'PosteHttpBoundary_N'").
+      assert.matches(group_name, tostring(remaining), 1, true)
     end
   end)
 end)
