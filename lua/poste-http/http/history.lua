@@ -72,8 +72,13 @@ local function history_file()
   return state.config.history_file or (vim.fn.stdpath("data") .. "/poste-http/history.json")
 end
 
---- Write the full history to disk (synchronous, small bounded payload:
---- http_history_max entries with bodies truncated to MAX_BODY_SAVE).
+--- Write the full history to disk (synchronous). Bounded, not small: up to
+--- http_history_max (default 100) entries with body/request_body/
+--- request_headers each truncated to MAX_BODY_SAVE — worst case tens of MB
+--- to json.encode + write on the main loop. If a run's add_entry bursts
+--- (orchestration chains) start showing up in startup profiles, debounce
+--- or move the encode to a uv.new_work thread before shrinking either
+--- bound.
 local function persist()
   if not state.config.persist_history then return end
   -- _jq is transient UI state (jq filter result + original lines up to 2x
@@ -102,8 +107,14 @@ local function persist()
     if state.log then state.log("WARN", "history persist failed: " .. tostring(err)) end
     return
   end
-  fd:write(payload)
-  fd:close()
+  -- Lua 5.1 file:write raises on disk-full/quota instead of returning nil,
+  -- and add_entry runs on keymap paths with no outer pcall — keep the
+  -- failure logged, not thrown at the user.
+  local ok_write, w_err = pcall(fd.write, fd, payload)
+  if not ok_write and state.log then
+    state.log("WARN", "history persist failed: " .. tostring(w_err))
+  end
+  pcall(fd.close, fd)
 end
 
 --- Strings-only fields on a persisted response. `format_view` concatenates,
@@ -735,8 +746,12 @@ local function setup_detail_keymaps()
       local saved_response = state.last_response
       state.last_response = entry.response
       local json = require("poste-http.http.json")
-      local paths = json.get_key_paths()
+      -- Restore on BOTH paths: get_key_paths raising used to leave
+      -- state.last_response pointing at the history entry for good, and
+      -- every later response render then showed stale history data.
+      local ok, paths = pcall(json.get_key_paths)
       state.last_response = saved_response
+      paths = ok and paths or {}
       if #paths > 0 then
         vim.ui.select(paths, {
           prompt = "jq filter",

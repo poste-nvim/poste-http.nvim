@@ -25,7 +25,10 @@ function M.setup()
     end,
   })
 
-  vim.api.nvim_create_autocmd("BufDelete", {
+  -- BufWipeout, not BufDelete (see indicators.lua's note): nvim_buf_delete
+  -- on an unloaded scratch .http buffer fires only BufWipeout, so the old
+  -- BufDelete hook left `active` pointing at a dead buffer.
+  vim.api.nvim_create_autocmd("BufWipeout", {
     group = group,
     pattern = { "*.http", "*.rest" },
     callback = function()

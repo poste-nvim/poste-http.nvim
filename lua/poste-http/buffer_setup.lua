@@ -114,7 +114,9 @@ function M.setup_buffer_keymaps(buf)
       require("poste-http.indicators").clear_all(buf)
     end,
   })
-  vim.api.nvim_create_autocmd("BufDelete", {
+  -- BufWipeout, not BufDelete (see indicators.lua's note): nvim_buf_delete
+  -- on an unloaded scratch buffer fires only BufWipeout.
+  vim.api.nvim_create_autocmd("BufWipeout", {
     group = group, buffer = buf,
     callback = function()
       pcall(vim.api.nvim_del_augroup_by_name, "PosteClearIndicators_" .. buf)
@@ -146,7 +148,8 @@ function M.setup_buffer_keymaps(buf)
       fileref_debounce = vim.defer_fn(refresh_fileref_marks, require("poste-http.constants").SYNTAX_REFRESH_DEBOUNCE_MS)
     end,
   })
-  vim.api.nvim_create_autocmd("BufDelete", {
+  -- BufWipeout, not BufDelete (see indicators.lua's note).
+  vim.api.nvim_create_autocmd("BufWipeout", {
     group = frg, buffer = buf,
     callback = function()
       pcall(vim.api.nvim_del_augroup_by_name, "PosteFileref_" .. buf)
@@ -155,7 +158,7 @@ function M.setup_buffer_keymaps(buf)
 end
 
 --- Attach the boundary-indicator autocmds for an .http/.rest buffer:
---- CursorMoved refreshes the request-block highlight, BufDelete removes the
+--- CursorMoved refreshes the request-block highlight, BufWipeout removes the
 --- per-buffer augroup. Extracted from plugin/poste.lua, which needed the
 --- same pair for both its BufRead hook and its already-loaded-buffers loop.
 function M.attach_boundary(buf)
@@ -167,7 +170,9 @@ function M.attach_boundary(buf)
       require("poste-http.http.boundary_indicator").refresh(buf, vim.fn.line("."))
     end,
   })
-  vim.api.nvim_create_autocmd("BufDelete", {
+  -- BufWipeout, not BufDelete (see indicators.lua's note). The docstring
+  -- above still names the event family, not the literal autocmd event.
+  vim.api.nvim_create_autocmd("BufWipeout", {
     group = bg, buffer = buf,
     callback = function()
       pcall(vim.api.nvim_del_augroup_by_name, "PosteHttpBoundary_" .. buf)

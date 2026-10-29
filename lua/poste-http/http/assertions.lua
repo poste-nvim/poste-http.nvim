@@ -82,8 +82,14 @@ function M.run_assertions(response_data, code, script_vars)
       if k == "body" then
         if decoded_body == nil then
           local ok, parsed = pcall(vim.json.decode, raw_body)
-          if ok and parsed then
+          if ok then
             decoded_body = util.json_to_table(parsed)
+            if decoded_body == nil then
+              -- JSON `false`/`null` decode to falsy here; the old
+              -- `ok and parsed` check treated a literal `false` body as a
+              -- decode failure and served the raw STRING instead.
+              decoded_body = raw_body
+            end
           else
             decoded_body = raw_body
           end

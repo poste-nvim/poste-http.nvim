@@ -54,6 +54,11 @@ local function stop_all_timers(buf)
     s.timer:close()
   end
   spinners[buf] = nil
+  -- Same invalidation stop_timer does: a callback already in the schedule
+  -- queue, followed by clear_all and an immediate fresh "running" spinner
+  -- on the same line, would otherwise share the generation and paint one
+  -- stale frame over the new state.
+  spinner_gen = spinner_gen + 1
 end
 
 --- Drop one buffer's spinner state (test/eviction hook). A scratch `.http`

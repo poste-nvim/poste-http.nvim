@@ -49,7 +49,17 @@ function M.build_response(raw)
       if k == "body" then
         if decoded == nil then
           local ok, parsed = pcall(vim.json.decode, raw_body)
-          decoded = (ok and parsed) and util.json_to_table(parsed) or raw_body
+          if ok then
+            decoded = util.json_to_table(parsed)
+            if decoded == nil then
+              -- JSON `null` (or anything json_to_table flattens to nil):
+              -- hand back the raw text so the body is never nil AND the
+              -- sentinel above stops re-decoding on every access.
+              decoded = raw_body
+            end
+          else
+            decoded = raw_body
+          end
         end
         return decoded
       end
