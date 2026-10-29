@@ -215,6 +215,12 @@ function M.navigate_response(direction)
   if buf and vim.api.nvim_buf_is_valid(buf) and response_window and vim.api.nvim_win_is_valid(response_window) then
     vim.api.nvim_win_set_buf(response_window, buf)
     pcall(vim.api.nvim_win_set_cursor, response_window, { 1, 0 })
+    -- Pre-rendered body buffers were set up while still unshown, when
+    -- json.setup_buffer bailed on bufwinid < 0 — mounting the buffer into
+    -- the window here is the first chance to give it the fold options.
+    if cur_view == "body" then
+      pcall(function() require("poste-http.http.json").setup_buffer(buf) end)
+    end
     M.update_winbar(cur_view)
     return
   end
@@ -345,7 +351,9 @@ setup_keymaps = function(buf)
       pcall(vim.api.nvim_win_set_cursor, win, { last.line, 0 })
       -- Clear last_response so the UI updates even if the same request returns quickly
       state.set_response(nil)
-      require("poste-http").run_request()
+      -- Focus restore runs on both paths: a raising run_request used to
+      -- leave the cursor in the source window AND skip the restore.
+      pcall(function() require("poste-http").run_request() end)
       if vim.api.nvim_win_is_valid(response_win) then
         vim.api.nvim_set_current_win(response_win)
       end

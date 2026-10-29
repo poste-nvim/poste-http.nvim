@@ -4,6 +4,8 @@
 --- All winbar string assembly lives here: only this module may build
 --- %#highlight#/%= winbar strings (docs/dev/agent-guardrails.md §1).
 
+local state = require("poste-http.state") -- keymap display names for the env bar
+
 local M = {}
 
 --- Escape dynamic text for a winbar string (request names, jq queries,
@@ -21,7 +23,11 @@ end
 --- @return string
 function M.http_env(env_name)
   local left = string.format(" Env: %s ", M.escape(env_name))
-  local right = " g? help "
+  -- The help key is user-configurable (http_source.help); the old literal
+  -- "g?" went stale the moment someone remapped it. An unbound key drops
+  -- the hint segment instead of promising a key that does nothing.
+  local help_key = state.format_keymap("http_source", "help")
+  local right = help_key ~= "" and (" " .. help_key .. " help ") or ""
   return "%#PosteMeta#" .. left .. "%=" .. "%#PosteMetaDim#" .. right
 end
 

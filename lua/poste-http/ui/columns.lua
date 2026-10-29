@@ -37,6 +37,8 @@
 ---   text is the visible (truncated) cell text; col/end_col are byte offsets
 ---   suitable for nvim_buf_set_extmark. hl is the resolved highlight group
 ---   (per-cell override, or column default, or nil).
+local ui_text = require("poste-http.ui.text") -- NUL-strip gate shared with ui/text
+
 local M = {}
 
 local function disp_width(s)
@@ -84,9 +86,13 @@ end
 local function cell_text(v)
   if v == nil then return "", nil end
   if type(v) == "table" then
-    return v.text ~= nil and tostring(v.text) or "", v.hl
+    return cell_text(v.text), v.hl
   end
-  return tostring(v), nil
+  -- NUL hygiene: this module deliberately keeps its own char-part truncation
+  -- (the column-layout contract), but a NUL byte handed to vim.fn
+  -- strdisplaywidth/strcharpart becomes a Blob (Vim E976) and takes down the
+  -- whole render — ui/text.strip_nul is the shared pre-vim.fn gate.
+  return ui_text.strip_nul(tostring(v)), nil
 end
 
 --- @param rows table[]

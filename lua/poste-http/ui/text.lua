@@ -16,12 +16,15 @@ local M = {}
 --- a literal \u0000 from a JSON variable, a control byte in a response
 --- preview — would take down the whole render path (winbar, outline,
 --- history list). NUL carries no displayable content: drop it at the door.
+--- Exported for ui/columns, whose own truncation keeps the column-layout
+--- contract but shares this pre-vim.fn hygiene.
 local function strip_nul(s)
   if type(s) == "string" and s:find("%z") then
     return (s:gsub("%z", ""))
   end
   return s
 end
+M.strip_nul = strip_nul
 
 --- Chars of s (from the start) fitting within max_w display columns.
 --- Returns the prefix and the display width actually used.

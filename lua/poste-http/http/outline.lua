@@ -267,6 +267,10 @@ local function render()
   -- buffers tears it down); anything below reads src_buf/src_win.
   if not vim.api.nvim_buf_is_valid(active.src_buf) then return end
   if not vim.api.nvim_win_is_valid(active.src_win) then return end
+  -- Same stale-window class for the OUTLINE side: `:sb poste://outline`
+  -- keeps out_buf alive after the float died, so out_win (width reads in
+  -- build_label) can be a dead id while every buffer check passes.
+  if not vim.api.nvim_win_is_valid(active.out_win) then return end
   local items = collect_items(active.src_buf)
 
   -- Compute fixed method column width for alignment
@@ -323,6 +327,9 @@ local function highlight_current()
   -- dead one raised "Invalid window id" on every cursor move.
   if not vim.api.nvim_buf_is_valid(active.src_buf)
     or not vim.api.nvim_win_is_valid(active.src_win) then return end
+  -- data_win below feeds win_get_height/line("w0")/win_set_cursor; a float
+  -- closed via :sb keeps out_buf valid but not out_win.
+  if not vim.api.nvim_win_is_valid(active.out_win) then return end
   local cursor_line = vim.api.nvim_win_get_cursor(active.src_win)
   if not cursor_line then return end
 
@@ -475,7 +482,11 @@ function M.open()
     group = active.augroup,
     buffer = out_buf,
     callback = function()
-      if active then active = nil end
+      -- M.close, not just active = nil: the user can wipe the outline buffer
+      -- from outside (":<C-w>c" on the float), and leaving the augroup
+      -- behind kept the source buffer's CursorMoved/TextChangedI callbacks
+      -- firing into a dead state until the next open. close() is idempotent.
+      if active then M.close() end
     end,
   })
 

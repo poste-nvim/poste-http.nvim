@@ -198,7 +198,9 @@ function M.goto_definition()
       return
     end
 
-    notify("Definition not found: " .. tostring(var_name), vim.log.levels.WARN)
+    -- var_name is nil when the value carries no {{ref}} at all; report the
+    -- text under the cursor (trimmed, bounded) instead of a literal "nil".
+    notify("Definition not found: " .. vim.trim(text:sub(1, 60)), vim.log.levels.WARN)
     return
   end
 

@@ -292,7 +292,6 @@ function M.show_inspector()
 
   local float_buf = vim.api.nvim_create_buf(false, true)
   local jump_map = {}
-  vim.b[float_buf].poste_var_jump_map = jump_map
   for i, r in ipairs(rows) do
     jump_map[i] = r.entry
   end
