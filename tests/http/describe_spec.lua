@@ -198,4 +198,32 @@ Content-Disposition: form-data; name="a"
     assert.is_truthy(body:find('name="a"\n\n1', 1, true),
       "the blank line between a part's headers and its value must survive")
   end)
+
+  it("strips trailing \\r from a CRLF body", function()
+    local blocks = describe_mod.describe_content("### CRLF\r\nPOST http://api.example.com/users\r\nContent-Type: application/json\r\n\r\n{\"a\":1}\r\n", "t.http")
+    assert.equals(1, #blocks)
+    assert.equals("{\"a\":1}", blocks[1].body,
+      "a CRLF body must not carry a trailing \\r onto the wire")
+  end)
+
+  it("strips trailing \\r from CRLF header values", function()
+    local blocks = describe_mod.describe_content("### CRLF header\r\nPOST http://api.example.com/users\r\nX-Key: abc\r\n\r\n", "t.http")
+    assert.equals(1, #blocks)
+    assert.equals("abc", blocks[1].headers[1][2],
+      "a CRLF header value must not carry a trailing \\r")
+  end)
+
+  it("strips trailing \\r from CRLF method and path", function()
+    local blocks = describe_mod.describe_content("### CRLF request line\r\nPOST http://api.example.com/users\r\n\r\n", "t.http")
+    assert.equals(1, #blocks)
+    assert.equals("POST", blocks[1].method, "method must not carry \\r")
+    assert.equals("http://api.example.com/users", blocks[1].path, "path must not carry \\r")
+  end)
+
+  it("strips trailing \\r from CRLF request_line", function()
+    local blocks = describe_mod.describe_content("### CRLF\r\nPOST http://api.example.com/users\r\n\r\n", "t.http")
+    assert.equals(1, #blocks)
+    assert.equals("POST http://api.example.com/users", blocks[1].request_line,
+      "request_line must not carry \\r")
+  end)
 end)

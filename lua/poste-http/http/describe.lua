@@ -101,7 +101,15 @@ local function describe_via_treesitter(content)
   end
 
   local root = trees[1]:root()
+  -- Split then strip a trailing carriage return from every line. CRLF files
+  -- leave "\r" at the end of each line after a "\n" split, which otherwise
+  -- leaks into header values, body text, method/path, and request_line.
+  -- Normalizing here (the single describe entry point) keeps every consumer
+  -- clean instead of fixing each call site.
   local lines = vim.split(content, "\n", { plain = true })
+  for i = 1, #lines do
+    lines[i] = lines[i]:gsub("\r$", "")
+  end
   local line_count = #lines
 
   local blocks = {}
